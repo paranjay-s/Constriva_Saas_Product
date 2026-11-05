@@ -1,0 +1,204 @@
+{
+  "$defs": {
+    "Level": {
+      "properties": {
+        "elevation": {
+          "default": 0.0,
+          "title": "Elevation",
+          "type": "number"
+        },
+        "wall_height": {
+          "default": 3.0,
+          "title": "Wall Height",
+          "type": "number"
+        },
+        "walls": {
+          "items": {
+            "$ref": "#/$defs/Wall"
+          },
+          "title": "Walls",
+          "type": "array"
+        },
+        "openings": {
+          "items": {
+            "$ref": "#/$defs/Opening"
+          },
+          "title": "Openings",
+          "type": "array"
+        },
+        "rooms": {
+          "items": {
+            "$ref": "#/$defs/Room"
+          },
+          "title": "Rooms",
+          "type": "array"
+        }
+      },
+      "title": "Level",
+      "type": "object"
+    },
+    "Opening": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "wall_id": {
+          "title": "Wall Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "door",
+            "window"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "offset": {
+          "title": "Offset",
+          "type": "number"
+        },
+        "width": {
+          "title": "Width",
+          "type": "number"
+        },
+        "height": {
+          "title": "Height",
+          "type": "number"
+        },
+        "sill": {
+          "default": 0.0,
+          "title": "Sill",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "wall_id",
+        "type",
+        "offset",
+        "width",
+        "height"
+      ],
+      "title": "Opening",
+      "type": "object"
+    },
+    "Room": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "polygon": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "title": "Polygon",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "polygon"
+      ],
+      "title": "Room",
+      "type": "object"
+    },
+    "Wall": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "start": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "Start",
+          "type": "array"
+        },
+        "end": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "End",
+          "type": "array"
+        },
+        "thickness": {
+          "default": 0.2,
+          "title": "Thickness",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "start",
+        "end"
+      ],
+      "title": "Wall",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "version": {
+      "default": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "units": {
+      "const": "m",
+      "default": "m",
+      "title": "Units",
+      "type": "string"
+    },
+    "scale_source": {
+      "default": "assumed",
+      "enum": [
+        "scale_text",
+        "dimension_label",
+        "user_reference",
+        "assumed"
+      ],
+      "title": "Scale Source",
+      "type": "string"
+    },
+    "levels": {
+      "items": {
+        "$ref": "#/$defs/Level"
+      },
+      "title": "Levels",
+      "type": "array"
+    },
+    "confidence": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "title": "Confidence",
+      "type": "object"
+    }
+  },
+  "title": "PlanJSON",
+  "type": "object"
+}
