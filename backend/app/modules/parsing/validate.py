@@ -1,1 +1,1 @@
-"""app/modules/parsing/validate.py - TODO."""
+"""app/modules/parsing/validate.py - Validates and sanitizes LLM-generated PlanJSON data."""

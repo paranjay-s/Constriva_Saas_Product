@@ -1,1 +1,56 @@
 @import "tailwindcss";
+
+@theme {
+  --font-display: 'Outfit', sans-serif;
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+
+  --color-canvas: #101010;
+  --color-canvas-sub: #181818;
+  --color-panel: #202020;
+  --color-panel-high: #2a2a2a;
+  --color-panel-highest: #353534;
+  --color-border-subtle: #303030;
+  --color-border-muted: #444444;
+
+  --color-brand-bronze: #C5A77B;
+  --color-brand-bronze-dark: #8A7960;
+  --color-brand-bronze-light: #E2C294;
+
+  --color-ivory: #F5F2EB;
+  --color-ivory-hover: #EAE6DD;
+
+  --color-text-main: #FFFFFF;
+  --color-text-sub: #A6A6A6;
+  --color-text-dim: #737373;
+}
+
+@layer base {
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background-color: #101010;
+    color: #FFFFFF;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', sans-serif;
+    letter-spacing: -0.015em;
+  }
+}
+
+/* Custom scrollbars for architectural panels */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #101010;
+}
+::-webkit-scrollbar-thumb {
+  background: #303030;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #C5A77B;
+}
