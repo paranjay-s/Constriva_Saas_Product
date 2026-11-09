@@ -361,24 +361,37 @@ function ArchitecturalScene({
       <group>
         {rooms
           .filter((r) => categorizeRoom(r.name, r.id) === 'balcony')
-          .map((balconyRoom) => (
-            <group key={`balcony_railings_${balconyRoom.id}`}>
-              {/* Outer East edge */}
-              <BalconyRailingMesh
-                start={[maxX, minZ + totalD * 0.58]}
-                end={[maxX, maxZ]}
-                height={isCutaway ? 1.05 : 1.15}
-                theme={theme}
-              />
-              {/* Outer North edge */}
-              <BalconyRailingMesh
-                start={[maxX, maxZ]}
-                end={[minX + totalW * 0.58, maxZ]}
-                height={isCutaway ? 1.05 : 1.15}
-                theme={theme}
-              />
-            </group>
-          ))}
+          .map((balconyRoom) => {
+            const poly = balconyRoom.polygon || [];
+            let bMinX = Infinity;
+            let bMaxX = -Infinity;
+            let bMinZ = Infinity;
+            let bMaxZ = -Infinity;
+            for (const [x, z] of poly) {
+              if (x < bMinX) bMinX = x;
+              if (x > bMaxX) bMaxX = x;
+              if (z < bMinZ) bMinZ = z;
+              if (z > bMaxZ) bMaxZ = z;
+            }
+            return (
+              <group key={`balcony_railings_${balconyRoom.id}`}>
+                {/* Outer East edge */}
+                <BalconyRailingMesh
+                  start={[bMaxX, bMinZ]}
+                  end={[bMaxX, bMaxZ]}
+                  height={isCutaway ? 1.05 : 1.15}
+                  theme={theme}
+                />
+                {/* Outer North edge */}
+                <BalconyRailingMesh
+                  start={[bMaxX, bMaxZ]}
+                  end={[bMinX, bMaxZ]}
+                  height={isCutaway ? 1.05 : 1.15}
+                  theme={theme}
+                />
+              </group>
+            );
+          })}
       </group>
 
       {/* Procedural Scaled Interior Furniture */}

@@ -45,7 +45,15 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [planData, setPlanDataState] = useState<PlanJSON>(() => {
     try {
       const stored = localStorage.getItem(PLAN_STORAGE_KEY);
-      if (stored) return JSON.parse(stored);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const hasBathBalconyWall = parsed?.levels?.[0]?.walls?.some(
+          (w: any) => w.id === 'w_div_bath_balcony'
+        );
+        if (parsed?.version >= 2 && hasBathBalconyWall) {
+          return parsed;
+        }
+      }
     } catch {
       // fallback
     }

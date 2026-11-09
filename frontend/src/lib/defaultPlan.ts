@@ -1,7 +1,7 @@
 import type { MaterialQuantityItem, PlanJSON } from '../types';
 
 export const DEFAULT_ARCHITECTURAL_PLAN: PlanJSON = {
-  version: 1,
+  version: 2,
   units: 'm',
   scale_source: 'dimension_label',
   levels: [
@@ -11,23 +11,35 @@ export const DEFAULT_ARCHITECTURAL_PLAN: PlanJSON = {
       walls: [
         // Perimeter outer walls
         { id: 'w_ext_south', start: [0, 0], end: [10.5, 0], thickness: 0.25 },
-        { id: 'w_ext_east', start: [10.5, 0], end: [10.5, 8.5], thickness: 0.25 },
-        { id: 'w_ext_north', start: [10.5, 8.5], end: [0, 8.5], thickness: 0.25 },
+        { id: 'w_ext_east', start: [10.5, 0], end: [10.5, 5.0], thickness: 0.25 },
+        { id: 'w_ext_north', start: [6.0, 8.5], end: [0, 8.5], thickness: 0.25 },
         { id: 'w_ext_west', start: [0, 8.5], end: [0, 0], thickness: 0.25 },
 
         // Internal dividing walls
-        { id: 'w_div_living_bed', start: [6, 0], end: [6, 5], thickness: 0.15 },
-        { id: 'w_div_living_kitchen', start: [0, 5], end: [6, 5], thickness: 0.15 },
-        { id: 'w_div_kitchen_bath', start: [3.5, 5], end: [3.5, 8.5], thickness: 0.15 },
-        { id: 'w_div_bed_corridor', start: [6, 5], end: [10.5, 5], thickness: 0.15 },
+        { id: 'w_div_living_bed', start: [6.0, 0], end: [6.0, 5.0], thickness: 0.15 },
+        { id: 'w_div_living_kitchen', start: [0, 5.0], end: [3.8, 5.0], thickness: 0.15 },
+        { id: 'w_div_living_bath', start: [3.8, 5.0], end: [6.0, 5.0], thickness: 0.15 },
+        { id: 'w_div_kitchen_bath', start: [3.8, 5.0], end: [3.8, 8.5], thickness: 0.15 },
+        { id: 'w_div_bath_balcony', start: [6.0, 5.0], end: [6.0, 8.5], thickness: 0.15 },
+        { id: 'w_div_bed_balcony', start: [6.0, 5.0], end: [10.5, 5.0], thickness: 0.15 },
       ],
       openings: [
+        // Main entrance door into Living / Foyer
         { id: 'op_main_door', wall_id: 'w_ext_south', type: 'door', offset: 2.0, width: 1.0, height: 2.1, sill: 0 },
-        { id: 'op_bed_door', wall_id: 'w_div_living_bed', type: 'door', offset: 2.5, width: 0.9, height: 2.1, sill: 0 },
-        { id: 'op_bath_door', wall_id: 'w_div_kitchen_bath', type: 'door', offset: 1.0, width: 0.8, height: 2.1, sill: 0 },
-        { id: 'op_living_win', wall_id: 'w_ext_south', type: 'window', offset: 4.0, width: 1.6, height: 1.4, sill: 0.9 },
-        { id: 'op_bed_win', wall_id: 'w_ext_east', type: 'window', offset: 2.0, width: 1.5, height: 1.4, sill: 0.9 },
-        { id: 'op_kitchen_win', wall_id: 'w_ext_west', type: 'window', offset: 6.0, width: 1.2, height: 1.2, sill: 1.0 },
+        // Living room front window
+        { id: 'op_living_win', wall_id: 'w_ext_south', type: 'window', offset: 3.8, width: 1.6, height: 1.4, sill: 0.9 },
+        // Door from Living to Master Bedroom
+        { id: 'op_bed_door', wall_id: 'w_div_living_bed', type: 'door', offset: 1.2, width: 0.9, height: 2.1, sill: 0 },
+        // Master Bedroom East window
+        { id: 'op_bed_win', wall_id: 'w_ext_east', type: 'window', offset: 1.8, width: 1.5, height: 1.4, sill: 0.9 },
+        // Kitchen entrance door from Dining area
+        { id: 'op_kitchen_door', wall_id: 'w_div_living_kitchen', type: 'door', offset: 1.5, width: 0.9, height: 2.1, sill: 0 },
+        // Kitchen window
+        { id: 'op_kitchen_win', wall_id: 'w_ext_west', type: 'window', offset: 6.2, width: 1.2, height: 1.2, sill: 1.0 },
+        // Private Bathroom door accessible from central living/corridor
+        { id: 'op_bath_door', wall_id: 'w_div_living_bath', type: 'door', offset: 0.6, width: 0.8, height: 2.1, sill: 0 },
+        // Dedicated sliding terrace glass door directly connecting Master Bedroom to Balcony & Terrace
+        { id: 'op_terrace_door', wall_id: 'w_div_bed_balcony', type: 'door', offset: 1.2, width: 2.0, height: 2.2, sill: 0 },
       ],
       rooms: [
         {
@@ -35,28 +47,28 @@ export const DEFAULT_ARCHITECTURAL_PLAN: PlanJSON = {
           name: 'Living & Dining Room',
           polygon: [
             [0, 0],
-            [6, 0],
-            [6, 5],
-            [0, 5],
+            [6.0, 0],
+            [6.0, 5.0],
+            [0, 5.0],
           ],
         },
         {
           id: 'room_master_bed',
           name: 'Master Bedroom',
           polygon: [
-            [6, 0],
+            [6.0, 0],
             [10.5, 0],
-            [10.5, 5],
-            [6, 5],
+            [10.5, 5.0],
+            [6.0, 5.0],
           ],
         },
         {
           id: 'room_kitchen',
           name: 'Kitchen & Pantry',
           polygon: [
-            [0, 5],
-            [3.5, 5],
-            [3.5, 8.5],
+            [0, 5.0],
+            [3.8, 5.0],
+            [3.8, 8.5],
             [0, 8.5],
           ],
         },
@@ -64,20 +76,20 @@ export const DEFAULT_ARCHITECTURAL_PLAN: PlanJSON = {
           id: 'room_bath',
           name: 'Ensuite Bathroom',
           polygon: [
-            [3.5, 5],
-            [6, 5],
-            [6, 8.5],
-            [3.5, 8.5],
+            [3.8, 5.0],
+            [6.0, 5.0],
+            [6.0, 8.5],
+            [3.8, 8.5],
           ],
         },
         {
           id: 'room_terrace',
           name: 'Balcony & Terrace',
           polygon: [
-            [6, 5],
-            [10.5, 5],
+            [6.0, 5.0],
+            [10.5, 5.0],
             [10.5, 8.5],
-            [6, 8.5],
+            [6.0, 8.5],
           ],
         },
       ],
