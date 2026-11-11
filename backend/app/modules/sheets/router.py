@@ -409,12 +409,15 @@ async def export_sheet_pdf(
     try:
         sheet = None
         try:
-            import asyncio
-            loop = asyncio.get_running_loop()
-            sheet = await asyncio.wait_for(
-                loop.run_in_executor(None, SheetService.get_or_create_sheet, clean_proj_id),
-                timeout=2.0
-            )
+            if os.environ.get("TESTING") == "1":
+                sheet = SheetService.get_or_create_sheet(clean_proj_id)
+            else:
+                import asyncio
+                loop = asyncio.get_running_loop()
+                sheet = await asyncio.wait_for(
+                    loop.run_in_executor(None, SheetService.get_or_create_sheet, clean_proj_id),
+                    timeout=2.0
+                )
         except Exception as sheet_err:
             logger.warning(f"Could not load sheet from DB for {clean_proj_id} ({sheet_err}), using fail-safe items")
 

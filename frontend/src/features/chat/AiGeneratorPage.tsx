@@ -1,114 +1,243 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProject } from '../../context/ProjectContext';
 import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
 import {
   IconArrowLeft,
   IconArrowRight,
   IconSparkles,
   IconDownload,
   IconCheck,
+  IconRefresh,
+  IconZoomIn,
+  IconZoomOut,
+  SendIcon,
 } from '../../components/ui/Icons';
-import type { ChatMessage } from '../../types';
+import { aiPlanApi, type GeneratedPlanResponse, type RoomSpecification } from './api';
+
+interface ChatBubble {
+  id: string;
+  sender: 'user' | 'assistant';
+  text: string;
+  timestamp: string;
+  planSummary?: string;
+}
 
 export function AiGeneratorPage() {
   const navigate = useNavigate();
-  const { activeProject, setProjectStatus } = useProject();
+  const { activeProject, setProjectStatus, setPlanData } = useProject();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  // Tab mode on the left pane: Details Form vs Live AI Refinement Chat
+  const [activeTab, setActiveTab] = useState<'details' | 'chat'>('details');
+
+  // View mode on the right preview pane: CAD Blueprint image vs Room Schedule table
+  const [activeView, setActiveView] = useState<'blueprint' | 'rooms' | 'specs'>('blueprint');
+
+  // Input specifications from the user
+  const [plotWidth, setPlotWidth] = useState<number>(36.5);
+  const [plotLength, setPlotLength] = useState<number>(55.0);
+  const [facing, setFacing] = useState<string>('East');
+  const [goal, setGoal] = useState<'residence' | 'rental'>('residence');
+  const [configType, setConfigType] = useState<string>('3_bhk');
+  const [clientName, setClientName] = useState<string>(activeProject?.name || 'SMT. GEETA GAUD');
+  const [userPrompt, setUserPrompt] = useState<string>(
+    'Master suite with dressing room & attached toilet, Puja room in northeast, front parking for 2 cars, and 4ft lawn'
+  );
+
+  // Generation state
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [generatedPlan, setGeneratedPlan] = useState<GeneratedPlanResponse | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [downloadSuccess, setDownloadSuccess] = useState<boolean>(false);
+  const [zoomLevel, setZoomLevel] = useState<number>(1.0);
+
+  // Chat conversation
+  const [chatInput, setChatInput] = useState<string>('');
+  const [isChatSubmitting, setIsChatSubmitting] = useState<boolean>(false);
+  const [chatMessages, setChatMessages] = useState<ChatBubble[]>([
     {
-      id: 'msg_1',
+      id: 'welcome',
       sender: 'assistant',
-      text: "Welcome! I am Construtiva's Architectural AI. I have prepared an initial 2-BHK residential floor plan (10.5m × 8.5m) with an open living-dining zone, master bedroom suite, ensuite bath, and terrace. How would you like to refine it? You can ask to enlarge rooms, relocate the entrance, or add features.",
+      text: "Welcome to Construtiva's 2D Floor Plan Synthesis Studio. Specify your plot dimensions, facing, goal, and layout requirements below, and I will draft a precision CAD architectural working drawing.",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      updatedPlanSummary: 'Initial 2-BHK Modern Layout • 89.25 m² Built-Up Area',
     },
   ]);
 
-  const [inputPrompt, setInputPrompt] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [planVariant, setPlanVariant] = useState<'standard' | 'expanded_living' | 'terrace_suite'>('standard');
-  const [downloadSuccess, setDownloadSuccess] = useState(false);
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView?.({ behavior: 'smooth' });
-  };
+  const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isGenerating]);
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, isChatSubmitting]);
 
-  const promptSuggestions = [
-    'Add an attached balcony to master bedroom',
-    'Enlarge the open-concept living area',
-    'Add a utility storage room near kitchen',
-    'Optimize for natural north sunlight',
+  // Derived dimensions
+  const areaSqFt = Math.round(plotWidth * plotLength * 10) / 10;
+  const areaSqM = Math.round(plotWidth * plotLength * 0.092903 * 10) / 10;
+
+  // Preset quick selections
+  const presets = [
+    {
+      label: "36'6\" × 55' 3-BHK Residence",
+      w: 36.5,
+      l: 55.0,
+      g: 'residence' as const,
+      c: '3_bhk',
+      f: 'East',
+      p: 'Front porch parking, northeast puja room, spacious drawing-dining, master suite with attached toilet, and front lawn',
+    },
+    {
+      label: "36'6\" × 55' Dual 2-BHK Rental",
+      w: 36.5,
+      l: 55.0,
+      g: 'rental' as const,
+      c: 'dual_rental_2bhk',
+      f: 'East',
+      p: 'Independent dual flats with external staircase, private circulation corridors, 2 full kitchens, and ventilation shafts',
+    },
+    {
+      label: "30' × 50' 2-BHK Modern Home",
+      w: 30.0,
+      l: 50.0,
+      g: 'residence' as const,
+      c: '2_bhk',
+      f: 'North',
+      p: 'North-facing 2-BHK with attached master bath, modular kitchen with wash balcony, and front garden',
+    },
+    {
+      label: "40' × 60' 4-BHK Executive Villa",
+      w: 40.0,
+      l: 60.0,
+      g: 'residence' as const,
+      c: '4_bhk',
+      f: 'East',
+      p: 'Grand family villa with 2-car covered portico, expansive family lounge, puja room, and luxury master suite',
+    },
   ];
 
-  const handleSendMessage = (textToSend?: string) => {
-    const text = textToSend || inputPrompt;
-    if (!text.trim() || isGenerating) return;
+  const applyPreset = (preset: (typeof presets)[0]) => {
+    setPlotWidth(preset.w);
+    setPlotLength(preset.l);
+    setGoal(preset.g);
+    setConfigType(preset.c);
+    setFacing(preset.f);
+    setUserPrompt(preset.p);
+  };
 
-    const userMsg: ChatMessage = {
-      id: 'msg_' + Date.now(),
+  // Main generation handler
+  const handleGenerate = async () => {
+    if (plotWidth <= 0 || plotLength <= 0) {
+      setErrorMessage('Please enter valid positive plot dimensions.');
+      return;
+    }
+
+    setIsGenerating(true);
+    setErrorMessage(null);
+
+    try {
+      const res = await aiPlanApi.generatePlan({
+        project_id: activeProject?.id,
+        plot_width: plotWidth,
+        plot_length: plotLength,
+        area_sqft: areaSqFt,
+        goal,
+        config_type: configType,
+        facing,
+        client_name: clientName,
+        user_prompt: userPrompt,
+      });
+
+      setGeneratedPlan(res);
+      setProjectStatus('generated');
+
+      // Add to conversation
+      const summaryMsg: ChatBubble = {
+        id: `plan_gen_${Date.now()}`,
+        sender: 'assistant',
+        text: res.ai_commentary || `Generated ${res.name} (${plotWidth}' × ${plotLength}', ${facing} Facing).`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        planSummary: `${res.name} • ${res.rooms?.length || 18} Rooms • ${areaSqFt.toLocaleString()} sq.ft (${areaSqM.toFixed(1)} m²)`,
+      };
+      setChatMessages((prev) => [...prev, summaryMsg]);
+    } catch (err: any) {
+      console.error('Plan generation failed:', err);
+      setErrorMessage(err.detail || err.message || 'Failed to generate 2D floor plan. Please check backend connection.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Chat message send handler
+  const handleSendChat = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const text = chatInput.trim();
+    if (!text || isChatSubmitting || isGenerating) return;
+
+    const userBubble: ChatBubble = {
+      id: `usr_${Date.now()}`,
       sender: 'user',
-      text: text.trim(),
+      text,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
-    setInputPrompt('');
-    setIsGenerating(true);
+    setChatMessages((prev) => [...prev, userBubble]);
+    setChatInput('');
+    setIsChatSubmitting(true);
 
-    // Simulate AI synthesis & blueprint adjustment
-    setTimeout(() => {
-      let aiResponseText = '';
-      let summaryText = '';
+    try {
+      const chatRes = await aiPlanApi.chatWithAssistant({
+        message: text,
+        project_id: activeProject?.id,
+        plan_id: generatedPlan?.plan_id,
+        plot_width: plotWidth,
+        plot_length: plotLength,
+        goal,
+        config_type: configType,
+        facing,
+      });
 
-      const lower = text.toLowerCase();
-      if (lower.includes('balcony') || lower.includes('terrace')) {
-        setPlanVariant('terrace_suite');
-        aiResponseText =
-          'I have expanded the east balcony into a 14.5 m² private sun terrace adjoining the master suite, with double-glazed sliding glass doors and concrete stone pavers.';
-        summaryText = 'Terrace Suite Variant • 96.5 m² Total Area';
-      } else if (lower.includes('enlarge') || lower.includes('living') || lower.includes('open')) {
-        setPlanVariant('expanded_living');
-        aiResponseText =
-          'Living and dining area has been widened by 1.2 meters. The partition between kitchen and dining is now an open architectural breakfast counter with pendant lighting clearance.';
-        summaryText = 'Expanded Open-Concept Variant • 94.0 m² Total Area';
-      } else {
-        aiResponseText = `I have adjusted the floor plan according to your instruction: "${text}". Partition walls were recalculated to maintain structural load-bearing symmetry and optimal circulation paths.`;
-        summaryText = 'Custom AI Revision • 89.25 m² Total Area';
+      if (chatRes.plan) {
+        setGeneratedPlan(chatRes.plan);
+        if (chatRes.plan.config_type) setConfigType(chatRes.plan.config_type);
+        if (chatRes.plan.goal) setGoal(chatRes.plan.goal as any);
+        if (chatRes.plan.facing) setFacing(chatRes.plan.facing);
+        if (chatRes.plan.plot_width_ft) setPlotWidth(chatRes.plan.plot_width_ft);
+        if (chatRes.plan.plot_length_ft) setPlotLength(chatRes.plan.plot_length_ft);
+        if (chatRes.plan.plan_json) {
+          setPlanData(chatRes.plan.plan_json);
+        }
       }
 
-      const aiMsg: ChatMessage = {
-        id: 'msg_' + (Date.now() + 1),
+      const assistantBubble: ChatBubble = {
+        id: `ast_${Date.now()}`,
         sender: 'assistant',
-        text: aiResponseText,
+        text: chatRes.reply || 'Plan revised according to your instructions.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        updatedPlanSummary: summaryText,
+        planSummary: chatRes.plan
+          ? `${chatRes.plan.name} • ${chatRes.plan.rooms?.length || 18} Rooms`
+          : undefined,
       };
 
-      setMessages((prev) => [...prev, aiMsg]);
-      setIsGenerating(false);
-      setProjectStatus('generated');
-    }, 1400);
+      setChatMessages((prev) => [...prev, assistantBubble]);
+    } catch (err: any) {
+      console.error('Chat modification error:', err);
+      const errorBubble: ChatBubble = {
+        id: `err_${Date.now()}`,
+        sender: 'assistant',
+        text: `Error processing revision: ${err.detail || err.message || 'Please retry with specific architectural details.'}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setChatMessages((prev) => [...prev, errorBubble]);
+    } finally {
+      setIsChatSubmitting(false);
+    }
   };
 
+  // Download high-resolution PNG
   const handleDownloadBlueprint = () => {
-    const svgElement = document.getElementById('blueprint-canvas');
-    if (!svgElement) return;
+    if (!generatedPlan?.png_base64) return;
 
-    const serializer = new XMLSerializer();
-    const svgString = serializer.serializeToString(svgElement);
-    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = url;
-    link.download = `${activeProject?.name || 'blueprint'}_architectural_plan.svg`;
+    link.href = `data:image/png;base64,${generatedPlan.png_base64}`;
+    link.download = `${(generatedPlan.name || 'floor_plan').replace(/[^a-zA-Z0-9_-]/g, '_')}_cad_blueprint.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -117,347 +246,576 @@ export function AiGeneratorPage() {
     setTimeout(() => setDownloadSuccess(false), 3000);
   };
 
+  // Seamless transition to 3D workspace
   const handleProceedTo3D = () => {
+    if (generatedPlan?.plan_json) {
+      setPlanData(generatedPlan.plan_json);
+      try {
+        localStorage.setItem('construtiva_plan_data', JSON.stringify(generatedPlan.plan_json));
+        if (activeProject?.id) {
+          localStorage.setItem(`construtiva_plan_cache_${activeProject.id}`, JSON.stringify(generatedPlan.plan_json));
+        }
+      } catch {
+        // Ignore quota
+      }
+    }
     setProjectStatus('ready');
     navigate('/projects/3d-workspace');
   };
 
   return (
-    <div className="min-h-screen bg-canvas text-primary flex flex-col">
-      {/* Top Header */}
-      <header className="border-b border-border bg-surface/80 backdrop-blur-md px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+    <div className="min-h-screen bg-[#111317] text-[#FFFFFF] flex flex-col font-sans select-none">
+      {/* Top Engineering Studio Header */}
+      <header className="border-b border-[#23272F] bg-[#16181D]/90 backdrop-blur-md px-4 sm:px-6 py-3 flex items-center justify-between gap-4 sticky top-0 z-30">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate('/projects/options')}
             leftIcon={<IconArrowLeft className="w-4 h-4" />}
+            className="text-[#9E9E9E] hover:text-[#FFFFFF]"
           >
             Options
           </Button>
 
-          <div className="h-4 w-px bg-border" />
+          <div className="h-4 w-px bg-[#2B303B]" />
 
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-serif font-medium text-primary text-base sm:text-lg">
-                AI Floor Plan Generator
+              <h1 className="font-display font-medium text-[#FFFFFF] text-base sm:text-lg">
+                Create 2D Floor Plan • AI Floor Plan Generator
               </h1>
-              <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-accent/15 text-accent border border-accent/30 flex items-center gap-1">
+              <span className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-[#C5A77B]/15 text-[#C5A77B] border border-[#C5A77B]/30 flex items-center gap-1">
                 <IconSparkles className="w-3 h-3" />
                 Conversational CAD
               </span>
             </div>
-            <p className="text-xs text-secondary hidden sm:block">
-              Describe your vision in plain English. The AI draws and updates the 2D architectural blueprint in real-time.
+            <p className="text-xs text-[#8A8F98] hidden sm:block">
+              Construtiva Architect AI: Specify plot dimensions, goal &amp; room layout to synthesize high-resolution CAD working drawings.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleDownloadBlueprint}
-            leftIcon={downloadSuccess ? <IconCheck className="w-3.5 h-3.5 text-emerald-400" /> : <IconDownload className="w-3.5 h-3.5" />}
-          >
-            {downloadSuccess ? 'Downloaded Blueprint' : 'Download Blueprint'}
-          </Button>
+        <div className="flex items-center gap-2.5">
+          {generatedPlan?.png_base64 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleDownloadBlueprint}
+              leftIcon={downloadSuccess ? <IconCheck className="w-3.5 h-3.5 text-emerald-400" /> : <IconDownload className="w-3.5 h-3.5" />}
+              className="border-[#2D333F] bg-[#1C2028] text-xs"
+            >
+              {downloadSuccess ? 'Downloaded CAD PNG' : 'Download Blueprint PNG'}
+            </Button>
+          )}
 
           <Button
             variant="primary"
             size="sm"
             onClick={handleProceedTo3D}
             rightIcon={<IconArrowRight className="w-4 h-4" />}
+            className="bg-[#C5A77B] text-[#121212] font-semibold hover:bg-[#D4B88E] shadow-sm text-xs"
           >
             Open in 3D Workspace
           </Button>
         </div>
       </header>
 
-      {/* Main Split Layout: Left Chat, Right Blueprint View */}
-      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-[calc(100vh-125px)]">
-        {/* Left Side: Chat Conversation Pane (42% width) */}
-        <section className="lg:w-[42%] border-b lg:border-b-0 lg:border-r border-border bg-surface flex flex-col">
-          {/* Conversation history */}
-          <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4 max-h-[calc(100vh-230px)]">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex flex-col ${
-                  msg.sender === 'user' ? 'items-end' : 'items-start'
-                }`}
-              >
-                <div
-                  className={`max-w-[85%] rounded-xl p-3.5 sm:p-4 text-sm leading-relaxed ${
-                    msg.sender === 'user'
-                      ? 'bg-accent/20 border border-accent/40 text-primary rounded-tr-none'
-                      : 'bg-panel border border-border text-primary rounded-tl-none shadow-sm'
-                  }`}
-                >
-                  {msg.sender === 'assistant' && (
-                    <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-accent uppercase tracking-wider">
-                      <IconSparkles className="w-3.5 h-3.5 text-accent" />
-                      <span>Construtiva Architect AI</span>
-                    </div>
-                  )}
-
-                  <p className="whitespace-pre-line">{msg.text}</p>
-
-                  {msg.updatedPlanSummary && (
-                    <div className="mt-2.5 pt-2 border-t border-border/60 text-xs text-secondary flex items-center gap-1.5 font-mono">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                      {msg.updatedPlanSummary}
-                    </div>
-                  )}
-                </div>
-                <span className="text-[10px] text-secondary mt-1 px-1">
-                  {msg.timestamp}
-                </span>
-              </div>
-            ))}
-
-            {isGenerating && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-panel border border-border w-fit text-xs text-secondary animate-pulse">
-                <IconSparkles className="w-4 h-4 text-accent animate-spin" />
-                <span>Architect AI is recalculating load vectors and CAD coordinates...</span>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Prompt Chips Suggestions */}
-          <div className="px-4 py-2 border-t border-border/50 bg-panel/40 flex items-center gap-2 overflow-x-auto scrollbar-none">
-            <span className="text-[11px] text-secondary whitespace-nowrap">Try:</span>
-            {promptSuggestions.map((sug, i) => (
-              <button
-                key={i}
-                onClick={() => handleSendMessage(sug)}
-                className="px-2.5 py-1 rounded-full text-[11px] bg-panel hover:bg-surface border border-border text-secondary hover:text-primary transition-colors whitespace-nowrap"
-              >
-                {sug}
-              </button>
-            ))}
-          </div>
-
-          {/* Chat Input Field */}
-          <div className="p-3 sm:p-4 border-t border-border bg-surface">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleSendMessage();
-              }}
-              className="flex items-center gap-2"
+      {/* Main Split Interface */}
+      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-[calc(100vh-65px)]">
+        {/* Left Side: Parameters Form & Conversational Refinement (42% width) */}
+        <section className="lg:w-[42%] border-b lg:border-b-0 lg:border-r border-[#23272F] bg-[#16181E] flex flex-col">
+          {/* Tabs: Specifications Form vs AI Refinement Chat */}
+          <div className="flex items-center border-b border-[#23272F] bg-[#121418] px-4 pt-2">
+            <button
+              onClick={() => setActiveTab('details')}
+              className={`px-4 py-2.5 text-xs font-mono uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+                activeTab === 'details'
+                  ? 'border-[#C5A77B] text-[#FFFFFF] font-semibold'
+                  : 'border-transparent text-[#7E8490] hover:text-[#B0B5C0]'
+              }`}
             >
-              <input
-                type="text"
-                value={inputPrompt}
-                onChange={(e) => setInputPrompt(e.target.value)}
-                placeholder="Ask to modify dimensions, swap rooms, add terraces..."
-                disabled={isGenerating}
-                className="flex-1 px-4 py-2.5 rounded-lg bg-panel border border-border text-sm text-primary placeholder-secondary/60 focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
-              />
-              <Button
-                type="submit"
-                variant="primary"
-                disabled={!inputPrompt.trim() || isGenerating}
-                rightIcon={<IconArrowRight className="w-4 h-4" />}
-              >
-                Send
-              </Button>
-            </form>
+              1. Plot Details &amp; Rooms
+            </button>
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`px-4 py-2.5 text-xs font-mono uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'chat'
+                  ? 'border-[#C5A77B] text-[#FFFFFF] font-semibold'
+                  : 'border-transparent text-[#7E8490] hover:text-[#B0B5C0]'
+              }`}
+            >
+              <IconSparkles className="w-3.5 h-3.5 text-[#C5A77B]" />
+              2. AI CAD Assistant Chat
+            </button>
           </div>
+
+          {/* Tab 1: Plot Details Form */}
+          {activeTab === 'details' ? (
+            <div className="flex-1 p-5 overflow-y-auto space-y-5 text-sm">
+              {/* Presets Quick Pick */}
+              <div>
+                <span className="text-[11px] font-mono uppercase tracking-widest text-[#C5A77B] block mb-2">
+                  Quick Benchmark Presets
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  {presets.map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => applyPreset(preset)}
+                      className="p-2.5 text-left rounded-lg bg-[#1D212A] hover:bg-[#252A36] border border-[#2B313F] hover:border-[#C5A77B]/50 transition-colors cursor-pointer group"
+                    >
+                      <div className="text-xs font-medium text-[#E0E2E8] group-hover:text-[#FFFFFF] truncate">
+                        {preset.label}
+                      </div>
+                      <div className="text-[10px] text-[#7A8190] mt-0.5">
+                        {preset.w}' × {preset.l}' • {preset.f} Facing
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dimensions Section */}
+              <div className="p-4 rounded-xl bg-[#1B1F27] border border-[#282F3D] space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono uppercase tracking-wider text-[#A0A6B2]">
+                    Plot Dimensions (Feet)
+                  </span>
+                  <span className="text-xs font-mono text-[#C5A77B] font-semibold">
+                    {areaSqFt.toLocaleString()} sq.ft ({areaSqM.toFixed(1)} m²)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] text-[#868D9B] block mb-1">
+                      Plot Width (Frontage)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="15"
+                        max="200"
+                        value={plotWidth}
+                        onChange={(e) => setPlotWidth(parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 rounded-lg bg-[#14171D] border border-[#2C3342] text-sm text-[#FFFFFF] focus:outline-none focus:border-[#C5A77B]"
+                      />
+                      <span className="absolute right-3 top-2 text-xs text-[#6B7280]">ft</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-[#868D9B] block mb-1">
+                      Plot Length (Depth)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="20"
+                        max="300"
+                        value={plotLength}
+                        onChange={(e) => setPlotLength(parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 rounded-lg bg-[#14171D] border border-[#2C3342] text-sm text-[#FFFFFF] focus:outline-none focus:border-[#C5A77B]"
+                      />
+                      <span className="absolute right-3 top-2 text-xs text-[#6B7280]">ft</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Goal & Configuration */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-[#868D9B] block mb-1">
+                    Building Purpose / Goal
+                  </label>
+                  <select
+                    value={goal}
+                    onChange={(e) => {
+                      const val = e.target.value as 'residence' | 'rental';
+                      setGoal(val);
+                      if (val === 'rental') setConfigType('dual_rental_2bhk');
+                      else setConfigType('3_bhk');
+                    }}
+                    className="w-full px-3 py-2 rounded-lg bg-[#1B1F27] border border-[#2C3342] text-sm text-[#FFFFFF] focus:outline-none focus:border-[#C5A77B]"
+                  >
+                    <option value="residence">Personal Family Residence</option>
+                    <option value="rental">Multi-Unit Rental Investment</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-[#868D9B] block mb-1">
+                    Room Configuration
+                  </label>
+                  <select
+                    value={configType}
+                    onChange={(e) => setConfigType(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-[#1B1F27] border border-[#2C3342] text-sm text-[#FFFFFF] focus:outline-none focus:border-[#C5A77B]"
+                  >
+                    {goal === 'rental' ? (
+                      <>
+                        <option value="dual_rental_2bhk">Dual Independent 2-BHK Units</option>
+                        <option value="rental_1bhk_2bhk">1-BHK + 2-BHK Split Units</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="3_bhk">3-BHK Luxury Residence</option>
+                        <option value="2_bhk">2-BHK Compact Modern</option>
+                        <option value="4_bhk">4-BHK Executive Villa</option>
+                        <option value="1_bhk">1-BHK Studio Suite</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              {/* Facing & Client Name */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-[#868D9B] block mb-1">
+                    Front Entrance Facing (Vastu)
+                  </label>
+                  <select
+                    value={facing}
+                    onChange={(e) => setFacing(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-[#1B1F27] border border-[#2C3342] text-sm text-[#FFFFFF] focus:outline-none focus:border-[#C5A77B]"
+                  >
+                    <option value="East">East Facing (Sunrise / Ishanya)</option>
+                    <option value="North">North Facing (Kubera / Wealth)</option>
+                    <option value="West">West Facing (Nairutya / Varuna)</option>
+                    <option value="South">South Facing (Yama / Agni)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-[#868D9B] block mb-1">
+                    Title Block Client Name
+                  </label>
+                  <input
+                    type="text"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-[#1B1F27] border border-[#2C3342] text-sm text-[#FFFFFF] focus:outline-none focus:border-[#C5A77B]"
+                    placeholder="e.g. SMT. GEETA GAUD"
+                  />
+                </div>
+              </div>
+
+              {/* Custom Requirements Text */}
+              <div>
+                <label className="text-[11px] text-[#868D9B] block mb-1">
+                  Custom Layout Specifications
+                </label>
+                <textarea
+                  rows={3}
+                  value={userPrompt}
+                  onChange={(e) => setUserPrompt(e.target.value)}
+                  placeholder="Specify particular room requests (e.g. attached toilets, open modular kitchen, 4ft front lawn, puja room, parking for 2 cars)..."
+                  className="w-full px-3.5 py-2.5 rounded-lg bg-[#1B1F27] border border-[#2C3342] text-sm text-[#FFFFFF] placeholder-[#5A6270] focus:outline-none focus:border-[#C5A77B] leading-relaxed resize-none"
+                />
+              </div>
+
+              {/* Error Alert */}
+              {errorMessage && (
+                <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
+              {/* Action Button */}
+              <Button
+                variant="accent"
+                size="md"
+                onClick={handleGenerate}
+                disabled={isGenerating}
+                leftIcon={isGenerating ? <span className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin" /> : <IconSparkles className="w-4 h-4" />}
+                className="w-full py-3 bg-[#C5A77B] text-[#121212] font-semibold hover:bg-[#D4B88E] cursor-pointer shadow-md"
+              >
+                {isGenerating ? 'Synthesizing Precision CAD Drawing...' : 'Generate 2D Floor Plan'}
+              </Button>
+            </div>
+          ) : (
+            /* Tab 2: AI Refinement Chat */
+            <div className="flex-1 flex flex-col justify-between overflow-hidden">
+              <div className="flex-1 p-4 overflow-y-auto space-y-3.5">
+                {chatMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}
+                  >
+                    <div
+                      className={`max-w-[88%] rounded-xl p-3.5 text-xs sm:text-sm leading-relaxed ${
+                        msg.sender === 'user'
+                          ? 'bg-[#C5A77B]/20 border border-[#C5A77B]/40 text-[#FFFFFF] rounded-tr-none'
+                          : 'bg-[#1D212B] border border-[#2A3140] text-[#E0E4EC] rounded-tl-none shadow-sm'
+                      }`}
+                    >
+                      {msg.sender === 'assistant' && (
+                        <div className="flex items-center gap-1.5 mb-1.5 text-[10px] font-mono font-semibold text-[#C5A77B] uppercase tracking-wider">
+                          <IconSparkles className="w-3 h-3 text-[#C5A77B]" />
+                          Architectural AI
+                        </div>
+                      )}
+                      <div>{msg.text}</div>
+                      {msg.planSummary && (
+                        <div className="mt-2 pt-2 border-t border-[#31394A] text-[11px] font-mono text-[#A8B2C4]">
+                          {msg.planSummary}
+                        </div>
+                      )}
+                      <div className="mt-1 text-[9px] text-[#697282] text-right font-mono">
+                        {msg.timestamp}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {isChatSubmitting && (
+                  <div className="flex items-center gap-2 p-3 text-xs text-[#8A93A4] bg-[#1D212B] rounded-xl border border-[#2A3140] w-fit">
+                    <span className="w-3.5 h-3.5 rounded-full border-2 border-[#C5A77B] border-t-transparent animate-spin" />
+                    <span>Recalculating room coordinates and updating CAD drawing...</span>
+                  </div>
+                )}
+                <div ref={chatBottomRef} />
+              </div>
+
+              {/* Chat Input Bar */}
+              <form
+                onSubmit={handleSendChat}
+                className="p-3 border-t border-[#23272F] bg-[#14161C] flex items-center gap-2"
+              >
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  placeholder="Ask to modify dimensions, swap rooms, add terraces..."
+                  disabled={isChatSubmitting || isGenerating}
+                  className="flex-1 px-3.5 py-2 rounded-lg bg-[#1B1F27] border border-[#2C3342] text-xs sm:text-sm text-[#FFFFFF] placeholder-[#646C7C] focus:outline-none focus:border-[#C5A77B]"
+                />
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={!chatInput.trim() || isChatSubmitting || isGenerating}
+                  className="bg-[#C5A77B] text-[#121212] font-semibold hover:bg-[#D4B88E] px-3.5 py-2 cursor-pointer"
+                >
+                  <SendIcon size={14} />
+                </Button>
+              </form>
+            </div>
+          )}
         </section>
 
-        {/* Right Side: Interactive 2D Blueprint Canvas (58% width) */}
-        <section className="lg:w-[58%] p-4 sm:p-6 flex flex-col bg-[#141414] overflow-y-auto">
-          {/* Blueprint Meta Bar */}
+        {/* Right Side: High-Resolution 2D CAD Blueprint & Room Breakdown (58% width) */}
+        <section className="lg:w-[58%] p-4 sm:p-6 flex flex-col bg-[#0D0F12] overflow-y-auto">
+          {/* View Mode Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-            <div className="flex items-center gap-3">
-              <span className="px-2.5 py-1 rounded bg-panel border border-border text-xs text-secondary font-mono">
-                CAD Coordinate Mode: Metric (Meters)
-              </span>
-              <span className="text-xs text-secondary">Scale: 1:50 Blueprint</span>
+            <div className="flex items-center gap-1.5 p-1 rounded-lg bg-[#161920] border border-[#242A36]">
+              <button
+                type="button"
+                onClick={() => setActiveView('blueprint')}
+                className={`px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                  activeView === 'blueprint'
+                    ? 'bg-[#C5A77B] text-[#121212] font-semibold shadow-sm'
+                    : 'text-[#8A93A4] hover:text-[#FFFFFF]'
+                }`}
+              >
+                CAD Blueprint
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveView('rooms')}
+                className={`px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                  activeView === 'rooms'
+                    ? 'bg-[#C5A77B] text-[#121212] font-semibold shadow-sm'
+                    : 'text-[#8A93A4] hover:text-[#FFFFFF]'
+                }`}
+              >
+                Room Schedule ({generatedPlan?.rooms?.length || 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveView('specs')}
+                className={`px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-wider transition-all cursor-pointer ${
+                  activeView === 'specs'
+                    ? 'bg-[#C5A77B] text-[#121212] font-semibold shadow-sm'
+                    : 'text-[#8A93A4] hover:text-[#FFFFFF]'
+                }`}
+              >
+                Engineering Review
+              </button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-secondary">
-                Variant: <strong className="text-primary capitalize">{planVariant.replace('_', ' ')}</strong>
-              </span>
-            </div>
+            {/* Zoom & Fullscreen Controls for Blueprint */}
+            {activeView === 'blueprint' && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel((z) => Math.max(0.6, z - 0.2))}
+                  className="p-1.5 rounded bg-[#161920] border border-[#242A36] text-[#8A93A4] hover:text-[#FFFFFF] cursor-pointer"
+                  title="Zoom Out"
+                >
+                  <IconZoomOut size={16} />
+                </button>
+                <span className="text-[11px] font-mono text-[#8A93A4] px-1.5">
+                  {Math.round(zoomLevel * 100)}%
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel((z) => Math.min(2.2, z + 0.2))}
+                  className="p-1.5 rounded bg-[#161920] border border-[#242A36] text-[#8A93A4] hover:text-[#FFFFFF] cursor-pointer"
+                  title="Zoom In"
+                >
+                  <IconZoomIn size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setZoomLevel(1.0)}
+                  className="p-1.5 rounded bg-[#161920] border border-[#242A36] text-[#8A93A4] hover:text-[#FFFFFF] cursor-pointer"
+                  title="Reset Zoom"
+                >
+                  <IconRefresh size={16} />
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* 2D Architectural SVG Blueprint */}
-          <div className="flex-1 flex items-center justify-center min-h-[460px] bg-[#11161B] rounded-xl border border-[#232F3E] p-6 shadow-inner relative overflow-hidden">
-            {/* Architectural Grid Background */}
-            <div
-              className="absolute inset-0 opacity-20 pointer-events-none"
-              style={{
-                backgroundImage:
-                  'linear-gradient(to right, #385070 1px, transparent 1px), linear-gradient(to bottom, #385070 1px, transparent 1px)',
-                backgroundSize: '30px 30px',
-              }}
-            />
+          {/* View Container */}
+          <div className="flex-1 flex flex-col justify-center items-center min-h-[520px] rounded-xl bg-[#13161C] border border-[#222834] overflow-hidden relative shadow-inner">
+            {isGenerating ? (
+              <div className="flex flex-col items-center justify-center p-8 space-y-4">
+                <div className="w-12 h-12 rounded-full border-3 border-[#C5A77B] border-t-transparent animate-spin" />
+                <div className="text-center">
+                  <div className="text-sm font-medium text-[#FFFFFF]">Synthesizing 2D CAD Blueprint...</div>
+                  <div className="text-xs text-[#7B8394] mt-1 font-mono">
+                    Applying Er. Vikas Patodi CAD standards ({plotWidth}' × {plotLength}', {facing} Facing)
+                  </div>
+                </div>
+              </div>
+            ) : activeView === 'blueprint' ? (
+              /* CAD Blueprint Image View */
+              <div className="w-full h-full flex items-center justify-center p-4 overflow-auto">
+                {generatedPlan?.png_base64 ? (
+                  <div
+                    style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }}
+                    className="transition-transform duration-150 flex items-center justify-center max-w-full max-h-full"
+                  >
+                    <img
+                      src={`data:image/png;base64,${generatedPlan.png_base64}`}
+                      alt={generatedPlan.name || '2D Architectural Floor Plan'}
+                      className="max-h-[680px] w-auto object-contain rounded border border-[#2D3545] shadow-2xl"
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center p-8 text-[#707888] flex flex-col items-center justify-center max-w-sm">
+                    <div className="w-14 h-14 rounded-2xl bg-[#1B1F27] border border-[#2B3242] flex items-center justify-center mb-3.5 shadow-md">
+                      <IconSparkles className="w-7 h-7 text-[#C5A77B]" />
+                    </div>
+                    <h3 className="text-sm font-semibold text-[#FFFFFF] mb-1.5">Awaiting Your Requirements</h3>
+                    <p className="text-xs text-[#8A93A4] leading-relaxed mb-4">
+                      Review or adjust your plot dimensions, facing direction, building purpose, and custom specifications on the left, then click <strong>Generate 2D Floor Plan</strong> to draft your blueprint.
+                    </p>
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#181C24] border border-[#282F3E] text-[11px] text-[#A6AFC0] font-mono">
+                      <span>Plot: {plotWidth}' × {plotLength}'</span>
+                      <span className="text-[#4B5565]">•</span>
+                      <span>{areaSqFt.toLocaleString()} sq.ft</span>
+                      <span className="text-[#4B5565]">•</span>
+                      <span>{facing} Facing</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : activeView === 'rooms' ? (
+              /* Room Schedule Table View */
+              <div className="w-full h-full p-5 overflow-y-auto">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-xs font-mono uppercase tracking-wider text-[#C5A77B]">
+                    Architectural Room Schedule &amp; Dimensions
+                  </span>
+                  <span className="text-xs font-mono text-[#828B9C]">
+                    Total Rooms: {generatedPlan?.rooms?.length || 0}
+                  </span>
+                </div>
 
-            <svg
-              id="blueprint-canvas"
-              viewBox="0 0 750 550"
-              className="w-full max-w-[680px] h-auto drop-shadow-2xl relative z-10 font-sans select-none"
-            >
-              {/* Outer Dimension Lines */}
-              <g stroke="#53729A" strokeWidth="1" strokeDasharray="3,3">
-                <line x1="50" y1="30" x2="650" y2="30" />
-                <line x1="50" y1="20" x2="50" y2="40" />
-                <line x1="650" y1="20" x2="650" y2="40" />
-                <text x="350" y="24" fill="#8BB5E8" fontSize="12" textAnchor="middle" fontFamily="monospace">
-                  10.50 m (External Dimension)
-                </text>
+                <div className="overflow-x-auto rounded-lg border border-[#232938]">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-[#232938] bg-[#191D26] text-[#A2AAB8] font-mono uppercase text-[10px]">
+                        <th className="py-2.5 px-3">#</th>
+                        <th className="py-2.5 px-3">Room Name</th>
+                        <th className="py-2.5 px-3">Dimensions</th>
+                        <th className="py-2.5 px-3">Category</th>
+                        <th className="py-2.5 px-3">Coordinates (X, Y)</th>
+                        <th className="py-2.5 px-3 text-right">Area (sq.ft)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#1D222E] bg-[#14171E] text-[#D8DCE6]">
+                      {(generatedPlan?.rooms || []).map((room: RoomSpecification, idx: number) => {
+                        const area = Math.round(room.w_ft * room.h_ft * 10) / 10;
+                        return (
+                          <tr key={room.id} className="hover:bg-[#1B202B] transition-colors">
+                            <td className="py-2.5 px-3 font-mono text-[#6A7385]">{idx + 1}</td>
+                            <td className="py-2.5 px-3 font-semibold text-[#FFFFFF]">{room.name}</td>
+                            <td className="py-2.5 px-3 font-mono text-[#C5A77B]">{room.dimensions}</td>
+                            <td className="py-2.5 px-3">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#212735] text-[#9EA7B8] border border-[#2B3344]">
+                                {room.category}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 font-mono text-[#7B8496]">
+                              {room.x_ft.toFixed(1)}', {room.y_ft.toFixed(1)}'
+                            </td>
+                            <td className="py-2.5 px-3 font-mono text-right font-medium text-[#E0E4ED]">
+                              {area > 0 ? `${area} sq.ft` : '-'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              /* Engineering & Vastu Review View */
+              <div className="w-full h-full p-6 overflow-y-auto space-y-4 text-xs leading-relaxed text-[#D0D6E2]">
+                <div className="p-4 rounded-xl bg-[#191D26] border border-[#252C3B] space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-[#C5A77B]">
+                    <IconSparkles className="w-4 h-4 text-[#C5A77B]" />
+                    Architectural Engineering Review
+                  </div>
+                  <p className="text-xs text-[#A8B2C4] leading-relaxed">
+                    {generatedPlan?.ai_commentary ||
+                      'The generated plan establishes clean functional zoning, abundant natural ventilation cutouts, and load-bearing column symmetry.'}
+                  </p>
+                </div>
 
-                <line x1="30" y1="50" x2="30" y2="480" />
-                <line x1="20" y1="50" x2="40" y2="50" />
-                <line x1="20" y1="480" x2="40" y2="480" />
-                <text x="24" y="270" fill="#8BB5E8" fontSize="12" textAnchor="middle" transform="rotate(-90 24 270)" fontFamily="monospace">
-                  8.50 m
-                </text>
-              </g>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3.5 rounded-lg bg-[#161A22] border border-[#232938] space-y-1">
+                    <span className="text-[10px] font-mono uppercase text-[#C5A77B] block">
+                      Vastu &amp; Solar Orientation
+                    </span>
+                    <p className="text-[#969FA8]">
+                      Orientation configured for <strong className="text-[#FFFFFF]">{facing} Facing</strong> entrance. Master bedroom anchored in Southwest (Nairutya) for stability, and modular Kitchen located in Southeast (Agni) zone.
+                    </p>
+                  </div>
 
-              {/* Floor Polygon Fills */}
-              {/* Living & Dining */}
-              <rect x="50" y="50" width={planVariant === 'expanded_living' ? 420 : 360} height="240" fill="#1C2633" stroke="#3D5A80" strokeWidth="1.5" />
-              {/* Kitchen */}
-              <rect x="50" y="290" width="210" height="190" fill="#1E2A38" stroke="#3D5A80" strokeWidth="1.5" />
-              {/* Bathroom */}
-              <rect x="260" y="290" width={planVariant === 'expanded_living' ? 150 : 150} height="190" fill="#202D3C" stroke="#3D5A80" strokeWidth="1.5" />
-              {/* Master Bedroom */}
-              <rect x={planVariant === 'expanded_living' ? 470 : 410} y="50" width={planVariant === 'expanded_living' ? 240 : 240} height="240" fill="#1C2633" stroke="#3D5A80" strokeWidth="1.5" />
-              {/* Terrace / Balcony */}
-              <rect
-                x={planVariant === 'expanded_living' ? 470 : 410}
-                y="290"
-                width={planVariant === 'expanded_living' ? 240 : 240}
-                height="190"
-                fill={planVariant === 'terrace_suite' ? '#2A3C4F' : '#17202B'}
-                stroke="#3D5A80"
-                strokeWidth="1.5"
-              />
-
-              {/* Room Text Labels */}
-              <g textAnchor="middle" fill="#FFFFFF">
-                {/* Living */}
-                <text x={planVariant === 'expanded_living' ? 260 : 230} y="160" fontSize="15" fontWeight="600" fill="#F5F2EB">
-                  LIVING & DINING
-                </text>
-                <text x={planVariant === 'expanded_living' ? 260 : 230} y="180" fontSize="12" fill="#8BB5E8" fontFamily="monospace">
-                  {planVariant === 'expanded_living' ? '36.8 m²' : '30.0 m²'} • Oak Hardwood
-                </text>
-
-                {/* Master Bed */}
-                <text x={planVariant === 'expanded_living' ? 590 : 530} y="160" fontSize="14" fontWeight="600" fill="#F5F2EB">
-                  MASTER SUITE
-                </text>
-                <text x={planVariant === 'expanded_living' ? 590 : 530} y="180" fontSize="12" fill="#8BB5E8" fontFamily="monospace">
-                  22.5 m² • Ensuite Access
-                </text>
-
-                {/* Kitchen */}
-                <text x="155" y="380" fontSize="14" fontWeight="600" fill="#F5F2EB">
-                  KITCHEN
-                </text>
-                <text x="155" y="400" fontSize="12" fill="#8BB5E8" fontFamily="monospace">
-                  12.2 m² • Slate Tile
-                </text>
-
-                {/* Bathroom */}
-                <text x={planVariant === 'expanded_living' ? 335 : 335} y="380" fontSize="13" fontWeight="600" fill="#F5F2EB">
-                  BATHROOM
-                </text>
-                <text x={planVariant === 'expanded_living' ? 335 : 335} y="400" fontSize="11" fill="#8BB5E8" fontFamily="monospace">
-                  9.5 m² • Marble
-                </text>
-
-                {/* Balcony / Terrace */}
-                <text x={planVariant === 'expanded_living' ? 590 : 530} y="380" fontSize="14" fontWeight="600" fill={planVariant === 'terrace_suite' ? '#C5A77B' : '#F5F2EB'}>
-                  {planVariant === 'terrace_suite' ? 'SUN TERRACE' : 'BALCONY'}
-                </text>
-                <text x={planVariant === 'expanded_living' ? 590 : 530} y="400" fontSize="12" fill="#8BB5E8" fontFamily="monospace">
-                  {planVariant === 'terrace_suite' ? '14.5 m² • Pavers' : '15.0 m² • Concrete'}
-                </text>
-              </g>
-
-              {/* Doors with Swing Arcs */}
-              {/* Main Entrance Door */}
-              <g stroke="#C5A77B" strokeWidth="2" fill="none">
-                <line x1="160" y1="50" x2="205" y2="50" strokeWidth="4" stroke="#11161B" />
-                <line x1="160" y1="50" x2="160" y2="90" stroke="#C5A77B" strokeWidth="2.5" />
-                <path d="M 160 90 A 40 40 0 0 0 200 50" stroke="#C5A77B" strokeWidth="1.5" strokeDasharray="3,3" />
-              </g>
-
-              {/* Bedroom Door */}
-              <g stroke="#C5A77B" strokeWidth="2" fill="none">
-                <line x1={planVariant === 'expanded_living' ? 470 : 410} y1="180" x2={planVariant === 'expanded_living' ? 470 : 410} y2="220" strokeWidth="4" stroke="#11161B" />
-                <line x1={planVariant === 'expanded_living' ? 470 : 410} y1="180" x2={planVariant === 'expanded_living' ? 435 : 375} y2="180" stroke="#C5A77B" strokeWidth="2" />
-                <path d={`M ${planVariant === 'expanded_living' ? 435 : 375} 180 A 35 35 0 0 0 ${planVariant === 'expanded_living' ? 470 : 410} 215`} stroke="#C5A77B" strokeWidth="1.5" strokeDasharray="3,3" />
-              </g>
-
-              {/* Windows (Double Lines) */}
-              <g stroke="#64B5F6" strokeWidth="3">
-                <line x1="520" y1="48" x2="600" y2="48" />
-                <line x1="520" y1="52" x2="600" y2="52" />
-
-                <line x1="648" y1="120" x2="648" y2="200" />
-                <line x1="652" y1="120" x2="652" y2="200" />
-
-                <line x1="48" y1="330" x2="48" y2="400" />
-                <line x1="52" y1="330" x2="52" y2="400" />
-              </g>
-
-              {/* Exterior Heavy Walls */}
-              <rect x="50" y="50" width="600" height="430" fill="none" stroke="#E6ECEF" strokeWidth="6" />
-
-              {/* Internal Walls */}
-              <line x1="50" y1="290" x2="650" y2="290" stroke="#E6ECEF" strokeWidth="4" />
-              <line x1={planVariant === 'expanded_living' ? 470 : 410} y1="50" x2={planVariant === 'expanded_living' ? 470 : 410} y2="480" stroke="#E6ECEF" strokeWidth="4" />
-              <line x1="260" y1="290" x2="260" y2="480" stroke="#E6ECEF" strokeWidth="4" />
-
-              {/* North Arrow Compass */}
-              <g transform="translate(610, 80)">
-                <circle cx="0" cy="0" r="16" fill="#1C2633" stroke="#8BB5E8" strokeWidth="1.5" />
-                <polygon points="0,-12 4,6 0,2 -4,6" fill="#C5A77B" />
-                <text x="0" y="-14" fill="#C5A77B" fontSize="9" fontWeight="bold" textAnchor="middle">
-                  N
-                </text>
-              </g>
-            </svg>
-          </div>
-
-          {/* Plan Specifications Bar */}
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <Card className="p-3 bg-panel/60">
-              <span className="text-[11px] text-secondary block">Total Built-Up Area</span>
-              <span className="text-sm font-semibold text-primary font-mono">
-                {planVariant === 'terrace_suite' ? '96.5 m²' : planVariant === 'expanded_living' ? '94.0 m²' : '89.25 m²'}
-              </span>
-            </Card>
-
-            <Card className="p-3 bg-panel/60">
-              <span className="text-[11px] text-secondary block">Zoned Rooms</span>
-              <span className="text-sm font-semibold text-primary">5 Functional Zones</span>
-            </Card>
-
-            <Card className="p-3 bg-panel/60">
-              <span className="text-[11px] text-secondary block">Wall Construction</span>
-              <span className="text-sm font-semibold text-primary">0.25m / 0.15m Brick</span>
-            </Card>
-
-            <Card className="p-3 bg-panel/60">
-              <span className="text-[11px] text-secondary block">Est. Material BOQ</span>
-              <span className="text-sm font-semibold text-accent font-mono">₹9.46 Lakhs</span>
-            </Card>
+                  <div className="p-3.5 rounded-lg bg-[#161A22] border border-[#232938] space-y-1">
+                    <span className="text-[10px] font-mono uppercase text-[#C5A77B] block">
+                      Circulation &amp; Privacy
+                    </span>
+                    <p className="text-[#969FA8]">
+                      Continuous circulation passages connect front foyer to living areas without traversing private bedroom suites. Independent stair flights provide vertical access.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </section>
       </main>
     </div>
   );
 }
-export default AiGeneratorPage;

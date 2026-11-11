@@ -150,14 +150,26 @@ async def ai_chat(
     takes user architectural requests (attached toilets, enlarge rooms, add lawn, swap locations),
     synthesizes the revised plan, and generates an updated 2D CAD blueprint PNG.
     """
-    from app.modules.ai.floorplan_generator import generate_ai_floorplan
+    from app.modules.ai.floorplan_generator import (
+        generate_ai_floorplan,
+        extract_user_architectural_intent,
+    )
+
+    resolved_config, resolved_goal, resolved_w, resolved_l, resolved_facing = extract_user_architectural_intent(
+        message=payload.message,
+        current_config=payload.config_type or "3_bhk",
+        current_goal=payload.goal or "residence",
+        current_width=payload.plot_width or 36.5,
+        current_length=payload.plot_length or 55.0,
+        current_facing=payload.facing or "East",
+    )
 
     plan_res = generate_ai_floorplan(
-        plot_width_ft=payload.plot_width or 36.5,
-        plot_length_ft=payload.plot_length or 55.0,
-        config_type=payload.config_type or "dual_rental_2bhk",
-        goal=payload.goal or "rental",
-        facing=payload.facing or "East",
+        plot_width_ft=resolved_w,
+        plot_length_ft=resolved_l,
+        config_type=resolved_config,
+        goal=resolved_goal,
+        facing=resolved_facing,
         user_prompt=payload.message,
         client_name="SMT. GEETA GAUD",
         project_id=payload.project_id or current_user.id,

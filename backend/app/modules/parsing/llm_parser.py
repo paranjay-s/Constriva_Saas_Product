@@ -351,7 +351,19 @@ def sanitize_and_normalize_plan(raw_plan: Dict[str, Any]) -> Dict[str, Any]:
     # Deduplicate walls and reproject opening offsets
     clean_walls, clean_openings = deduplicate_and_merge_walls(normalized_walls, normalized_openings)
 
-    # Filter rogue rooms that lie completely outside the plot bounding box
+    # Compute bounding box of building walls to filter rogue out-of-bounds rooms
+    if clean_walls:
+        w_min_x = min([w["start"][0] for w in clean_walls] + [w["end"][0] for w in clean_walls])
+        w_max_x = max([w["start"][0] for w in clean_walls] + [w["end"][0] for w in clean_walls])
+        w_min_y = min([w["start"][1] for w in clean_walls] + [w["end"][1] for w in clean_walls])
+        w_max_y = max([w["start"][1] for w in clean_walls] + [w["end"][1] for w in clean_walls])
+    else:
+        w_min_x, w_max_x = 0.0, 12.0
+        w_min_y, w_max_y = 0.0, 18.0
+
+    wall_margin = 0.20
+
+    # Filter rogue rooms that lie outside the main building walls boundary
     # (e.g. from adjacent plans on a multi-plan sheet or stray displaced geometry)
     normalized_rooms: List[Dict[str, Any]] = []
     for r in raw_rooms:
@@ -360,27 +372,26 @@ def sanitize_and_normalize_plan(raw_plan: Dict[str, Any]) -> Dict[str, Any]:
         if len(poly) < 3:
             continue
 
-        # Check center of polygon: must be reasonably within plot boundary (0 to ~12.5m X, 0 to ~18m Y)
+        # Check center of polygon: must be inside the building walls footprint
         cx = sum(p[0] for p in poly) / len(poly)
         cy = sum(p[1] for p in poly) / len(poly)
-        if cx < -0.5 or cx > 13.0 or cy < -0.5 or cy > 18.5:
+        if cx < (w_min_x - wall_margin) or cx > (w_max_x + wall_margin) or cy < (w_min_y - wall_margin) or cy > (w_max_y + wall_margin):
             logger.info(f"Filtered out rogue room '{r.get('name')}' at ({cx:.1f}, {cy:.1f}) outside plot boundary.")
             continue
 
         name = r.get("name") or "Room"
-        
+        lower_name = name.lower()
         explicit_kind = r.get("kind")
-        if explicit_kind not in ("indoor", "semi_open", "outdoor", "void"):
-            # Set explicit kind based on architectural function
-            lower_name = name.lower()
-            if "lawn" in lower_name:
-                explicit_kind = "outdoor"
-            elif any(k in lower_name for k in ["verandah", "veranda", "stair"]):
-                explicit_kind = "semi_open"
-            elif "shaft" in lower_name or "open" in lower_name:
-                explicit_kind = "void"
-            else:
-                explicit_kind = "indoor"
+
+        # Explicitly categorize outdoor and semi-open architectural spaces
+        if any(k in lower_name for k in ["lawn", "garden", "backyard", "yard"]):
+            explicit_kind = "outdoor"
+        elif any(k in lower_name for k in ["park", "car", "driveway", "garage", "porch", "verandah", "veranda", "stair", "balcony", "terrace", "patio", "deck", "sitout", "wash"]):
+            explicit_kind = "semi_open"
+        elif any(k in lower_name for k in ["shaft", "duct", "open", "void"]):
+            explicit_kind = "void"
+        elif explicit_kind not in ("indoor", "semi_open", "outdoor", "void"):
+            explicit_kind = "indoor"
 
         normalized_rooms.append({
             "id": r_id,

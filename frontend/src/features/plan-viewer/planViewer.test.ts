@@ -5,6 +5,8 @@ import {
   REALISTIC_THEME,
   CLAY_THEME,
 } from './materials/materials';
+import { isIndoorTileTarget } from './PlanViewer';
+import type { Room } from '../../types';
 
 describe('3D Architectural Viewer - Material & Categorization Engine', () => {
   it('correctly categorizes bedrooms and assigns light oak flooring', () => {
@@ -53,6 +55,42 @@ describe('3D Architectural Viewer - Material & Categorization Engine', () => {
     expect(REALISTIC_THEME.doorWood.color).toBe('#A87342');
     expect(REALISTIC_THEME.windowGlass.transparent).toBe(true);
     expect(REALISTIC_THEME.windowGlass.opacity).toBeLessThan(0.5);
+  });
+
+  it('isIndoorTileTarget strictly includes indoor rooms and excludes all outdoor/semi-open spaces', () => {
+    const dummyPoly: [number, number][] = [[0, 0], [4, 0], [4, 4], [0, 4]];
+
+    // Indoor rooms MUST be targetable
+    const indoorLiving: Room = { id: 'liv_1', name: 'LIVING ROOM 11X20', kind: 'indoor', polygon: dummyPoly };
+    const indoorBed: Room = { id: 'bed_1', name: 'BEDROOM 14X12', kind: 'indoor', polygon: dummyPoly };
+    const indoorKit: Room = { id: 'kit_1', name: 'KIT. 11X11', kind: 'indoor', polygon: dummyPoly };
+    const indoorBath: Room = { id: 'bath_1', name: 'TOILET 6X8', kind: 'indoor', polygon: dummyPoly };
+    const indoorPuja: Room = { id: 'puja_1', name: 'PUJA', kind: 'indoor', polygon: dummyPoly };
+
+    expect(isIndoorTileTarget(indoorLiving, 'living')).toBe(true);
+    expect(isIndoorTileTarget(indoorBed, 'bedroom')).toBe(true);
+    expect(isIndoorTileTarget(indoorKit, 'kitchen')).toBe(true);
+    expect(isIndoorTileTarget(indoorBath, 'bathroom')).toBe(true);
+    expect(isIndoorTileTarget(indoorPuja, 'general')).toBe(true);
+
+    // Outdoor & semi-open spaces MUST NEVER be targetable for interior floor tiles
+    const lawn: Room = { id: 'lawn_1', name: 'LAWN 10X8', kind: 'outdoor', polygon: dummyPoly };
+    const parking: Room = { id: 'park_1', name: 'PARKING 14X16', kind: 'semi_open', polygon: dummyPoly };
+    const staircase: Room = { id: 'stair_1', name: 'STAIRCASE', kind: 'semi_open', polygon: dummyPoly };
+    const verandah: Room = { id: 'ver_1', name: 'VERANDAH', kind: 'semi_open', polygon: dummyPoly };
+    const balcony: Room = { id: 'balc_1', name: 'BALCONY', kind: 'semi_open', polygon: dummyPoly };
+    const terrace: Room = { id: 'terr_1', name: 'SUN TERRACE', kind: 'semi_open', polygon: dummyPoly };
+    const washOutdoor: Room = { id: 'wash_1', name: 'WASH 11X4', kind: 'semi_open', polygon: dummyPoly };
+    const openShaft: Room = { id: 'shaft_1', name: 'OPEN SHAFT', kind: 'void', polygon: dummyPoly };
+
+    expect(isIndoorTileTarget(lawn, 'lawn')).toBe(false);
+    expect(isIndoorTileTarget(parking, 'parking')).toBe(false);
+    expect(isIndoorTileTarget(staircase, 'corridor')).toBe(false);
+    expect(isIndoorTileTarget(verandah, 'balcony')).toBe(false);
+    expect(isIndoorTileTarget(balcony, 'balcony')).toBe(false);
+    expect(isIndoorTileTarget(terrace, 'balcony')).toBe(false);
+    expect(isIndoorTileTarget(washOutdoor, 'utility')).toBe(false);
+    expect(isIndoorTileTarget(openShaft, 'void')).toBe(false);
   });
 });
 

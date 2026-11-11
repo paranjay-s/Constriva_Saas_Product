@@ -148,3 +148,46 @@ def test_ai_generate_and_chat_endpoints():
     assert len(chat_data["rooms"]) >= 15
     assert len(chat_data["plan_json"]["levels"][0]["walls"]) >= 20
 
+    # 3. Test dynamic conversion from 3 bedrooms to 2 bedrooms via chat
+    reconfig_data = generate_ai_floorplan(
+        plot_width_ft=36.5,
+        plot_length_ft=55.0,
+        goal="residence",
+        config_type="3_bhk",
+        facing="East",
+        user_prompt="make it 2 bedrooms from 3",
+        client_name="SMT. GEETA GAUD",
+    )
+    assert reconfig_data["config_type"] == "2_bhk"
+    room_names = [r["name"] for r in reconfig_data["rooms"]]
+    bedroom_count = sum(1 for r in reconfig_data["rooms"] if r.get("category") == "Bedroom")
+    assert bedroom_count == 2
+    assert any("FAMILY LOUNGE" in n for n in room_names)
+    assert not any("CHILD BEDROOM" in n for n in room_names)
+    assert "2-BHK" in reconfig_data["name"] or "2-bhk" in reconfig_data["name"].lower()
+
+
+def test_extract_user_architectural_intent():
+    """
+    Verifies that natural language user requests correctly extract intent
+    for BHK count, goal, dimensions, and orientation.
+    """
+    from app.modules.ai.floorplan_generator import extract_user_architectural_intent
+
+    # Test 1: "make it 2 bedrooms from 3"
+    cfg, goal, w, l, f = extract_user_architectural_intent("make it 2 bedrooms from 3", current_config="3_bhk")
+    assert cfg == "2_bhk"
+    assert goal == "residence"
+
+    # Test 2: "change to rental units"
+    cfg, goal, w, l, f = extract_user_architectural_intent("can we make this a rental with 2 flats?", current_config="3_bhk")
+    assert goal == "rental"
+    assert cfg == "dual_rental_2bhk"
+
+    # Test 3: Plot dimensions and facing
+    cfg, goal, w, l, f = extract_user_architectural_intent("plot is 40x60 facing North")
+    assert w == 40.0
+    assert l == 60.0
+    assert f == "North"
+
+

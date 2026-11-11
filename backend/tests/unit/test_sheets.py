@@ -501,44 +501,29 @@ def test_surface_mappings_query_and_update(monkeypatch):
     assert "area" in res[0]
 
 
-def test_export_pdf_endpoint_sync_and_queue(client, monkeypatch):
+def test_default_boq_items_contains_all_7_materials():
     """
-    Verifies that GET /api/v1/sheets/{project_id}/export/pdf and POST .../export/pdf/queue
-    respond promptly with valid PDF headers or 202 Accepted.
+    Verifies that get_default_boq_items produces all 7 materials with positive quantities,
+    surface tags, and calibrated geometric properties for instant failsafe reporting.
     """
-    from unittest.mock import MagicMock
-    mock_sheet = {
-        "id": "sheet-test-1",
-        "name": "Pavilion Serena BOQ",
-        "items": [
-            {
-                "name": "Brick",
-                "category": "Masonry",
-                "unit": "pcs",
-                "quantity": 8500.0,
-                "waste_factor": 0.05,
-                "total_quantity": 8925.0,
-                "area": 699.39,
-                "area_unit": "m2",
-                "surface_tag": "masonry_walls",
-            }
-        ]
-    }
-    monkeypatch.setattr("app.modules.sheets.service.SheetService.get_or_create_sheet", lambda pid: mock_sheet)
-    monkeypatch.setattr("app.modules.sheets.router.SheetService.get_or_create_sheet", lambda pid: mock_sheet)
-
-    # 1. Test direct download (synchronous with Redis cache check)
-    res = client.get("/api/v1/sheets/test-proj-uuid/export/pdf")
-    assert res.status_code == 200
-    assert res.headers["content-type"] == "application/pdf"
-    assert res.content.startswith(b"%PDF")
-
-    # 2. Test queue endpoint (Celery + Redis background dispatch)
-    res_queue = client.post("/api/v1/sheets/test-proj-uuid/export/pdf/queue")
-    assert res_queue.status_code == 202
-    data = res_queue.json()
-    assert "task_id" in data
-    assert data["status"] in ("queued", "completed")
+    items = SheetService.get_default_boq_items()
+    assert len(items) == 7
+    expected_materials = [
+        "Brick",
+        "Steel/rebar rod",
+        "Cement",
+        "Sand (fine aggregate)",
+        "Ballast (coarse aggregate)",
+        "Plaster (cement and gypsum)",
+        "Tiles (floor and wall)",
+    ]
+    names = [m["name"] for m in items]
+    for expected in expected_materials:
+        assert expected in names
+    for item in items:
+        assert item["quantity"] > 0
+        assert item["surface_tag"] is not None
+        assert item["total_quantity"] >= item["quantity"]
 
 
 

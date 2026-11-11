@@ -235,7 +235,8 @@ export function filterValidRooms(rooms: Room[], walls: Wall[]): Room[] {
     maxZ = Math.max(...allZ);
   }
 
-  const margin = 0.8;
+  // Strict tolerance: 0.10m (to allow for exterior wall thickness alignment)
+  const margin = 0.1;
   const boundMinX = minX - margin;
   const boundMaxX = maxX + margin;
   const boundMinZ = minZ - margin;
@@ -249,7 +250,17 @@ export function filterValidRooms(rooms: Room[], walls: Wall[]): Room[] {
     const cx = pts.reduce((sum, p) => sum + p[0], 0) / pts.length;
     const cz = pts.reduce((sum, p) => sum + p[1], 0) / pts.length;
 
-    // Keep room if center is inside the building bounding box
-    return cx >= boundMinX && cx <= boundMaxX && cz >= boundMinZ && cz <= boundMaxZ;
+    // Room center must be within the building bounding box
+    if (cx < boundMinX || cx > boundMaxX || cz < boundMinZ || cz > boundMaxZ) {
+      return false;
+    }
+
+    // Room cannot lie completely outside the exterior wall perimeter
+    const allOutside = pts.every(
+      ([x, z]) => x < minX - 0.1 || x > maxX + 0.1 || z < minZ - 0.1 || z > maxZ + 0.1
+    );
+    if (allOutside) return false;
+
+    return true;
   });
 }

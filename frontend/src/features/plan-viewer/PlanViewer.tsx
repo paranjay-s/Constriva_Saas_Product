@@ -47,11 +47,141 @@ function CameraRig({
 }
 
 // Room Floor & HTML Label Component
+export interface HighlightStyle {
+  color: string;
+  emissive: string;
+  label: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+}
+
+export function getMaterialHighlightStyle(tagOrName: string | null): HighlightStyle {
+  const t = (tagOrName || '').toLowerCase().trim();
+
+  // Brick / Masonry: Vibrant Terracotta Red
+  if (t === 'brick' || t === 'masonry' || t.includes('brick') || t.includes('masonry')) {
+    return {
+      color: '#E05638',
+      emissive: '#C2410C',
+      label: 'Brick (Masonry Walls)',
+      badgeBg: 'rgba(224, 86, 56, 0.15)',
+      badgeText: '#E05638',
+      badgeBorder: 'rgba(224, 86, 56, 0.35)',
+    };
+  }
+
+  // Steel / Rebar: Electric Cyan Blue
+  if (t === 'steel' || t === 'rebar' || t.includes('steel') || t.includes('rebar') || t.includes('reinforcement')) {
+    return {
+      color: '#06B6D4',
+      emissive: '#0891B2',
+      label: 'Steel Reinforcement (Walls & Columns)',
+      badgeBg: 'rgba(6, 182, 212, 0.15)',
+      badgeText: '#06B6D4',
+      badgeBorder: 'rgba(6, 182, 212, 0.35)',
+    };
+  }
+
+  // Cement (Binder): Royal Purple
+  if (t === 'cement' || t.includes('cement') || t.includes('binder')) {
+    return {
+      color: '#A855F7',
+      emissive: '#7E22CE',
+      label: 'Cement (Concrete & Mortar)',
+      badgeBg: 'rgba(168, 85, 247, 0.15)',
+      badgeText: '#A855F7',
+      badgeBorder: 'rgba(168, 85, 247, 0.35)',
+    };
+  }
+
+  // Sand / Fine Aggregate: Warm Amber Gold
+  if (t === 'sand' || t.includes('sand') || t.includes('fine_aggregate')) {
+    return {
+      color: '#F59E0B',
+      emissive: '#D97706',
+      label: 'Sand (Fine Aggregate)',
+      badgeBg: 'rgba(245, 158, 11, 0.15)',
+      badgeText: '#F59E0B',
+      badgeBorder: 'rgba(245, 158, 11, 0.35)',
+    };
+  }
+
+  // Ballast / Coarse Aggregate: Indigo Slate
+  if (t === 'ballast' || t.includes('ballast') || t.includes('coarse_aggregate')) {
+    return {
+      color: '#6366F1',
+      emissive: '#4338CA',
+      label: 'Ballast (Coarse Aggregate)',
+      badgeBg: 'rgba(99, 102, 241, 0.15)',
+      badgeText: '#6366F1',
+      badgeBorder: 'rgba(99, 102, 241, 0.35)',
+    };
+  }
+
+  // Plaster: Vibrant Coral Rose
+  if (t === 'plaster' || t.includes('plaster')) {
+    return {
+      color: '#FB7185',
+      emissive: '#E11D48',
+      label: 'Plaster (Wall & Ceiling Finishes)',
+      badgeBg: 'rgba(251, 113, 133, 0.15)',
+      badgeText: '#FB7185',
+      badgeBorder: 'rgba(251, 113, 133, 0.35)',
+    };
+  }
+
+  // Tiles / Flooring: Radiant Emerald Green
+  if (t === 'tiles' || t.includes('tile') || t.includes('flooring') || t.includes('skirting')) {
+    return {
+      color: '#10B981',
+      emissive: '#059669',
+      label: 'Floor & Wall Tiles (Indoor Living & Wet Areas)',
+      badgeBg: 'rgba(16, 185, 129, 0.15)',
+      badgeText: '#10B981',
+      badgeBorder: 'rgba(16, 185, 129, 0.35)',
+    };
+  }
+
+  // Fallbacks
+  if (t === 'marble') {
+    return {
+      color: '#38BDF8',
+      emissive: '#0284C7',
+      label: 'Marble Flooring',
+      badgeBg: 'rgba(56, 189, 248, 0.15)',
+      badgeText: '#38BDF8',
+      badgeBorder: 'rgba(56, 189, 248, 0.35)',
+    };
+  }
+  if (t === 'wood') {
+    return {
+      color: '#D97706',
+      emissive: '#B45309',
+      label: 'Hardwood Finish',
+      badgeBg: 'rgba(217, 119, 6, 0.15)',
+      badgeText: '#D97706',
+      badgeBorder: 'rgba(217, 119, 6, 0.35)',
+    };
+  }
+
+  return {
+    color: '#E5A93C',
+    emissive: '#D97706',
+    label: 'Selected Material',
+    badgeBg: 'rgba(229, 169, 60, 0.15)',
+    badgeText: '#E5A93C',
+    badgeBorder: 'rgba(229, 169, 60, 0.35)',
+  };
+}
+
 function RoomFloor({
   room,
   theme,
   isSelected,
   isHighlighted,
+  highlightColor,
+  highlightEmissive,
   isDimmed,
   labelMode,
   onSelect,
@@ -60,6 +190,8 @@ function RoomFloor({
   theme: MaterialTheme;
   isSelected: boolean;
   isHighlighted: boolean;
+  highlightColor?: string;
+  highlightEmissive?: string;
   isDimmed: boolean;
   labelMode: 'smart' | 'all' | 'off';
   onSelect: () => void;
@@ -134,17 +266,17 @@ function RoomFloor({
 
   // Subtle unit color tinting so Flat 1 and Flat 2 have unique personality
   const resolvedColor = useMemo(() => {
-    if (isHighlighted) return '#D4B58A';
+    if (isHighlighted) return highlightColor || '#10B981';
     if (isSelected) return '#E8D5BC';
     if (isHovered) return '#DFCEB7';
     if (unitTag === 'Flat 2' && (category === 'bedroom' || category === 'living')) {
       return '#B8874E';
     }
     return floorParams.color;
-  }, [isHighlighted, isSelected, isHovered, unitTag, category, floorParams.color]);
+  }, [isHighlighted, highlightColor, isSelected, isHovered, unitTag, category, floorParams.color]);
 
-  const emissive = isHighlighted || isSelected ? '#C5A77B' : isHovered ? '#8A6A3E' : '#000000';
-  const emissiveIntensity = isHighlighted ? 0.45 : isSelected ? 0.3 : isHovered ? 0.15 : 0;
+  const emissive = isHighlighted ? (highlightEmissive || highlightColor || '#059669') : isSelected ? '#C5A77B' : isHovered ? '#8A6A3E' : '#000000';
+  const emissiveIntensity = isHighlighted ? 0.6 : isSelected ? 0.3 : isHovered ? 0.15 : 0;
   const opacity = isDimmed ? 0.5 : 1.0;
 
   // Small utility room detection (toilets, ducts, shafts, wash)
@@ -278,6 +410,60 @@ function RoomFloor({
   );
 }
 
+/**
+ * Strict positive whitelist & exclusion check for interior floor tile highlighting.
+ * ONLY genuine enclosed interior living spaces receive interior floor tile highlighting.
+ * Outdoor areas (lawn, garden, backyard, driveway, parking, porch, verandah, balcony,
+ * terrace, patio, deck, sitout, staircase, outdoor wash, shafts, ducts, open voids)
+ * are NEVER highlighted as interior flooring.
+ */
+export const isIndoorTileTarget = (room: Room, cat: string): boolean => {
+  const kind = (room.kind || (room as any).type || '').toLowerCase();
+  // Exclude all outdoor, void, or semi-open spaces
+  if (kind === 'outdoor' || kind === 'void' || kind === 'semi_open') {
+    return false;
+  }
+
+  const name = (room.name || '').toLowerCase();
+  const id = (room.id || '').toLowerCase();
+  const text = `${name} ${id}`;
+
+  // Comprehensive negative exclusion for any exterior, outdoor, or semi-open spaces
+  if (
+    /lawn|garden|backyard|yard|park|car|driveway|garage|porch|verandah|veranda|balcony|terrace|patio|deck|sitout|open|shaft|duct|void|stair|wash|utility|chhajja|canopy/i.test(
+      text
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    cat === 'parking' ||
+    cat === 'lawn' ||
+    cat === 'void' ||
+    cat === 'balcony' ||
+    cat === 'utility'
+  ) {
+    return false;
+  }
+
+  // Must be an enclosed indoor living room
+  const isEnclosedLivingCategory =
+    cat === 'bedroom' ||
+    cat === 'living' ||
+    cat === 'dining' ||
+    cat === 'kitchen' ||
+    cat === 'bathroom' ||
+    (cat === 'corridor' && !text.includes('stair'));
+
+  const matchesLivingKeywords =
+    /bed|liv|drg|draw|din|kit|bath|toi|wc|dress|powder|puja|pooja|foyer|hall|lobby|passage/i.test(
+      text
+    );
+
+  return isEnclosedLivingCategory || matchesLivingKeywords;
+};
+
 // Complete 3D Architectural Scene
 function ArchitecturalScene({
   isCutaway,
@@ -298,6 +484,63 @@ function ArchitecturalScene({
 
   const theme = isClay ? CLAY_THEME : REALISTIC_THEME;
   const wallHeight = isCutaway ? 1.35 : 2.8;
+
+  // Compute distinct material highlight style and targeted architectural surfaces
+  const highlightStyle = useMemo(
+    () => getMaterialHighlightStyle(selectedMaterialTag),
+    [selectedMaterialTag]
+  );
+
+  const selTag = (selectedMaterialTag || '').toLowerCase().trim();
+
+  // Walls highlight for:
+  // 1. Brick / Masonry (structural blockwork)
+  // 2. Steel / Rebar (structural reinforcement embedded in walls & columns)
+  // 3. Plaster (interior & exterior wall surface finish)
+  // 4. Cement & Sand (mortar bonding in walls)
+  const isWallTag =
+    selTag.includes('brick') ||
+    selTag.includes('masonry') ||
+    selTag.includes('aac_blocks') ||
+    selTag.includes('steel') ||
+    selTag.includes('rebar') ||
+    selTag.includes('reinforcement') ||
+    selTag.includes('plaster') ||
+    selTag.includes('paint') ||
+    selTag.includes('cement') ||
+    selTag.includes('mortar') ||
+    selTag.includes('sand');
+
+  // Structural columns highlight for steel reinforcement & concrete
+  const isColTag =
+    selTag.includes('steel') ||
+    selTag.includes('rebar') ||
+    selTag.includes('reinforcement') ||
+    selTag.includes('column') ||
+    selTag.includes('concrete');
+
+  // Ground plinth slab / foundation highlights ONLY for coarse aggregate / ballast foundation
+  // Must NEVER highlight for steel, brick, plaster, or tiles
+  const isPlinthTag =
+    (selTag.includes('ballast') ||
+      selTag.includes('coarse_aggregate') ||
+      selTag.includes('foundation')) &&
+    !selTag.includes('steel') &&
+    !selTag.includes('rebar') &&
+    !selTag.includes('reinforcement') &&
+    !selTag.includes('brick') &&
+    !selTag.includes('masonry') &&
+    !selTag.includes('wall') &&
+    !selTag.includes('tile') &&
+    !selTag.includes('floor');
+
+  // Flooring highlights for tiles & floor finishes
+  const isFloorTag =
+    selTag.includes('tile') ||
+    selTag.includes('flooring') ||
+    selTag.includes('skirting') ||
+    selTag === 'wood' ||
+    selTag === 'marble';
 
   const level = planData.levels?.[0] || { walls: [], rooms: [], openings: [] };
   const rawWalls = level.walls || [];
@@ -399,10 +642,16 @@ function ArchitecturalScene({
         color="#E4ECF4"
       />
 
-      {/* Crisp Architectural White Foundation Plinth Slab */}
+      {/* Crisp Architectural Foundation Plinth Slab (Highlights for Cement, Sand, Ballast) */}
       <mesh position={[cx, -0.06, cz]} receiveShadow castShadow>
         <boxGeometry args={[totalW + 0.35, 0.12, totalD + 0.35]} />
-        <meshStandardMaterial {...theme.foundationSlab} />
+        <meshStandardMaterial
+          color={isPlinthTag ? highlightStyle.color : theme.foundationSlab.color}
+          emissive={isPlinthTag ? highlightStyle.emissive : '#000000'}
+          emissiveIntensity={isPlinthTag ? 0.65 : 0.0}
+          roughness={theme.foundationSlab.roughness}
+          metalness={theme.foundationSlab.metalness}
+        />
       </mesh>
 
       {/* Soft Contact Ambient Occlusion Shadow */}
@@ -411,27 +660,24 @@ function ArchitecturalScene({
         <meshBasicMaterial color="#CBD1D8" />
       </mesh>
 
-      {/* Architectural Walls with True Openings */}
+      {/* Architectural Walls with True Openings (Highlights for Brick & Plaster) */}
       <group>
-        {walls.map((wall) => {
-          const isHighlighted =
-            selectedMaterialTag === 'paint' || selectedMaterialTag === 'concrete';
-
-          return (
-            <WallWithOpeningsMesh
-              key={wall.id}
-              wall={wall}
-              openings={openings}
-              wallHeight={wallHeight}
-              theme={theme}
-              isExterior={isWallExt(wall)}
-              isHighlighted={isHighlighted}
-            />
-          );
-        })}
+        {walls.map((wall) => (
+          <WallWithOpeningsMesh
+            key={wall.id}
+            wall={wall}
+            openings={openings}
+            wallHeight={wallHeight}
+            theme={theme}
+            isExterior={isWallExt(wall)}
+            isHighlighted={isWallTag}
+            highlightColor={highlightStyle.color}
+            highlightEmissive={highlightStyle.emissive}
+          />
+        ))}
       </group>
 
-      {/* Structural RCC Columns with Chamfered Corners */}
+      {/* Structural RCC Columns with Chamfered Corners (Highlights for Steel & Concrete) */}
       <group>
         {columns.map((col: any) => (
           <mesh
@@ -442,7 +688,9 @@ function ArchitecturalScene({
           >
             <boxGeometry args={[col.width || 0.23, wallHeight, col.depth || 0.23]} />
             <meshStandardMaterial
-              color="#2B2D31"
+              color={isColTag ? highlightStyle.color : '#2B2D31'}
+              emissive={isColTag ? highlightStyle.emissive : '#000000'}
+              emissiveIntensity={isColTag ? 0.8 : 0.0}
               roughness={0.4}
               metalness={0.15}
             />
@@ -450,20 +698,33 @@ function ArchitecturalScene({
         ))}
       </group>
 
-      {/* Room Floors & Distinct Architectural Materials */}
+      {/* Room Floors & Distinct Architectural Materials (Highlights for Tiles & Floor Finishes) */}
       <group>
         {rooms.map((room) => {
           const isSelected = activeRoomId === room.id;
           const isDimmed = activeRoomId !== null && !isSelected;
-
-          let isHighlighted = false;
           const cat = categorizeRoom(room.name, room.id);
-          if (selectedMaterialTag === 'wood' && (cat === 'bedroom' || cat === 'living')) {
-            isHighlighted = true;
-          } else if (selectedMaterialTag === 'marble' && (cat === 'bathroom' || cat === 'living')) {
-            isHighlighted = true;
-          } else if (selectedMaterialTag === 'tiles' && (cat === 'kitchen' || cat === 'balcony')) {
-            isHighlighted = true;
+
+          // Geometric boundary check: Ensure room center is enclosed by the exterior walls
+          const poly = room.polygon || [];
+          const rcx = poly.length ? poly.reduce((s, p) => s + p[0], 0) / poly.length : 0;
+          const rcz = poly.length ? poly.reduce((s, p) => s + p[1], 0) / poly.length : 0;
+          const isGeometricallyInside =
+            rcx >= minX - 0.08 && rcx <= maxX + 0.08 && rcz >= minZ - 0.08 && rcz <= maxZ + 0.08;
+
+          // Only legitimate interior living rooms receive floor tile highlighting
+          const isTargetRoom = isIndoorTileTarget(room, cat) && isGeometricallyInside;
+
+          let isRoomHighlighted = false;
+          if (isFloorTag && isTargetRoom) {
+            if (selTag.includes('wood')) {
+              isRoomHighlighted = cat === 'bedroom' || cat === 'living' || cat === 'dining';
+            } else if (selTag.includes('marble')) {
+              isRoomHighlighted = cat === 'living' || cat === 'dining';
+            } else {
+              // Standard floor & wall tiles highlight all interior rooms
+              isRoomHighlighted = true;
+            }
           }
 
           return (
@@ -472,7 +733,9 @@ function ArchitecturalScene({
               room={room}
               theme={theme}
               isSelected={isSelected}
-              isHighlighted={isHighlighted}
+              isHighlighted={isRoomHighlighted}
+              highlightColor={highlightStyle.color}
+              highlightEmissive={highlightStyle.emissive}
               isDimmed={isDimmed}
               labelMode={labelMode}
               onSelect={() => {
@@ -619,18 +882,32 @@ export function PlanViewer() {
           <span>{isCutaway ? 'Dollhouse Cutaway' : 'Full Height'}</span>
         </div>
 
-        {selectedMaterialTag && (
-          <div className="px-3 py-1.5 rounded-full bg-[#C5A77B]/20 border border-[#C5A77B]/60 text-xs text-[#8A6A3E] font-medium flex items-center gap-1.5 backdrop-blur-md shadow-sm">
-            <span>Highlighting: <strong className="capitalize">{selectedMaterialTag}</strong></span>
-            <button
-              onClick={() => setSelectedMaterialTag(null)}
-              className="ml-1 text-[#8A6A3E] hover:text-[#503B1E] font-bold"
-              title="Clear Highlight"
+        {selectedMaterialTag && (() => {
+          const style = getMaterialHighlightStyle(selectedMaterialTag);
+          return (
+            <div
+              className="px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 backdrop-blur-md shadow-sm border"
+              style={{
+                backgroundColor: style.badgeBg,
+                borderColor: style.badgeBorder,
+                color: style.badgeText,
+              }}
             >
-              ×
-            </button>
-          </div>
-        )}
+              <span
+                className="w-2 h-2 rounded-full animate-pulse"
+                style={{ backgroundColor: style.color }}
+              />
+              <span>Highlighting: <strong>{style.label}</strong></span>
+              <button
+                onClick={() => setSelectedMaterialTag(null)}
+                className="ml-1 opacity-75 hover:opacity-100 font-bold text-sm leading-none"
+                title="Clear Highlight"
+              >
+                ×
+              </button>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Selected Room Floating Inspection Card */}

@@ -9,6 +9,8 @@ interface WallOpeningProps {
   theme: MaterialTheme;
   isExterior: boolean;
   isHighlighted?: boolean;
+  highlightColor?: string;
+  highlightEmissive?: string;
 }
 
 export function WallWithOpeningsMesh({
@@ -18,6 +20,8 @@ export function WallWithOpeningsMesh({
   theme,
   isExterior,
   isHighlighted,
+  highlightColor,
+  highlightEmissive,
 }: WallOpeningProps) {
   const [x1, y1] = wall.start;
   const [x2, y2] = wall.end;
@@ -158,9 +162,9 @@ export function WallWithOpeningsMesh({
   }, [wallOpenings, wallLen, wallHeight]);
 
   const wallMatParams = isExterior ? theme.wallPlasterExt : theme.wallPlaster;
-  const wallColor = isHighlighted ? '#C5A77B' : wallMatParams.color;
-  const emissive = isHighlighted ? '#C5A77B' : '#000000';
-  const emissiveIntensity = isHighlighted ? 0.4 : 0;
+  const wallColor = isHighlighted ? (highlightColor || '#E05638') : wallMatParams.color;
+  const emissive = isHighlighted ? (highlightEmissive || highlightColor || '#C2410C') : '#000000';
+  const emissiveIntensity = isHighlighted ? 0.65 : 0;
 
   return (
     <group position={[x1, 0, y1]} rotation={[0, angle, 0]}>
