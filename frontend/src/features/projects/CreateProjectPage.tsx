@@ -25,7 +25,7 @@ export const CreateProjectPage: React.FC = () => {
   const { createProject } = useProject();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
       setError('Project name is required');
@@ -36,10 +36,10 @@ export const CreateProjectPage: React.FC = () => {
     setError(null);
 
     try {
-      createProject(name.trim(), type, description.trim() || undefined);
+      await createProject(name.trim(), type, description.trim() || undefined);
       navigate('/projects/options');
-    } catch {
-      setError('Failed to create project. Please try again.');
+    } catch (err: any) {
+      setError(err?.detail || err?.message || 'Failed to create project. Please try again.');
     } finally {
       setIsLoading(false);
     }

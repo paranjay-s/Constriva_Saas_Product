@@ -10,6 +10,15 @@ Purpose:
 =============================================================================
 """
 
+import os
+import sys
+from pathlib import Path
+
+_backend_root = Path(__file__).resolve().parents[1]
+_venv_site_packages = _backend_root / ".venv" / "Lib" / "site-packages"
+if _venv_site_packages.exists() and str(_venv_site_packages) not in sys.path:
+    sys.path.insert(0, str(_venv_site_packages))
+
 import importlib
 import logging
 from contextlib import asynccontextmanager
@@ -54,16 +63,24 @@ def create_app() -> FastAPI:
         title="Construtiva SaaS Platform API",
         version="1.0.0",
         description="Architectural 2D-to-3D Conversion, Material Estimation & Project Management API",
-        lifespan=lifespan,
+        lifespan=None if os.environ.get("TESTING") == "1" else lifespan,
     )
 
-    # Configure CORS for React frontend origin
+    # Configure CORS for React frontend origin (ensuring zero CORS errors on port 5173 or any dev port)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[settings.frontend_origin, "http://localhost:5173", "http://127.0.0.1:5173"],
+        allow_origins=[
+            settings.frontend_origin,
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+        ],
+        allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"],
     )
 
     # Dynamically mount all business domain modules

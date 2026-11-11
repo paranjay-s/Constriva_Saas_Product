@@ -10,6 +10,9 @@ import {
   KitchenSet,
   BathroomSuite,
   BalconySet,
+  LawnGardenSet,
+  StaircaseSet,
+  UtilitySet,
 } from './furnitureLibrary';
 
 interface RoomFurnisherProps {
@@ -57,6 +60,18 @@ export function RoomFurnisher({ room, theme }: RoomFurnisherProps) {
 
   // If room is too small, don't overcrowd
   if (width < 1.6 || depth < 1.6) return null;
+
+  // Dedicated Staircase room rendering
+  const isStaircase = (room.name || '').toLowerCase().includes('stair') || (room.id || '').toLowerCase().includes('stair');
+  if (isStaircase) {
+    const steps = Math.max(7, Math.min(12, Math.floor(depth / 0.28)));
+    const stairW = Math.max(1.1, Math.min(1.5, width * 0.45));
+    return (
+      <group position={[cx, 0, cz]}>
+        <StaircaseSet theme={theme} stepsCount={steps} width={stairW} />
+      </group>
+    );
+  }
 
   switch (category) {
     case 'bedroom': {
@@ -147,6 +162,27 @@ export function RoomFurnisher({ room, theme }: RoomFurnisherProps) {
         </group>
       );
     }
+
+    case 'lawn': {
+      return (
+        <group position={[cx, 0, cz]}>
+          <LawnGardenSet theme={theme} />
+        </group>
+      );
+    }
+
+    case 'utility': {
+      const isWashBalcony = (room.name || '').toLowerCase().includes('wash') || (room.name || '').toLowerCase().includes('laundry');
+      if (!isWashBalcony) return null;
+      return (
+        <group position={[cx, 0, cz]}>
+          <UtilitySet theme={theme} />
+        </group>
+      );
+    }
+
+    case 'parking':
+      return null;
 
     default:
       return null;

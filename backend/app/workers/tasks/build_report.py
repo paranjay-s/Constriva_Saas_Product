@@ -45,8 +45,18 @@ def generate_report_task(self, project_id: str, user_id: str, job_id: str) -> Di
         # 1. Fetch active sheet
         sheet = SheetService.get_or_create_sheet(project_id)
 
-        # 2. Render PDF bytes via ReportLab
+        # 2. Render PDF bytes via ReportLab / PyMuPDF
         pdf_bytes = generate_sheet_pdf(sheet, project_name=f"Project_{project_id[:8]}")
+
+        # Cache in Redis so user can download instantly
+        try:
+            import redis
+            from app.core.config import settings
+            r = redis.from_url(settings.redis_url, socket_timeout=1)
+            r.setex(f"cache:pdf:{project_id}", 3600, pdf_bytes)
+            logger.info(f"[Celery Worker] Cached generated PDF for project {project_id} in Redis.")
+        except Exception as redis_err:
+            logger.debug(f"[Celery Worker] Redis cache write skipped: {redis_err}")
 
         # 3. Upload to Supabase Storage
         file_id = str(uuid.uuid4())

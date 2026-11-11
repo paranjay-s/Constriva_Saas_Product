@@ -37,9 +37,10 @@ class Settings(BaseSettings):
     # CORS
     frontend_origin: str = "http://localhost:5173"
 
-    # LLM Settings (Placeholders for future Gemini API integration)
+    # LLM Settings (Gemini API integration)
     llm_provider: str = "gemini"
     llm_api_key: str = ""
+    gemini_api_key: str = ""
 
 
 # Instantiate singleton settings instance

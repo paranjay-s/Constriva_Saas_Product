@@ -645,3 +645,197 @@ export function BalconySet({
     </group>
   );
 }
+
+// ==========================================
+// 7. LAWN & LANDSCAPE GARDEN SET
+// ==========================================
+
+export function LawnGardenSet({
+  theme,
+}: {
+  theme: MaterialTheme;
+}) {
+  return (
+    <group>
+      {/* 1. Stone Pathway Stepping Stones */}
+      {[-0.8, -0.2, 0.4, 1.0].map((z, idx) => (
+        <mesh key={`step_${idx}`} position={[0, 0.025, z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <circleGeometry args={[0.24, 16]} />
+          <meshStandardMaterial {...theme.balconyFloor} />
+        </mesh>
+      ))}
+
+      {/* 2. Potted Garden Shrubs */}
+      {[-0.9, 0.9].map((x, idx) => (
+        <group key={`garden_plant_${idx}`} position={[x, 0, -0.5]}>
+          <mesh position={[0, 0.22, 0]} castShadow>
+            <cylinderGeometry args={[0.22, 0.16, 0.44, 16]} />
+            <meshStandardMaterial {...theme.plantPotWhite} />
+          </mesh>
+          <mesh position={[0, 0.58, 0]} castShadow>
+            <sphereGeometry args={[0.32, 16, 16]} />
+            <meshStandardMaterial {...theme.indoorPlant} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* 3. Outdoor Teak Garden Bench */}
+      <group position={[0.7, 0, 0.5]} rotation={[0, -Math.PI / 3, 0]}>
+        {/* Bench seat */}
+        <mesh position={[0, 0.42, 0]} castShadow>
+          <boxGeometry args={[1.2, 0.05, 0.45]} />
+          <meshStandardMaterial {...theme.woodFurniture} />
+        </mesh>
+        {/* Bench back */}
+        <mesh position={[0, 0.72, -0.2]} castShadow>
+          <boxGeometry args={[1.2, 0.45, 0.04]} />
+          <meshStandardMaterial {...theme.woodFurniture} />
+        </mesh>
+        {/* Legs */}
+        {[-0.52, 0.52].map((lx, i) => (
+          <mesh key={`leg_${i}`} position={[lx, 0.21, 0]} castShadow>
+            <boxGeometry args={[0.06, 0.42, 0.38]} />
+            <meshStandardMaterial {...theme.doorFrame} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
+}
+
+// ==========================================
+// 8. ARCHITECTURAL STAIRCASE SET
+// ==========================================
+
+export function StaircaseSet({
+  theme,
+  stepsCount = 9,
+  width = 1.35,
+}: {
+  theme: MaterialTheme;
+  stepsCount?: number;
+  width?: number;
+}) {
+  const riserH = 0.16;
+  const treadD = 0.28;
+
+  return (
+    <group position={[0, 0, 0]}>
+      {/* Treads and Risers */}
+      {Array.from({ length: stepsCount }).map((_, i) => {
+        const stepY = i * riserH;
+        const stepZ = (i - stepsCount / 2) * treadD;
+        return (
+          <group key={`step_${i}`}>
+            {/* Step Riser Block */}
+            <mesh position={[0, stepY + riserH / 2, stepZ]} castShadow receiveShadow>
+              <boxGeometry args={[width, riserH, treadD]} />
+              <meshStandardMaterial {...theme.woodFurniture} />
+            </mesh>
+            {/* Bullnose Tread Lip */}
+            <mesh position={[0, stepY + riserH - 0.015, stepZ + treadD / 2 - 0.01]} castShadow>
+              <boxGeometry args={[width + 0.02, 0.03, 0.04]} />
+              <meshStandardMaterial {...theme.woodFurniture} />
+            </mesh>
+          </group>
+        );
+      })}
+
+      {/* Modern Black Steel Balustrade & Handrail */}
+      <mesh
+        position={[width / 2 - 0.04, (stepsCount * riserH) / 2 + 0.45, 0]}
+        rotation={[Math.atan2(stepsCount * riserH, stepsCount * treadD), 0, 0]}
+        castShadow
+      >
+        <cylinderGeometry args={[0.025, 0.025, Math.hypot(stepsCount * riserH, stepsCount * treadD) + 0.4, 12]} />
+        <meshStandardMaterial {...theme.railingMetal} />
+      </mesh>
+
+      {/* Upright Support Balusters */}
+      {[-1, 0, 1].map((posMultiplier) => {
+        const idx = Math.floor(stepsCount / 2) + posMultiplier * 3;
+        const bZ = (idx - stepsCount / 2) * treadD;
+        const bY = idx * riserH;
+        return (
+          <mesh key={`baluster_${posMultiplier}`} position={[width / 2 - 0.04, bY + 0.4, bZ]} castShadow>
+            <cylinderGeometry args={[0.015, 0.015, 0.8, 8]} />
+            <meshStandardMaterial {...theme.railingMetal} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
+// ==========================================
+// 9. LAUNDRY & UTILITY WASH SET
+// ==========================================
+
+export function UtilitySet({
+  theme,
+}: {
+  theme: MaterialTheme;
+}) {
+  return (
+    <group position={[0, 0, 0]}>
+      {/* Front-load Modern Washing Machine */}
+      <group position={[-0.45, 0, 0]}>
+        {/* Machine Body */}
+        <mesh position={[0, 0.44, 0]} castShadow receiveShadow>
+          <boxGeometry args={[0.6, 0.85, 0.6]} />
+          <meshStandardMaterial color="#E8ECEF" roughness={0.25} metalness={0.15} />
+        </mesh>
+        {/* Circular Front Porthole Door */}
+        <mesh position={[0, 0.42, 0.31]} rotation={[Math.PI / 2, 0, 0]} castShadow>
+          <cylinderGeometry args={[0.22, 0.22, 0.04, 24]} />
+          <meshStandardMaterial color="#2B303A" roughness={0.1} metalness={0.7} />
+        </mesh>
+        <mesh position={[0, 0.42, 0.33]} rotation={[Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[0.16, 24]} />
+          <meshStandardMaterial color="#4A607A" transparent opacity={0.65} roughness={0.1} />
+        </mesh>
+        {/* Control Dial & Digital Display */}
+        <mesh position={[0.18, 0.78, 0.31]} castShadow>
+          <cylinderGeometry args={[0.03, 0.03, 0.02, 16]} />
+          <meshStandardMaterial color="#1E2024" roughness={0.3} metalness={0.8} />
+        </mesh>
+      </group>
+
+      {/* Stainless Steel Utility Sink Basin */}
+      <group position={[0.35, 0, 0]}>
+        <mesh position={[0, 0.42, 0]} castShadow receiveShadow>
+          <boxGeometry args={[0.55, 0.84, 0.55]} />
+          <meshStandardMaterial {...theme.cabinetry} />
+        </mesh>
+        {/* Sink Bowl */}
+        <mesh position={[0, 0.845, 0]} receiveShadow>
+          <boxGeometry args={[0.45, 0.02, 0.45]} />
+          <meshStandardMaterial {...theme.chromeFixture} />
+        </mesh>
+        {/* Chrome Gooseneck Faucet */}
+        <mesh position={[0, 0.98, -0.16]} castShadow>
+          <cylinderGeometry args={[0.015, 0.015, 0.24, 12]} />
+          <meshStandardMaterial {...theme.chromeFixture} />
+        </mesh>
+      </group>
+
+      {/* Wall Shelf with Laundry Detergents & Folded Towels */}
+      <group position={[0, 1.45, -0.22]}>
+        <mesh position={[0, 0, 0]} castShadow>
+          <boxGeometry args={[1.2, 0.03, 0.25]} />
+          <meshStandardMaterial {...theme.woodFurniture} />
+        </mesh>
+        {/* Folded Clean Linen */}
+        <mesh position={[-0.3, 0.08, 0]} castShadow>
+          <boxGeometry args={[0.35, 0.12, 0.2]} />
+          <meshStandardMaterial color="#F5F5F7" roughness={0.9} />
+        </mesh>
+        {/* Detergent Bottles */}
+        <mesh position={[0.25, 0.12, 0]} castShadow>
+          <cylinderGeometry args={[0.05, 0.06, 0.2, 16]} />
+          <meshStandardMaterial color="#3B82F6" roughness={0.3} />
+        </mesh>
+      </group>
+    </group>
+  );
+}

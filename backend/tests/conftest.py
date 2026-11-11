@@ -40,8 +40,8 @@ def client(mock_user: AuthenticatedUser) -> TestClient:
     FastAPI TestClient with authenticated user dependency override.
     """
     app.dependency_overrides[get_current_user] = lambda: mock_user
-    with TestClient(app) as test_client:
-        yield test_client
+    test_client = TestClient(app)
+    yield test_client
     app.dependency_overrides.clear()
 
 
@@ -51,5 +51,5 @@ def unauthenticated_client() -> TestClient:
     FastAPI TestClient without dependency overrides for auth and public endpoint testing.
     """
     app.dependency_overrides.clear()
-    with TestClient(app) as test_client:
-        yield test_client
+    test_client = TestClient(app)
+    yield test_client

@@ -17,13 +17,49 @@ import asyncio
 import logging
 from typing import Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, BackgroundTasks
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response, RedirectResponse
 from app.core.supabase import get_supabase_client
 from app.core.security import get_current_user, AuthenticatedUser, clean_uuid
 from app.modules.parsing.service import ParsingService
 
 logger = logging.getLogger("construtiva.parsing.router")
 router = APIRouter()
+
+
+def ensure_project_exists(project_id: Optional[str], user_id: str, filename: Optional[str] = None) -> str:
+    """
+    Validates that a valid project exists for the given user:
+    1. If target project_id is provided and already exists in DB -> returns it.
+    2. If target project_id is provided but doesn't exist yet in 'projects' -> creates it with that ID!
+    3. If target project_id is empty/omitted/None -> reuses user's latest project or auto-creates one.
+    This guarantees foreign key constraints (jobs_project_id_fkey) are never violated.
+    """
+    supabase = get_supabase_client()
+    target_id = clean_uuid(project_id)
+
+    if target_id:
+        try:
+            # Check if this project already exists in Supabase
+            check = supabase.table("projects").select("id").eq("id", target_id).execute()
+            if check.data and len(check.data) > 0:
+                return target_id
+
+            # Project ID was specified but not found in DB: auto-create it so foreign keys are satisfied
+            safe_title = filename.replace(".pdf", "").replace("_", " ").title() if filename else "Default Property"
+            supabase.table("projects").insert({
+                "id": target_id,
+                "user_id": user_id,
+                "name": f"Project: {safe_title}",
+                "description": "Auto-created from blueprint upload",
+                "status": "active",
+            }).execute()
+            logger.info(f"Auto-created project record for specified ID: {target_id}")
+            return target_id
+        except Exception as e:
+            logger.warning(f"Could not verify or auto-insert specified project {target_id}: {e}")
+
+    # Fallback to user's latest project or create a new one
+    return get_or_create_default_project(user_id, filename)
 
 
 def get_or_create_default_project(user_id: str, filename: Optional[str] = None) -> str:
@@ -41,22 +77,28 @@ def get_or_create_default_project(user_id: str, filename: Optional[str] = None) 
             .limit(1)
             .execute()
         )
-        if res.data:
+        if res.data and len(res.data) > 0:
             return res.data[0]["id"]
+    except Exception as e:
+        logger.warning(f"Could not query existing project for user {user_id}: {e}")
 
-        new_id = str(uuid.uuid4())
-        safe_title = filename.replace(".pdf", "").replace("_", " ").title() if filename else "Default Property"
+    new_id = str(uuid.uuid4())
+    safe_title = filename.replace(".pdf", "").replace("_", " ").title() if filename else "Default Property"
+    try:
         supabase.table("projects").insert({
             "id": new_id,
             "user_id": user_id,
             "name": f"Project: {safe_title}",
-            "project_type": "Residential",
+            "description": "Auto-created project for blueprint upload",
             "status": "active",
         }).execute()
         return new_id
     except Exception as e:
-        logger.warning(f"Could not resolve or auto-create project for user {user_id}: {e}")
-        return str(uuid.uuid4())
+        logger.error(f"Failed to auto-create project in database: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not initialize project record: {str(e)}"
+        )
 
 
 @router.post(
@@ -93,10 +135,8 @@ async def process_blueprint(
         if len(pdf_bytes) == 0:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty.")
 
-        # Cleanse project_id (handles Swagger UI default placeholder 'string')
-        target_project_id = clean_uuid(project_id)
-        if not target_project_id:
-            target_project_id = get_or_create_default_project(current_user.id, file.filename)
+        # Ensure valid project exists so foreign key constraints are always satisfied
+        target_project_id = ensure_project_exists(project_id, current_user.id, file.filename)
 
         task_id = str(uuid.uuid4())
         supabase = get_supabase_client()
@@ -222,6 +262,69 @@ async def stream_parsing_progress(task_id: str):
 
 
 @router.get(
+    "/job/{task_id}/image",
+    summary="Directly view or redirect to the extracted blueprint image for a parsing task",
+)
+async def get_job_image(task_id: str):
+    """
+    Retrieves the high-resolution extracted PNG image for a background parsing job.
+    Redirects (HTTP 307) directly to the Supabase Storage signed URL, so it can be viewed
+    in the browser or rendered directly in an HTML <img> tag.
+
+    Args:
+        task_id (str): UUID of the background parsing job.
+    """
+    supabase = get_supabase_client()
+    clean_tid = clean_uuid(task_id)
+    if not clean_tid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid task_id UUID format.")
+
+    try:
+        res = supabase.table("jobs").select("*").eq("id", clean_tid).execute()
+        if not res.data:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parsing job not found.")
+
+        job = res.data[0]
+        result = job.get("result") or {}
+
+        # 1. If signed preview URL was already cached in result, redirect directly
+        preview_url = result.get("preview_image_url")
+        if preview_url:
+            return RedirectResponse(url=preview_url)
+
+        # 2. Otherwise resolve from storage key
+        png_key = result.get("png_storage_key")
+        if not png_key and result.get("plan_id"):
+            plan_res = supabase.table("plans").select("preview_file_id").eq("id", result["plan_id"]).execute()
+            if plan_res.data and plan_res.data[0].get("preview_file_id"):
+                f_res = supabase.table("files").select("storage_key").eq("id", plan_res.data[0]["preview_file_id"]).execute()
+                if f_res.data:
+                    png_key = f_res.data[0].get("storage_key")
+
+        if not png_key:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Raster image is not ready yet or job is still processing."
+            )
+
+        parts = png_key.split("/", 1)
+        bucket, path = (parts[0], parts[1]) if len(parts) == 2 else ("rasters", png_key)
+
+        signed = supabase.storage.from_(bucket).create_signed_url(path=path, expires_in=3600)
+        url = signed.get("signedURL") or signed.get("signedUrl")
+        if not url:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to sign image URL.")
+
+        return RedirectResponse(url=url)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resolving job image for {task_id}: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.get(
     "/{project_id}/plan",
     summary="Retrieve active PlanJSON for 3D Three.js viewer"
 )
@@ -275,3 +378,56 @@ async def get_project_plan(
     except Exception as e:
         logger.error(f"Error fetching plan for project {project_id}: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post(
+    "/pdf-to-image",
+    summary="Directly rasterize uploaded PDF to high-resolution PNG image",
+    response_class=Response,
+)
+async def rasterize_pdf_endpoint(
+    file: UploadFile = File(..., description="Architectural floor plan PDF document"),
+    dpi: int = 300,
+    page_number: int = 0,
+):
+    """
+    Directly converts an uploaded architectural PDF page into a crisp PNG image stream (300 DPI).
+    Useful for testing, visual preview, and feeding directly into the Vision LLM.
+
+    Args:
+        file (UploadFile): The PDF file.
+        dpi (int): Target DPI (default 300).
+        page_number (int): Zero-based page index (default 0).
+
+    Returns:
+        Response: PNG image stream (image/png) with width/height headers.
+    """
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file must be a PDF document (.pdf)."
+        )
+
+    try:
+        pdf_bytes = await file.read()
+        if len(pdf_bytes) == 0:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty.")
+
+        from app.modules.parsing.pdf_to_image import convert_pdf_page_to_png
+        png_bytes, width, height = convert_pdf_page_to_png(pdf_bytes, page_number=page_number, dpi=dpi)
+
+        return Response(
+            content=png_bytes,
+            media_type="image/png",
+            headers={
+                "X-Image-Width": str(width),
+                "X-Image-Height": str(height),
+                "Content-Disposition": f'inline; filename="{file.filename}_page{page_number+1}.png"'
+            }
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Failed to rasterize PDF: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+

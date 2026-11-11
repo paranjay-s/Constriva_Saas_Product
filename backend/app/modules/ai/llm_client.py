@@ -32,9 +32,14 @@ logger = logging.getLogger("construtiva.ai.client")
 def get_gemini_api_key() -> str:
     """
     Retrieves the Gemini API key from environment variables or application settings.
-    Checks: GEMINI_API_KEY, GOOGLE_API_KEY, or settings.llm_api_key.
+    Checks: GEMINI_API_KEY, GOOGLE_API_KEY, settings.gemini_api_key, or settings.llm_api_key.
     """
-    key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY") or settings.llm_api_key
+    key = (
+        os.environ.get("GEMINI_API_KEY")
+        or os.environ.get("GOOGLE_API_KEY")
+        or settings.gemini_api_key
+        or settings.llm_api_key
+    )
     if not key:
         logger.warning("GEMINI_API_KEY is not set. Set it in .env to enable live LLM calls.")
     return key or ""
@@ -44,7 +49,7 @@ def call_gemini_vision(
     prompt: str,
     image_bytes: bytes,
     mime_type: str = "image/png",
-    model: str = "gemini-2.0-flash",
+    model: str = "gemini-3.5-flash-lite",
 ) -> Dict[str, Any]:
     """
     Sends an image payload and prompt to the Gemini Multimodal Vision API,
@@ -93,19 +98,108 @@ def call_gemini_vision(
 
     headers = {"Content-Type": "application/json"}
 
-    with httpx.Client(timeout=60.0) as client:
-        response = client.post(url, json=payload, headers=headers)
-        if response.status_code != 200:
-            logger.error(f"Gemini API error ({response.status_code}): {response.text}")
-            raise ValueError(f"Gemini API request failed with status {response.status_code}: {response.text}")
+    # Ordered candidate models in case of high load (503) or unavailability (404)
+    candidate_models = [model]
+    for m in [
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3-flash-preview",
+        "gemini-3.1-pro-preview",
+        "gemini-3.7-flash",
+    ]:
+        if m not in candidate_models:
+            candidate_models.append(m)
 
-        data = response.json()
+    import time
+    last_error = None
+
+    for target_model in candidate_models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{target_model}:generateContent?key={api_key}"
+        logger.info(f"Invoking Gemini model: {target_model}...")
+
+        for attempt in range(2):
+            try:
+                with httpx.Client(timeout=120.0) as client:
+                    response = client.post(url, json=payload, headers=headers)
+                    if response.status_code == 200:
+                        data = response.json()
+                        raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                        return json.loads(raw_text)
+                    elif response.status_code == 503:
+                        logger.warning(f"Model {target_model} returned 503 (high demand). Backing off 2s...")
+                        time.sleep(2.0)
+                        continue
+                    else:
+                        logger.warning(f"Model {target_model} returned HTTP {response.status_code}: {response.text[:120]}")
+                        last_error = response.text
+                        break
+            except Exception as e:
+                logger.warning(f"Error querying {target_model} (attempt {attempt+1}): {e}")
+                last_error = str(e)
+                time.sleep(1.0)
+
+    raise ValueError(f"All Gemini vision models failed. Last error: {last_error}")
+
+
+def call_gemini_text(
+    prompt: str,
+    system_instruction: Optional[str] = None,
+    json_mode: bool = True,
+    model: str = "gemini-2.5-flash",
+) -> Dict[str, Any]:
+    """
+    Calls the Gemini Generative Language API with text prompts and system instructions,
+    returning structured JSON or plain text.
+    """
+    api_key = get_gemini_api_key()
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY is missing. Please set GEMINI_API_KEY in your .env file.")
+
+    candidate_models = [
+        model,
+        "gemini-2.5-flash",
+        "gemini-flash-latest",
+        "gemini-3.5-flash-lite",
+        "gemini-2.5-pro",
+    ]
+
+    parts = [{"text": prompt}]
+    payload: Dict[str, Any] = {
+        "contents": [{"parts": parts}],
+        "generationConfig": {
+            "temperature": 0.2,
+        }
+    }
+
+    if json_mode:
+        payload["generationConfig"]["response_mime_type"] = "application/json"
+
+    if system_instruction:
+        payload["system_instruction"] = {
+            "parts": [{"text": system_instruction}]
+        }
+
+    headers = {"Content-Type": "application/json"}
+    last_error = None
+
+    for target_model in candidate_models:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{target_model}:generateContent?key={api_key}"
         try:
-            raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
-            return json.loads(raw_text)
-        except (KeyError, IndexError, json.JSONDecodeError) as err:
-            logger.error(f"Failed to parse JSON from Gemini response: {err}")
-            raise ValueError(f"Could not parse structured JSON from LLM: {str(err)}")
+            with httpx.Client(timeout=30.0) as client:
+                response = client.post(url, json=payload, headers=headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    raw_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    if json_mode:
+                        return json.loads(raw_text)
+                    return {"text": raw_text}
+                else:
+                    last_error = f"HTTP {response.status_code}: {response.text[:120]}"
+        except Exception as e:
+            last_error = str(e)
+            continue
+
+    raise ValueError(f"Gemini text models failed. Last error: {last_error}")
 
 
 # =============================================================================

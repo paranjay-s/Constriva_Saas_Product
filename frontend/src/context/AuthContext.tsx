@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from '../types';
+import { authApi, TOKEN_STORAGE_KEY } from '../lib/api';
 
 interface AuthContextType {
   user: User | null;
@@ -20,63 +21,106 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setUser(JSON.parse(stored));
-      } else {
-        // Provide demo user initially so pages are easily testable
-        const demoUser: User = {
-          id: 'usr_demo_101',
-          email: 'architect@construtiva.ai',
-          name: 'Elena Rostova',
-        };
-        setUser(demoUser);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(demoUser));
+    const initializeAuth = async () => {
+      try {
+        const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+        const storedUser = localStorage.getItem(STORAGE_KEY);
+
+        if (storedToken) {
+          try {
+            // Verify token with backend /api/v1/auth/me
+            const profile = await authApi.getProfile();
+            const liveUser: User = {
+              id: profile.id,
+              email: profile.email,
+              name: profile.full_name || profile.email.split('@')[0],
+            };
+            setUser(liveUser);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(liveUser));
+            return;
+          } catch (profileErr) {
+            console.warn('Could not validate session with backend:', profileErr);
+            // If offline, use cached user if available
+            if (storedUser) {
+              setUser(JSON.parse(storedUser));
+              return;
+            }
+          }
+        }
+
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        } else {
+          // Provide demo user initially so pages are easily testable
+          const demoUser: User = {
+            id: '00000000-0000-0000-0000-000000000001',
+            email: 'demo@construtiva.ai',
+            name: 'Demo Architect',
+          };
+          setUser(demoUser);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(demoUser));
+        }
+      } catch {
+        // ignore JSON parse error
+      } finally {
+        setIsLoading(false);
       }
-    } catch {
-      // ignore JSON parse error
+    };
+
+    initializeAuth();
+  }, []);
+
+  const signIn = async (email: string, password: string): Promise<void> => {
+    setIsLoading(true);
+    try {
+      const res = await authApi.login({ email, password });
+      const loggedUser: User = {
+        id: res.user.id,
+        email: res.user.email,
+        name: res.user.full_name || email.split('@')[0],
+      };
+      setUser(loggedUser);
+      localStorage.setItem(TOKEN_STORAGE_KEY, res.access_token);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedUser));
+    } catch (err) {
+      console.error('Sign in error:', err);
+      throw err;
     } finally {
       setIsLoading(false);
     }
-  }, []);
-
-  const signIn = async (email: string, _password: string): Promise<void> => {
-    setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 600)); // simulate auth latency
-    const loggedUser: User = {
-      id: 'usr_' + Math.random().toString(36).substring(2, 9),
-      email,
-      name: email.split('@')[0],
-    };
-    setUser(loggedUser);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedUser));
-    setIsLoading(false);
   };
 
-  const signUp = async (name: string, email: string, _password: string): Promise<void> => {
+  const signUp = async (name: string, email: string, password: string): Promise<void> => {
     setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 600));
-    const newUser: User = {
-      id: 'usr_' + Math.random().toString(36).substring(2, 9),
-      email,
-      name,
-    };
-    setUser(newUser);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
-    setIsLoading(false);
+    try {
+      const res = await authApi.signup({ full_name: name, email, password });
+      const newUser: User = {
+        id: res.user.id,
+        email: res.user.email,
+        name: res.user.full_name || name,
+      };
+      setUser(newUser);
+      localStorage.setItem(TOKEN_STORAGE_KEY, res.access_token);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
+    } catch (err) {
+      console.error('Sign up error:', err);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const signOut = () => {
     setUser(null);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
     localStorage.removeItem(STORAGE_KEY);
   };
 
   const loginAsDemo = () => {
     const demoUser: User = {
-      id: 'usr_demo_101',
-      email: 'architect@construtiva.ai',
-      name: 'Elena Rostova',
+      id: '00000000-0000-0000-0000-000000000001',
+      email: 'demo@construtiva.ai',
+      name: 'Demo Architect',
     };
     setUser(demoUser);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(demoUser));

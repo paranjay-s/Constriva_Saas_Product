@@ -28,6 +28,59 @@ class AIChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="Architectural modification prompt or query")
     project_id: Optional[str] = Field(None, description="Optional active project UUID context")
     plan_id: Optional[str] = Field(None, description="Optional active plan UUID context")
+    plot_width: Optional[float] = Field(36.5, description="Plot width in feet")
+    plot_length: Optional[float] = Field(55.0, description="Plot length in feet")
+    goal: Optional[str] = Field("rental", description="Goal: 'rental', 'residence', 'commercial', etc.")
+    config_type: Optional[str] = Field("dual_rental_2bhk", description="Configuration: '1_bhk', '2_bhk', '3_bhk', '4_bhk', 'dual_rental_2bhk'")
+    facing: Optional[str] = Field("East", description="Plot orientation: 'East', 'North', 'West', 'South'")
+
+
+class GeneratePlanRequest(BaseModel):
+    project_id: Optional[str] = Field(None, description="Associated project UUID")
+    plot_width: float = Field(36.5, ge=10.0, le=500.0, description="Plot width in feet (e.g. 36.5)")
+    plot_length: float = Field(55.0, ge=10.0, le=500.0, description="Plot depth in feet (e.g. 55.0)")
+    area_sqft: Optional[float] = Field(None, description="Optional total plot area in square feet")
+    goal: str = Field("rental", description="Purpose: 'rental' (multi-tenant flats) or 'residence' (family home)")
+    config_type: str = Field("dual_rental_2bhk", description="Room configuration ('1_bhk', '2_bhk', '3_bhk', '4_bhk', 'dual_rental_2bhk')")
+    facing: str = Field("East", description="Direction facing ('East', 'North', 'West', 'South')")
+    client_name: str = Field("SMT. GEETA GAUD", description="Client or owner name for title block")
+    user_prompt: Optional[str] = Field(None, description="Detailed layout specifications (attached toilets, lawn, puja, etc.)")
+
+
+@router.post(
+    "/generate-plan",
+    summary="Generate high-resolution 2D architectural working blueprint PNG & PlanJSON"
+)
+async def generate_plan_endpoint(
+    payload: GeneratePlanRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
+    """
+    Synthesizes a precision 2D working floor plan modeled after Vikas Patodi CAD standards:
+    - Renders print-ready PNG (1600x2400) with engineering title block, columns, and hatch.
+    - Constructs standards-compliant PlanJSON for 3D viewer & BOQ sheets.
+    - Saves the generated plan record in Supabase database.
+    """
+    from app.modules.ai.floorplan_generator import generate_ai_floorplan
+
+    # Compute width and length if area_sqft is given without explicit length
+    w = payload.plot_width
+    l = payload.plot_length
+    if payload.area_sqft and (w <= 0 or l <= 0):
+        w = round((payload.area_sqft * 0.66) ** 0.5, 1)
+        l = round(payload.area_sqft / w, 1)
+
+    result = generate_ai_floorplan(
+        plot_width_ft=w,
+        plot_length_ft=l,
+        config_type=payload.config_type,
+        goal=payload.goal,
+        facing=payload.facing,
+        user_prompt=payload.user_prompt or "",
+        client_name=payload.client_name,
+        project_id=payload.project_id or current_user.id,
+    )
+    return result
 
 
 @router.get(
@@ -93,11 +146,40 @@ async def ai_chat(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """
-    Conversational assistant for querying floor plan details, suggesting material alterations,
-    and explaining estimated construction costs.
+    Conversational assistant for dynamically refining floor plans:
+    takes user architectural requests (attached toilets, enlarge rooms, add lawn, swap locations),
+    synthesizes the revised plan, and generates an updated 2D CAD blueprint PNG.
     """
+    from app.modules.ai.floorplan_generator import generate_ai_floorplan
+
+    plan_res = generate_ai_floorplan(
+        plot_width_ft=payload.plot_width or 36.5,
+        plot_length_ft=payload.plot_length or 55.0,
+        config_type=payload.config_type or "dual_rental_2bhk",
+        goal=payload.goal or "rental",
+        facing=payload.facing or "East",
+        user_prompt=payload.message,
+        client_name="SMT. GEETA GAUD",
+        project_id=payload.project_id or current_user.id,
+    )
+
     return {
-        "reply": f"Received architectural prompt: '{payload.message}'. AI advice: Recommend reviewing load-bearing wall alignments and ensuring 0.25m thickness on external facades.",
-        "project_id": payload.project_id,
-        "plan_id": payload.plan_id,
+        "reply": plan_res["ai_commentary"],
+        "plan_id": plan_res["plan_id"],
+        "project_id": plan_res["project_id"],
+        "plan": plan_res,
     }
+
+
+@router.get(
+    "/plans/{plan_id}/png",
+    summary="Download 2D architectural working blueprint PNG (AI route)"
+)
+async def get_ai_plan_png(
+    plan_id: str,
+):
+    """
+    Direct route to fetch and download the high-resolution CAD working drawing PNG.
+    """
+    from app.modules.plans.router import download_plan_png
+    return await download_plan_png(plan_id)

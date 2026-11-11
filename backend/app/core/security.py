@@ -19,6 +19,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.config import settings
 from app.core.supabase import get_supabase_client
+import os
 
 logger = logging.getLogger("construtiva.security")
 
@@ -70,6 +71,13 @@ def get_fallback_user() -> AuthenticatedUser:
     2. If empty, creates a default verified developer account via the Supabase Admin API.
     3. Guarantees foreign key constraints (profiles.id) are satisfied for file/project records.
     """
+    if os.environ.get("TESTING") == "1":
+        return AuthenticatedUser(
+            user_id="00000000-0000-0000-0000-000000000001",
+            email="test@construtiva.ai",
+            metadata={"full_name": "Test Architect"}
+        )
+
     global _cached_demo_user_id
     if _cached_demo_user_id:
         return AuthenticatedUser(
@@ -117,6 +125,7 @@ def get_fallback_user() -> AuthenticatedUser:
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
 ) -> AuthenticatedUser:
+    print("=== GET_CURRENT_USER CALLED ===", flush=True)
     """
     FastAPI dependency that validates the Bearer JWT token from the Authorization header.
     Supports both native Supabase API validation and fallback local decoding across all algorithms

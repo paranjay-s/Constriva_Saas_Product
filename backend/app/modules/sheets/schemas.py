@@ -24,7 +24,11 @@ class SheetItemBase(BaseModel):
     unit: str = Field(..., description="Measurement unit (e.g. 'kg', 'pcs', 'bags', 'cu.m', 'sq.m')")
     quantity: float = Field(..., ge=0, description="Base measured quantity before wastage")
     waste_factor: float = Field(0.0, ge=0, le=1.0, description="Wastage allowance fraction (e.g. 0.05 for 5%)")
-    unit_price: float = Field(..., ge=0, description="Unit rate/cost in currency (INR)")
+    unit_price: Optional[float] = Field(0.0, ge=0, description="Unit rate/cost in currency (INR)")
+    area: Optional[float] = Field(None, description="Measured architectural surface or footprint area in m²")
+    area_unit: Optional[str] = Field("m2", description="Area unit of measure (default 'm2')")
+    secondary_quantity: Optional[float] = Field(None, description="Secondary metric quantity (e.g. rods, tons, m3)")
+    secondary_unit: Optional[str] = Field(None, description="Secondary unit of measure")
     surface_tag: Optional[str] = Field(None, description="Linked architectural tag (e.g. 'masonry_walls', 'floor_tiles')")
     is_custom: bool = Field(False, description="Flag indicating user-added custom item")
 
@@ -48,6 +52,9 @@ class SheetItemUpdate(BaseModel):
     waste_factor: Optional[float] = Field(None, ge=0, le=1.0)
     unit_price: Optional[float] = Field(None, ge=0)
     surface_tag: Optional[str] = None
+    area: Optional[float] = None
+    secondary_quantity: Optional[float] = None
+    secondary_unit: Optional[str] = None
 
 
 class SheetItemResponse(SheetItemBase):
@@ -58,7 +65,7 @@ class SheetItemResponse(SheetItemBase):
     sheet_id: str
     material_id: Optional[str] = None
     total_quantity: float = Field(..., description="Final quantity including wastage = quantity * (1 + waste_factor)")
-    amount: float = Field(..., description="Line total amount = total_quantity * unit_price")
+    amount: Optional[float] = Field(0.0, description="Line total amount = total_quantity * unit_price")
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
@@ -69,6 +76,7 @@ class SheetResponse(BaseModel):
     """
     id: str
     project_id: str
+    plan_id: Optional[str] = None
     name: str
     status: str
     stale: bool = Field(..., description="True if underlying 2D/3D PlanJSON geometry changed and sheet needs recalculation")

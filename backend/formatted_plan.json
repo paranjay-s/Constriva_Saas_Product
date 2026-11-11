@@ -1,0 +1,1029 @@
+{
+  "version": 1,
+  "units": "m",
+  "scale_source": "dimension_label",
+  "project_title": "36'6\" X 55' (E) AT SHALIMAR GREENS",
+  "subject": "SECOND FLOOR PLAN",
+  "client": "SMT. GEETA GAUD",
+  "architect": "Er. VIKAS PATODI",
+  "levels": [
+    {
+      "elevation": 0.0,
+      "wall_height": 2.8,
+      "walls": [
+        {
+          "id": "w_front_boundary",
+          "start": [0.0, 0.0],
+          "end": [11.12, 0.0],
+          "thickness": 0.23,
+          "kind": "exterior",
+          "inferred": false
+        },
+        {
+          "id": "w_front_divider_stair",
+          "start": [4.11, 0.0],
+          "end": [4.11, 2.44],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_front_divider_lawn",
+          "start": [7.87, 0.0],
+          "end": [7.87, 2.44],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_front_plinth",
+          "start": [0.0, 2.44],
+          "end": [11.12, 2.44],
+          "thickness": 0.23,
+          "kind": "exterior",
+          "inferred": false
+        },
+        {
+          "id": "w_left_ext_lower",
+          "start": [0.0, 0.0],
+          "end": [0.0, 7.05],
+          "thickness": 0.23,
+          "kind": "exterior",
+          "inferred": false
+        },
+        {
+          "id": "w_recess_jog_in",
+          "start": [0.0, 7.05],
+          "end": [1.44, 7.05],
+          "thickness": 0.12,
+          "kind": "exterior",
+          "inferred": false
+        },
+        {
+          "id": "w_recess_west_wall",
+          "start": [1.44, 7.05],
+          "end": [1.44, 10.5],
+          "thickness": 0.23,
+          "kind": "exterior",
+          "inferred": false
+        },
+        {
+          "id": "w_recess_jog_out",
+          "start": [1.44, 10.5],
+          "end": [0.0, 10.5],
+          "thickness": 0.12,
+          "kind": "exterior",
+          "inferred": false
+        },
+        {
+          "id": "w_left_ext_upper",
+          "start": [0.0, 10.5],
+          "end": [0.0, 15.75],
+          "thickness": 0.23,
+          "kind": "exterior",
+          "inferred": false
+        },
+        {
+          "id": "w_right_ext",
+          "start": [11.12, 0.0],
+          "end": [11.12, 16.65],
+          "thickness": 0.23,
+          "kind": "exterior",
+          "inferred": false
+        },
+        {
+          "id": "w_rear_master_left",
+          "start": [0.0, 15.75],
+          "end": [5.41, 15.75],
+          "thickness": 0.23,
+          "kind": "exterior",
+          "inferred": false
+        },
+        {
+          "id": "w_rear_bed_mid_right",
+          "start": [5.41, 15.75],
+          "end": [8.45, 15.75],
+          "thickness": 0.23,
+          "kind": "exterior",
+          "inferred": false
+        },
+        {
+          "id": "w_rear_jog_right",
+          "start": [8.45, 15.75],
+          "end": [8.45, 16.65],
+          "thickness": 0.23,
+          "kind": "exterior",
+          "inferred": false
+        },
+        {
+          "id": "w_rear_toilets_top_right",
+          "start": [8.45, 16.65],
+          "end": [11.12, 16.65],
+          "thickness": 0.23,
+          "kind": "exterior",
+          "inferred": false
+        },
+        {
+          "id": "w_spine_main",
+          "start": [5.41, 2.44],
+          "end": [5.41, 15.75],
+          "thickness": 0.23,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_kit_left_north",
+          "start": [0.0, 5.49],
+          "end": [2.06, 5.49],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_kit_left_east",
+          "start": [2.06, 2.44],
+          "end": [2.06, 7.05],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_wash_left_north",
+          "start": [0.0, 7.05],
+          "end": [2.06, 7.05],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_drg_left_north",
+          "start": [2.06, 7.05],
+          "end": [5.41, 7.05],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_bed_mid_left_north",
+          "start": [1.44, 10.5],
+          "end": [4.39, 10.5],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_bed_mid_left_east",
+          "start": [4.39, 7.05],
+          "end": [4.39, 10.5],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_toi_common_east",
+          "start": [2.74, 10.5],
+          "end": [2.74, 12.2],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_lobby_dress_east",
+          "start": [4.39, 10.5],
+          "end": [4.39, 12.2],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_master_bed_south",
+          "start": [0.0, 12.2],
+          "end": [5.41, 12.2],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_toi_attached_west",
+          "start": [3.86, 13.25],
+          "end": [3.86, 15.75],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_toi_attached_south",
+          "start": [3.86, 13.25],
+          "end": [5.41, 13.25],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_kit_right_north",
+          "start": [5.41, 5.34],
+          "end": [7.7, 5.34],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_kit_right_east",
+          "start": [7.7, 2.44],
+          "end": [7.7, 5.34],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_din_south",
+          "start": [7.7, 5.34],
+          "end": [8.45, 5.34],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_drg_din_cased_opening",
+          "start": [8.45, 5.34],
+          "end": [8.45, 8.0],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": true
+        },
+        {
+          "id": "w_drg_din_north",
+          "start": [5.41, 8.0],
+          "end": [11.12, 8.0],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_bed_mid_right_north",
+          "start": [5.41, 11.13],
+          "end": [8.45, 11.13],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_bed_mid_right_east",
+          "start": [8.45, 8.0],
+          "end": [8.45, 11.13],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_bed_master_right_east",
+          "start": [8.45, 11.13],
+          "end": [8.45, 15.75],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_store_north",
+          "start": [9.5, 9.3],
+          "end": [11.12, 9.3],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_shaft_north",
+          "start": [9.5, 12.4],
+          "end": [11.12, 12.4],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_passage_right_east",
+          "start": [9.5, 8.0],
+          "end": [9.5, 12.4],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_passage_wash_divider",
+          "start": [8.45, 12.4],
+          "end": [9.5, 12.4],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": true
+        },
+        {
+          "id": "w_wash_right_north",
+          "start": [8.45, 14.15],
+          "end": [11.12, 14.15],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        },
+        {
+          "id": "w_toilets_divider_right",
+          "start": [9.78, 14.15],
+          "end": [9.78, 16.65],
+          "thickness": 0.12,
+          "kind": "interior",
+          "inferred": false
+        }
+      ],
+      "openings": [
+        {
+          "id": "win_kit_left_front",
+          "wall_id": "w_front_plinth",
+          "type": "window",
+          "offset": 0.5,
+          "width": 1.2,
+          "height": 1.2,
+          "sill": 0.9,
+          "inferred": false
+        },
+        {
+          "id": "win_drg_left_front",
+          "wall_id": "w_front_plinth",
+          "type": "window",
+          "offset": 2.7,
+          "width": 1.3,
+          "height": 1.4,
+          "sill": 0.9,
+          "inferred": false
+        },
+        {
+          "id": "win_kit_right_front",
+          "wall_id": "w_front_plinth",
+          "type": "window",
+          "offset": 5.9,
+          "width": 1.2,
+          "height": 1.2,
+          "sill": 0.9,
+          "inferred": false
+        },
+        {
+          "id": "win_drg_right_front",
+          "wall_id": "w_front_plinth",
+          "type": "window",
+          "offset": 8.8,
+          "width": 1.3,
+          "height": 1.5,
+          "sill": 0.9,
+          "inferred": false
+        },
+        {
+          "id": "win_bed_mid_left_recess",
+          "wall_id": "w_recess_west_wall",
+          "type": "window",
+          "offset": 0.8,
+          "width": 1.7,
+          "height": 1.4,
+          "sill": 0.9,
+          "inferred": false
+        },
+        {
+          "id": "win_toi_common_south",
+          "wall_id": "w_recess_jog_out",
+          "type": "window",
+          "offset": 0.3,
+          "width": 0.8,
+          "height": 0.6,
+          "sill": 1.8,
+          "inferred": false
+        },
+        {
+          "id": "win_master_left_rear",
+          "wall_id": "w_rear_master_left",
+          "type": "window",
+          "offset": 1.2,
+          "width": 1.5,
+          "height": 1.4,
+          "sill": 0.9,
+          "inferred": false
+        },
+        {
+          "id": "win_toi_attached_rear",
+          "wall_id": "w_rear_master_left",
+          "type": "window",
+          "offset": 4.2,
+          "width": 0.8,
+          "height": 0.6,
+          "sill": 1.8,
+          "inferred": false
+        },
+        {
+          "id": "win_bed_mid_right_shaft",
+          "wall_id": "w_bed_mid_right_east",
+          "type": "window",
+          "offset": 1.0,
+          "width": 1.2,
+          "height": 1.2,
+          "sill": 0.9,
+          "inferred": false
+        },
+        {
+          "id": "win_bed_master_right_rear",
+          "wall_id": "w_rear_bed_mid_right",
+          "type": "window",
+          "offset": 0.8,
+          "width": 1.3,
+          "height": 1.4,
+          "sill": 0.9,
+          "inferred": false
+        },
+        {
+          "id": "win_passage_shaft",
+          "wall_id": "w_passage_right_east",
+          "type": "window",
+          "offset": 1.8,
+          "width": 1.0,
+          "height": 1.2,
+          "sill": 0.9,
+          "inferred": false
+        },
+        {
+          "id": "win_wash_south",
+          "wall_id": "w_shaft_north",
+          "type": "window",
+          "offset": 0.2,
+          "width": 1.2,
+          "height": 1.2,
+          "sill": 0.9,
+          "inferred": false
+        },
+        {
+          "id": "win_toi_top_right_vents",
+          "wall_id": "w_rear_toilets_top_right",
+          "type": "window",
+          "offset": 0.5,
+          "width": 1.5,
+          "height": 0.6,
+          "sill": 1.8,
+          "inferred": false
+        },
+        {
+          "id": "op_door_verandah_drg",
+          "wall_id": "w_front_plinth",
+          "type": "door",
+          "offset": 4.5,
+          "width": 1.0,
+          "height": 2.1,
+          "sill": 0.0,
+          "inferred": true
+        },
+        {
+          "id": "op_door_kit_left",
+          "wall_id": "w_kit_left_east",
+          "type": "door",
+          "offset": 1.2,
+          "width": 0.9,
+          "height": 2.1,
+          "sill": 0.0,
+          "inferred": true
+        },
+        {
+          "id": "op_door_wash_left",
+          "wall_id": "w_kit_left_north",
+          "type": "door",
+          "offset": 0.5,
+          "width": 0.8,
+          "height": 2.1,
+          "sill": 0.0,
+          "inferred": true
+        },
+        {
+          "id": "op_door_bed_mid_left",
+          "wall_id": "w_bed_mid_left_east",
+          "type": "door",
+          "offset": 1.2,
+          "width": 0.9,
+          "height": 2.1,
+          "sill": 0.0,
+          "inferred": true
+        },
+        {
+          "id": "op_door_toi_common",
+          "wall_id": "w_toi_common_east",
+          "type": "door",
+          "offset": 0.4,
+          "width": 0.8,
+          "height": 2.1,
+          "sill": 0.0,
+          "inferred": true
+        },
+        {
+          "id": "op_door_master_left",
+          "wall_id": "w_master_bed_south",
+          "type": "door",
+          "offset": 4.0,
+          "width": 1.0,
+          "height": 2.1,
+          "sill": 0.0,
+          "inferred": true
+        },
+        {
+          "id": "op_door_toi_attached",
+          "wall_id": "w_toi_attached_south",
+          "type": "door",
+          "offset": 0.3,
+          "width": 0.8,
+          "height": 2.1,
+          "sill": 0.0,
+          "inferred": true
+        },
+        {
+          "id": "op_door_kit_right",
+          "wall_id": "w_kit_right_east",
+          "type": "door",
+          "offset": 1.0,
+          "width": 0.9,
+          "height": 2.1,
+          "sill": 0.0,
+          "inferred": true
+        },
+        {
+          "id": "op_door_bed_mid_right",
+          "wall_id": "w_bed_mid_right_north",
+          "type": "door",
+          "offset": 1.5,
+          "width": 0.9,
+          "height": 2.1,
+          "sill": 0.0,
+          "inferred": true
+        },
+        {
+          "id": "op_door_bed_master_right",
+          "wall_id": "w_bed_mid_right_north",
+          "type": "door",
+          "offset": 0.3,
+          "width": 0.9,
+          "height": 2.1,
+          "sill": 0.0,
+          "inferred": true
+        },
+        {
+          "id": "op_door_store",
+          "wall_id": "w_passage_right_east",
+          "type": "door",
+          "offset": 0.5,
+          "width": 0.8,
+          "height": 2.1,
+          "sill": 0.0,
+          "inferred": true
+        },
+        {
+          "id": "op_door_wash_right",
+          "wall_id": "w_passage_wash_divider",
+          "type": "door",
+          "offset": 0.15,
+          "width": 0.8,
+          "height": 2.1,
+          "sill": 0.0,
+          "inferred": true
+        },
+        {
+          "id": "op_door_toi_1",
+          "wall_id": "w_wash_right_north",
+          "type": "door",
+          "offset": 0.3,
+          "width": 0.8,
+          "height": 2.1,
+          "sill": 0.0,
+          "inferred": true
+        },
+        {
+          "id": "op_door_toi_2",
+          "wall_id": "w_wash_right_north",
+          "type": "door",
+          "offset": 1.5,
+          "width": 0.8,
+          "height": 2.1,
+          "sill": 0.0,
+          "inferred": true
+        }
+      ],
+      "rooms": [
+        {
+          "id": "room_staircase",
+          "name": "Staircase (UP/DN)",
+          "kind": "semi_open",
+          "polygon": [
+            [0.0, 0.0],
+            [4.11, 0.0],
+            [4.11, 2.44],
+            [0.0, 2.44]
+          ]
+        },
+        {
+          "id": "room_verandah",
+          "name": "VERANDAH 12'6\" X 8'",
+          "kind": "semi_open",
+          "polygon": [
+            [4.11, 0.0],
+            [7.87, 0.0],
+            [7.87, 2.44],
+            [4.11, 2.44]
+          ]
+        },
+        {
+          "id": "room_lawn",
+          "name": "LAWN 10'8\" X 8'",
+          "kind": "outdoor",
+          "polygon": [
+            [7.87, 0.0],
+            [11.12, 0.0],
+            [11.12, 2.44],
+            [7.87, 2.44]
+          ]
+        },
+        {
+          "id": "room_kitchen_left",
+          "name": "KIT. 6'9\" X 10'",
+          "kind": "indoor",
+          "polygon": [
+            [0.0, 2.44],
+            [2.06, 2.44],
+            [2.06, 5.49],
+            [0.0, 5.49]
+          ]
+        },
+        {
+          "id": "room_wash_left",
+          "name": "WASH 7' X 4'",
+          "kind": "indoor",
+          "polygon": [
+            [0.0, 5.49],
+            [2.06, 5.49],
+            [2.06, 7.05],
+            [0.0, 7.05]
+          ]
+        },
+        {
+          "id": "room_drg_dn_left",
+          "name": "DRG./DN. 11' X 14'",
+          "kind": "indoor",
+          "polygon": [
+            [2.06, 2.44],
+            [5.41, 2.44],
+            [5.41, 7.05],
+            [2.06, 7.05]
+          ]
+        },
+        {
+          "id": "room_bed_mid_left",
+          "name": "BED. 9'8\" X 11' (Recessed)",
+          "kind": "indoor",
+          "polygon": [
+            [1.44, 7.05],
+            [4.39, 7.05],
+            [4.39, 10.5],
+            [1.44, 10.5]
+          ]
+        },
+        {
+          "id": "room_passage_left",
+          "name": "PASSAGE 3'4\" WD.",
+          "kind": "indoor",
+          "polygon": [
+            [4.39, 7.05],
+            [5.41, 7.05],
+            [5.41, 12.2],
+            [4.39, 12.2]
+          ]
+        },
+        {
+          "id": "room_toilet_common_left",
+          "name": "TOI. 9' X 5'",
+          "kind": "indoor",
+          "polygon": [
+            [0.0, 10.5],
+            [2.74, 10.5],
+            [2.74, 12.2],
+            [0.0, 12.2]
+          ]
+        },
+        {
+          "id": "room_lobby_dress_left",
+          "name": "PASSAGE / DRESS 5'5\" X 5'6\"",
+          "kind": "indoor",
+          "polygon": [
+            [2.74, 10.5],
+            [4.39, 10.5],
+            [4.39, 12.2],
+            [2.74, 12.2]
+          ]
+        },
+        {
+          "id": "room_bed_master_left",
+          "name": "BED. 12'8\" X 11' (L-Shaped)",
+          "kind": "indoor",
+          "polygon": [
+            [0.0, 12.2],
+            [5.41, 12.2],
+            [5.41, 13.25],
+            [3.86, 13.25],
+            [3.86, 15.75],
+            [0.0, 15.75]
+          ]
+        },
+        {
+          "id": "room_toilet_attached_left",
+          "name": "TOI. 4'9\" X 8'",
+          "kind": "indoor",
+          "polygon": [
+            [3.86, 13.25],
+            [5.41, 13.25],
+            [5.41, 15.75],
+            [3.86, 15.75]
+          ]
+        },
+        {
+          "id": "room_kitchen_right",
+          "name": "KIT. 7'6\" X 9'6\"",
+          "kind": "indoor",
+          "polygon": [
+            [5.41, 2.44],
+            [7.7, 2.44],
+            [7.7, 5.34],
+            [5.41, 5.34]
+          ]
+        },
+        {
+          "id": "room_dining_right",
+          "name": "DIN. 9' X 8'",
+          "kind": "indoor",
+          "polygon": [
+            [5.41, 5.34],
+            [8.45, 5.34],
+            [8.45, 8.0],
+            [5.41, 8.0]
+          ]
+        },
+        {
+          "id": "room_drg_right",
+          "name": "DRG. 10' X 17'6\"",
+          "kind": "indoor",
+          "polygon": [
+            [7.7, 2.44],
+            [11.12, 2.44],
+            [11.12, 8.0],
+            [8.45, 8.0],
+            [8.45, 5.34],
+            [7.7, 5.34]
+          ]
+        },
+        {
+          "id": "room_bed_mid_right",
+          "name": "BED. 9' X 11'",
+          "kind": "indoor",
+          "polygon": [
+            [5.41, 8.0],
+            [8.45, 8.0],
+            [8.45, 11.13],
+            [5.41, 11.13]
+          ]
+        },
+        {
+          "id": "room_passage_right",
+          "name": "PASSAGE 3'4\" WD.",
+          "kind": "indoor",
+          "polygon": [
+            [8.45, 8.0],
+            [9.5, 8.0],
+            [9.5, 12.4],
+            [8.45, 12.4]
+          ]
+        },
+        {
+          "id": "room_store",
+          "name": "STORE 4'8\" X 4'",
+          "kind": "indoor",
+          "polygon": [
+            [9.5, 8.0],
+            [11.12, 8.0],
+            [11.12, 9.3],
+            [9.5, 9.3]
+          ]
+        },
+        {
+          "id": "room_open_shaft",
+          "name": "OPEN 4'8\" X 9'",
+          "kind": "void",
+          "polygon": [
+            [9.5, 9.3],
+            [11.12, 9.3],
+            [11.12, 12.4],
+            [9.5, 12.4]
+          ]
+        },
+        {
+          "id": "room_bed_master_right",
+          "name": "BED. 9' X 15'",
+          "kind": "indoor",
+          "polygon": [
+            [5.41, 11.13],
+            [8.45, 11.13],
+            [8.45, 15.75],
+            [5.41, 15.75]
+          ]
+        },
+        {
+          "id": "room_wash_right",
+          "name": "WASH 8'6\" X 6'",
+          "kind": "indoor",
+          "polygon": [
+            [8.45, 12.4],
+            [11.12, 12.4],
+            [11.12, 14.15],
+            [8.45, 14.15]
+          ]
+        },
+        {
+          "id": "room_toilet_top_right_1",
+          "name": "TOI. 4' X 8' (1)",
+          "kind": "indoor",
+          "polygon": [
+            [8.45, 14.15],
+            [9.78, 14.15],
+            [9.78, 16.65],
+            [8.45, 16.65]
+          ]
+        },
+        {
+          "id": "room_toilet_top_right_2",
+          "name": "TOI. 4' X 8' (2)",
+          "kind": "indoor",
+          "polygon": [
+            [9.78, 14.15],
+            [11.12, 14.15],
+            [11.12, 16.65],
+            [9.78, 16.65]
+          ]
+        }
+      ],
+      "columns": [
+        {
+          "id": "col_01",
+          "position": [0.0, 0.0],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_02",
+          "position": [4.11, 0.0],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_03",
+          "position": [11.12, 0.0],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_04",
+          "position": [0.0, 2.44],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_05",
+          "position": [4.11, 2.44],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_06",
+          "position": [5.41, 2.44],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_07",
+          "position": [11.12, 2.44],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_08",
+          "position": [0.0, 7.05],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_09",
+          "position": [1.44, 7.05],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_10",
+          "position": [5.41, 7.05],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_11",
+          "position": [11.12, 8.0],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_12",
+          "position": [1.44, 10.5],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_13",
+          "position": [5.41, 11.13],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_14",
+          "position": [8.45, 11.13],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_15",
+          "position": [11.12, 12.4],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_16",
+          "position": [0.0, 12.2],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_17",
+          "position": [3.86, 12.2],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_18",
+          "position": [8.45, 12.4],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_19",
+          "position": [11.12, 14.15],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_20",
+          "position": [0.0, 15.75],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_21",
+          "position": [3.86, 15.75],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_22",
+          "position": [5.41, 15.75],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_23",
+          "position": [8.45, 15.75],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_24",
+          "position": [8.45, 16.65],
+          "width": 0.23,
+          "depth": 0.23
+        },
+        {
+          "id": "col_25",
+          "position": [11.12, 16.65],
+          "width": 0.23,
+          "depth": 0.23
+        }
+      ]
+    }
+  ],
+  "confidence": {
+    "overall": 0.76,
+    "bounding_box_fidelity": 1.0,
+    "wall_connectivity": 1.0,
+    "wall_coverage": 1.0,
+    "openings_validity": 1.0,
+    "room_dimensions_fidelity": 0.95,
+    "inferred_elements_ratio": 0.24
+  }
+}

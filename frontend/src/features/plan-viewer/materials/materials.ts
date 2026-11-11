@@ -13,6 +13,10 @@ export interface MaterialTheme {
   bathFloor: THREE.MeshStandardMaterialParameters;
   diningFloor: THREE.MeshStandardMaterialParameters;
   balconyFloor: THREE.MeshStandardMaterialParameters;
+  lawnFloor: THREE.MeshStandardMaterialParameters;
+  corridorFloor: THREE.MeshStandardMaterialParameters;
+  utilityFloor: THREE.MeshStandardMaterialParameters;
+  voidFloor: THREE.MeshStandardMaterialParameters;
   rugSlateBlue: THREE.MeshStandardMaterialParameters;
   rugNeutral: THREE.MeshStandardMaterialParameters;
   doorWood: THREE.MeshStandardMaterialParameters;
@@ -47,12 +51,12 @@ export interface MaterialTheme {
 export const REALISTIC_THEME: MaterialTheme = {
   isClay: false,
   wallPlaster: {
-    color: '#FFFFFF', // Crisp architectural pure white
+    color: '#E8E3D8', // Warm architectural linen ivory for interior room dividing walls
     roughness: 0.82,
     metalness: 0.01,
   },
   wallPlasterExt: {
-    color: '#FAFAFA', // Clean architectural white exterior
+    color: '#FFFFFF', // Crisp architectural pure white for exterior boundary walls
     roughness: 0.85,
     metalness: 0.01,
   },
@@ -67,34 +71,54 @@ export const REALISTIC_THEME: MaterialTheme = {
     metalness: 0.03,
   },
   bedroomFloor: {
-    color: '#C89D66', // Warm honey oak parquet
+    color: '#C4955B', // Warm natural honey oak parquet
     roughness: 0.38,
     metalness: 0.04,
   },
   livingFloor: {
-    color: '#C89D66', // Continuous warm honey oak hardwood
-    roughness: 0.38,
+    color: '#D4A367', // Warm luminous amber oak
+    roughness: 0.36,
     metalness: 0.04,
   },
   kitchenFloor: {
-    color: '#E7E4DF', // Light warm neutral stone
-    roughness: 0.35,
+    color: '#DCD6CB', // Modern polished pearl travertine tile
+    roughness: 0.32,
     metalness: 0.05,
   },
   bathFloor: {
-    color: '#EAE7E2', // Light porcelain stone tile
-    roughness: 0.28,
-    metalness: 0.06,
+    color: '#E5EDF4', // Elegant cool Carrara marble porcelain
+    roughness: 0.22,
+    metalness: 0.08,
   },
   diningFloor: {
-    color: '#C89D66', // Continuous warm honey oak
+    color: '#CE9E63', // Continuous warm oak dining
     roughness: 0.38,
     metalness: 0.04,
   },
   balconyFloor: {
-    color: '#C5BFB5', // Outdoor natural stone pavers
-    roughness: 0.72,
+    color: '#BA834E', // Rich warm natural teak terrace decking
+    roughness: 0.65,
+    metalness: 0.02,
+  },
+  lawnFloor: {
+    color: '#3E8E34', // Rich vibrant emerald grass (Homescapes realistic tone)
+    roughness: 0.88,
+    metalness: 0.01,
+  },
+  corridorFloor: {
+    color: '#E8E3DA', // Light polished limestone circulation floor
+    roughness: 0.45,
     metalness: 0.03,
+  },
+  utilityFloor: {
+    color: '#CBD5E1', // Cool non-slip brushed slate utility tile
+    roughness: 0.4,
+    metalness: 0.02,
+  },
+  voidFloor: {
+    color: '#4B5563', // Deep charcoal architectural ventilation shaft
+    roughness: 0.95,
+    metalness: 0.0,
   },
   rugSlateBlue: {
     color: '#4A6B82', // Rich slate denim blue area rug
@@ -295,6 +319,26 @@ export const CLAY_THEME: MaterialTheme = {
     roughness: 0.9,
     metalness: 0.0,
   },
+  lawnFloor: {
+    color: '#D2D8CF',
+    roughness: 0.9,
+    metalness: 0.0,
+  },
+  corridorFloor: {
+    color: '#E0DAD0',
+    roughness: 0.85,
+    metalness: 0.0,
+  },
+  utilityFloor: {
+    color: '#D4CEC4',
+    roughness: 0.85,
+    metalness: 0.0,
+  },
+  voidFloor: {
+    color: '#B8B2A8',
+    roughness: 0.95,
+    metalness: 0.0,
+  },
   rugSlateBlue: {
     color: '#CDC7BD',
     roughness: 0.9,
@@ -446,33 +490,49 @@ export type RoomCategory =
   | 'dining'
   | 'balcony'
   | 'corridor'
-  | 'utility';
+  | 'lawn'
+  | 'parking'
+  | 'utility'
+  | 'void'
+  | 'general';
 
 export function categorizeRoom(roomName?: string | null, roomId?: string | null): RoomCategory {
   const text = `${roomName || ''} ${roomId || ''}`.toLowerCase();
 
-  if (text.includes('bed') || text.includes('master') || text.includes('guest')) {
+  if (text.includes('park') || text.includes('car') || text.includes('garage') || text.includes('driveway')) {
+    return 'parking';
+  }
+  if (text.includes('open') || text.includes('shaft') || text.includes('duct') || text.includes('void')) {
+    return 'void';
+  }
+  if (text.includes('lawn') || text.includes('garden')) {
+    return 'lawn';
+  }
+  if (text.includes('bed') || text.includes('master') || text.includes('guest') || text.includes('child')) {
     return 'bedroom';
   }
-  if (text.includes('bath') || text.includes('toilet') || text.includes('wc') || text.includes('powder')) {
+  if (text.includes('bath') || text.includes('toilet') || text.includes('toi') || text.includes('wc') || text.includes('powder')) {
     return 'bathroom';
   }
-  if (text.includes('kitchen') || text.includes('pantry') || text.includes('cook')) {
+  if (text.includes('kitchen') || text.includes('kit') || text.includes('pantry') || text.includes('cook')) {
     return 'kitchen';
   }
-  if (text.includes('dining')) {
+  if (text.includes('dining') || (text.includes('din') && !text.includes('building'))) {
     return 'dining';
   }
-  if (text.includes('balcony') || text.includes('terrace') || text.includes('verandah') || text.includes('deck')) {
+  if (text.includes('balcony') || text.includes('terrace') || text.includes('verandah') || text.includes('sitout') || text.includes('deck') || text.includes('porch')) {
     return 'balcony';
   }
-  if (text.includes('living') || text.includes('drawing') || text.includes('lounge') || text.includes('hall') || text.includes('family')) {
+  if (text.includes('living') || text.includes('drg') || text.includes('drawing') || text.includes('lounge') || text.includes('hall') || text.includes('family')) {
     return 'living';
   }
-  if (text.includes('corridor') || text.includes('passage') || text.includes('foyer') || text.includes('entry') || text.includes('hallway')) {
+  if (text.includes('corridor') || text.includes('passage') || text.includes('foyer') || text.includes('entry') || text.includes('hallway') || text.includes('stair')) {
     return 'corridor';
   }
-  return 'utility';
+  if (text.includes('wash') || text.includes('laundry') || text.includes('util')) {
+    return 'utility';
+  }
+  return 'general';
 }
 
 export function getRoomFloorMaterialParams(
@@ -492,10 +552,22 @@ export function getRoomFloorMaterialParams(
       return theme.bathFloor;
     case 'balcony':
       return theme.balconyFloor;
+    case 'lawn':
+      return theme.lawnFloor;
     case 'corridor':
-      return theme.livingFloor;
+      return theme.corridorFloor;
     case 'utility':
+      return theme.utilityFloor;
+    case 'void':
+      return theme.voidFloor;
+    case 'parking':
+      return {
+        color: '#A2A9B2',
+        roughness: 0.82,
+        metalness: 0.04,
+      };
+    case 'general':
     default:
-      return theme.kitchenFloor;
+      return theme.corridorFloor;
   }
 }

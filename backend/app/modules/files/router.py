@@ -63,6 +63,13 @@ async def upload_file(
 
         # Sanitize project_id to avoid PostgreSQL 22P02 invalid UUID syntax errors (e.g. from Swagger placeholder 'string')
         clean_project_id = clean_uuid(project_id)
+        if clean_project_id:
+            try:
+                chk = supabase.table("projects").select("id").eq("id", clean_project_id).execute()
+                if not chk.data:
+                    clean_project_id = None
+            except Exception:
+                clean_project_id = None
 
         # Generate unique storage key
         unique_id = str(uuid.uuid4())

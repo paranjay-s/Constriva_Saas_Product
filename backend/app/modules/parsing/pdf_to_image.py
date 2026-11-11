@@ -16,7 +16,10 @@ Purpose:
 import io
 import logging
 from typing import Tuple
-import fitz  # PyMuPDF
+try:
+    import pymupdf as fitz
+except ImportError:
+    import fitz
 
 logger = logging.getLogger("construtiva.rasterizer")
 

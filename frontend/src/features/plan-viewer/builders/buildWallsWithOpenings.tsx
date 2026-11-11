@@ -183,6 +183,22 @@ export function WallWithOpeningsMesh({
         </mesh>
       ))}
 
+      {/* Architectural Wall Top Coping Cap for Razor-Sharp Layout Outlines */}
+      {wallSegments.map((seg, idx) => (
+        <mesh
+          key={`wcap_${idx}`}
+          position={[seg.centerOffset, seg.yBottom + seg.height + 0.012, 0]}
+          castShadow
+        >
+          <boxGeometry args={[seg.length + 0.008, 0.024, thickness + 0.012]} />
+          <meshStandardMaterial
+            color="#2D3036"
+            roughness={0.35}
+            metalness={0.2}
+          />
+        </mesh>
+      ))}
+
       {/* Skirting / Baseboards on internal faces */}
       {!isExterior && (
         <group position={[wallLen / 2, 0.04, 0]}>
