@@ -92,5 +92,37 @@ describe('3D Architectural Viewer - Material & Categorization Engine', () => {
     expect(isIndoorTileTarget(washOutdoor, 'utility')).toBe(false);
     expect(isIndoorTileTarget(openShaft, 'void')).toBe(false);
   });
+
+  it('builds full 3D architectural model from DEFAULT_ARCHITECTURAL_PLAN with non-zero geometry', async () => {
+    const { DEFAULT_ARCHITECTURAL_PLAN } = await import('../../lib/defaultPlan');
+    const { normalizePlan } = await import('../../viewer3d/adapter/normalizePlan');
+    const { buildFloorsWithPbr } = await import('./builders/buildFloors');
+    const { buildWallsWithOpenings } = await import('./builders/buildWallsWithOpenings');
+    const { furnishRoomsWithPbr } = await import('./furniture/roomFurnisher');
+    const { getPbrMaterialCatalog } = await import('./materials/materials');
+
+    const plan = normalizePlan(DEFAULT_ARCHITECTURAL_PLAN);
+    expect(plan.walls.length).toBeGreaterThan(0);
+    expect(plan.rooms.length).toBeGreaterThan(0);
+
+    const mats = getPbrMaterialCatalog();
+    const roomsData = plan.rooms.map((r) => ({
+      id: r.id,
+      name: r.label || r.id,
+      type: r.type,
+      polygon: r.polygon,
+    }));
+
+    const floors = buildFloorsWithPbr(roomsData, mats);
+    expect(floors.group.children.length).toBeGreaterThan(0);
+    expect(floors.roomMeshes.size).toBeGreaterThan(0);
+
+    const walls = buildWallsWithOpenings(plan.walls, plan.openings, mats);
+    expect(walls.group.children.length).toBeGreaterThan(0);
+    expect(walls.walls.length).toBeGreaterThan(0);
+
+    const furn = furnishRoomsWithPbr(roomsData, mats);
+    expect(furn.group.children.length).toBeGreaterThan(0);
+  });
 });
 

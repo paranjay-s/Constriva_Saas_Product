@@ -1,59 +1,137 @@
-import type { MaterialTheme } from '../materials/materials';
+// frontend/src/features/plan-viewer/builders/buildRailings.tsx
+import * as THREE from 'three';
+import {
+  getPbrMaterialCatalog,
+  type PbrMaterialCatalog,
+} from '../materials/materials';
 
-interface RailingProps {
-  start: [number, number];
-  end: [number, number];
-  height?: number;
-  theme: MaterialTheme;
+export interface StaircaseConfig {
+  center: { x: number; y: number };
+  width: number;
+  depth: number;
+  totalHeight?: number;
+  angle?: number;
 }
 
-export function BalconyRailingMesh({
-  start,
-  end,
-  height = 1.05,
-  theme,
-}: RailingProps) {
-  const [x1, y1] = start;
-  const [x2, y2] = end;
-  const dx = x2 - x1;
-  const dz = y2 - y1;
-  const length = Math.sqrt(dx * dx + dz * dz);
-  if (length <= 0.2) return null;
+/**
+ * Builds stepped U-turn staircase with polished wood treads, white risers, landing & glass balustrade
+ */
+export function buildStaircaseMesh(
+  config: StaircaseConfig,
+  mats: PbrMaterialCatalog = getPbrMaterialCatalog()
+): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'UturnStaircase';
+  const totalH = config.totalHeight || 2.9;
+  const numStepsPerFlight = 8;
+  const riserH = totalH / (numStepsPerFlight * 2);
+  const flightW = (config.width - 0.2) / 2;
+  const treadD = (config.depth - 1.0) / numStepsPerFlight;
 
-  const angle = -Math.atan2(dz, dx);
-  const postSpacing = 1.2;
-  const numPosts = Math.max(2, Math.floor(length / postSpacing) + 1);
+  // 1. Lower Flight (First half)
+  for (let i = 0; i < numStepsPerFlight; i++) {
+    const stepGroup = new THREE.Group();
 
-  return (
-    <group position={[x1, 0, y1]} rotation={[0, angle, 0]}>
-      {/* Top Handrail */}
-      <mesh position={[length / 2, height, 0]} castShadow>
-        <boxGeometry args={[length, 0.04, 0.06]} />
-        <meshStandardMaterial {...theme.railingMetal} />
-      </mesh>
+    // White riser
+    const riserGeo = new THREE.BoxGeometry(flightW, riserH, 0.04);
+    const riserMesh = new THREE.Mesh(riserGeo, mats.interiorPlaster);
+    riserMesh.position.set(0, riserH / 2, 0);
+    riserMesh.castShadow = true;
+    stepGroup.add(riserMesh);
 
-      {/* Bottom Base Channel */}
-      <mesh position={[length / 2, 0.06, 0]} castShadow>
-        <boxGeometry args={[length, 0.04, 0.05]} />
-        <meshStandardMaterial {...theme.railingMetal} />
-      </mesh>
+    // Polished wood tread
+    const treadGeo = new THREE.BoxGeometry(flightW + 0.04, 0.035, treadD + 0.04);
+    const treadMesh = new THREE.Mesh(treadGeo, mats.herringboneOak);
+    treadMesh.position.set(0, riserH, treadD / 2);
+    treadMesh.castShadow = true;
+    stepGroup.add(treadMesh);
 
-      {/* Tempered Safety Glass Balustrade Infill */}
-      <mesh position={[length / 2, height / 2 + 0.03, 0]}>
-        <boxGeometry args={[length - 0.04, height - 0.1, 0.015]} />
-        <meshStandardMaterial {...theme.railingGlass} />
-      </mesh>
+    stepGroup.position.set(-flightW / 2 - 0.05, i * riserH, i * treadD);
+    group.add(stepGroup);
+  }
 
-      {/* Vertical Stanchion Posts */}
-      {Array.from({ length: numPosts }).map((_, i) => {
-        const posX = (i / (numPosts - 1)) * length;
-        return (
-          <mesh key={i} position={[posX, height / 2, 0]} castShadow>
-            <cylinderGeometry args={[0.018, 0.018, height, 12]} />
-            <meshStandardMaterial {...theme.railingMetal} />
-          </mesh>
-        );
-      })}
-    </group>
-  );
+  // 2. Intermediate Landing Slab
+  const landingH = totalH / 2;
+  const landingGeo = new THREE.BoxGeometry(config.width, 0.12, 1.0);
+  const landingMesh = new THREE.Mesh(landingGeo, mats.herringboneOak);
+  landingMesh.position.set(0, landingH, numStepsPerFlight * treadD + 0.5);
+  landingMesh.castShadow = true;
+  group.add(landingMesh);
+
+  // 3. Upper Flight (Second half returning)
+  for (let i = 0; i < numStepsPerFlight; i++) {
+    const stepGroup = new THREE.Group();
+
+    const riserGeo = new THREE.BoxGeometry(flightW, riserH, 0.04);
+    const riserMesh = new THREE.Mesh(riserGeo, mats.interiorPlaster);
+    riserMesh.position.set(0, riserH / 2, 0);
+    riserMesh.castShadow = true;
+    stepGroup.add(riserMesh);
+
+    const treadGeo = new THREE.BoxGeometry(flightW + 0.04, 0.035, treadD + 0.04);
+    const treadMesh = new THREE.Mesh(treadGeo, mats.herringboneOak);
+    treadMesh.position.set(0, riserH, -treadD / 2);
+    treadMesh.castShadow = true;
+    stepGroup.add(treadMesh);
+
+    stepGroup.position.set(flightW / 2 + 0.05, landingH + i * riserH, numStepsPerFlight * treadD - i * treadD);
+    group.add(stepGroup);
+  }
+
+  // 4. Glass Balustrade & Stainless Steel Handrail along the flight center
+  const balustradeGeo = new THREE.BoxGeometry(0.015, 0.95, config.depth * 0.9);
+  const balustrade = new THREE.Mesh(balustradeGeo, mats.balconyGlass);
+  balustrade.position.set(0, totalH * 0.5, config.depth * 0.45);
+  group.add(balustrade);
+
+  const handrailGeo = new THREE.CylinderGeometry(0.02, 0.02, config.depth * 0.9, 12);
+  handrailGeo.rotateX(Math.PI / 2);
+  const handrail = new THREE.Mesh(handrailGeo, mats.doorBronzeFrame);
+  handrail.position.set(0, totalH * 0.5 + 0.48, config.depth * 0.45);
+  group.add(handrail);
+
+  group.position.set(config.center.x, 0, config.center.y);
+  group.rotation.y = config.angle || 0;
+  return group;
 }
+
+/**
+ * Builds contemporary architectural glass balcony railing
+ */
+export function buildBalconyRailing(
+  length: number,
+  mats: PbrMaterialCatalog = getPbrMaterialCatalog()
+): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'BalconyGlassRailing';
+
+  const railH = 1.05;
+
+  // Tempered safety glass panel
+  const glassGeo = new THREE.BoxGeometry(length, railH, 0.016);
+  const glass = new THREE.Mesh(glassGeo, mats.balconyGlass);
+  glass.position.set(length / 2, railH / 2, 0);
+  glass.castShadow = false;
+  group.add(glass);
+
+  // Top capping handrail
+  const topRailGeo = new THREE.BoxGeometry(length, 0.04, 0.05);
+  const topRail = new THREE.Mesh(topRailGeo, mats.doorBronzeFrame);
+  topRail.position.set(length / 2, railH - 0.02, 0);
+  topRail.castShadow = true;
+  group.add(topRail);
+
+  // Bottom clamping spigots
+  const numSpigots = Math.max(2, Math.round(length / 0.8));
+  const spigotGeo = new THREE.BoxGeometry(0.05, 0.12, 0.06);
+  for (let i = 0; i <= numSpigots; i++) {
+    const sx = (length / numSpigots) * i;
+    const spigot = new THREE.Mesh(spigotGeo, mats.doorBronzeFrame);
+    spigot.position.set(sx, 0.06, 0);
+    spigot.castShadow = true;
+    group.add(spigot);
+  }
+
+  return group;
+}
+

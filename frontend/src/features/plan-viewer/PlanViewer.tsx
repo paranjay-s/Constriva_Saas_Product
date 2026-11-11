@@ -1,52 +1,20 @@
-import { Suspense, useMemo, useRef, useState } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Html } from '@react-three/drei';
+// frontend/src/features/plan-viewer/PlanViewer.tsx
+// Enscape-Tier 3D/4D Photorealistic Engine & Interactive FPV Walkthrough
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useProject } from '../../context/ProjectContext';
+import type { Room } from '../../types';
+import { getPbrMaterialCatalog } from './materials/materials';
+import { buildWallsWithOpenings, type WallsConstructionResult } from './builders/buildWallsWithOpenings';
+import { buildFloorsWithPbr, type FloorsConstructionResult } from './builders/buildFloors';
+import { furnishRoomsWithPbr, type FurnishingResult } from './furniture/roomFurnisher';
+import { updateProximityDoors } from './builders/buildOpenings';
 import {
-  IconBox,
-  IconRefresh,
-} from '../../components/ui/Icons';
-import type { Room, Wall } from '../../types';
-import {
-  REALISTIC_THEME,
-  CLAY_THEME,
-  categorizeRoom,
-  getRoomFloorMaterialParams,
-  type MaterialTheme,
-} from './materials/materials';
-import { WallWithOpeningsMesh } from './builders/buildWallsWithOpenings';
-import { BalconyRailingMesh } from './builders/buildRailings';
-import { RoomFurnisher } from './furniture/roomFurnisher';
-import { ensureCompleteWalls, filterValidRooms } from './builders/wallSynthesizer';
+  CinematicNavigationRig,
+  type CameraNavMode,
+} from './controls/CinematicNavigationRig';
+import { normalizePlan } from '../../viewer3d/adapter/normalizePlan';
 
-// Clean OrbitControls wrapper
-function CameraRig({
-  target,
-  autoRotate,
-  controlsRef,
-}: {
-  target: [number, number, number];
-  autoRotate: boolean;
-  controlsRef: React.RefObject<any>;
-}) {
-  return (
-    <OrbitControls
-      ref={controlsRef}
-      makeDefault
-      target={target}
-      autoRotate={autoRotate}
-      autoRotateSpeed={0.8}
-      minDistance={3}
-      maxDistance={45}
-      maxPolarAngle={Math.PI / 2.05} // Do not dip below ground
-      minPolarAngle={0.1}
-      dampingFactor={0.08}
-    />
-  );
-}
-
-// Room Floor & HTML Label Component
 export interface HighlightStyle {
   color: string;
   emissive: string;
@@ -59,7 +27,6 @@ export interface HighlightStyle {
 export function getMaterialHighlightStyle(tagOrName: string | null): HighlightStyle {
   const t = (tagOrName || '').toLowerCase().trim();
 
-  // Brick / Masonry: Vibrant Terracotta Red
   if (t === 'brick' || t === 'masonry' || t.includes('brick') || t.includes('masonry')) {
     return {
       color: '#E05638',
@@ -70,9 +37,7 @@ export function getMaterialHighlightStyle(tagOrName: string | null): HighlightSt
       badgeBorder: 'rgba(224, 86, 56, 0.35)',
     };
   }
-
-  // Steel / Rebar: Electric Cyan Blue
-  if (t === 'steel' || t === 'rebar' || t.includes('steel') || t.includes('rebar') || t.includes('reinforcement')) {
+  if (t === 'steel' || t === 'rebar' || t.includes('steel') || t.includes('rebar')) {
     return {
       color: '#06B6D4',
       emissive: '#0891B2',
@@ -82,8 +47,6 @@ export function getMaterialHighlightStyle(tagOrName: string | null): HighlightSt
       badgeBorder: 'rgba(6, 182, 212, 0.35)',
     };
   }
-
-  // Cement (Binder): Royal Purple
   if (t === 'cement' || t.includes('cement') || t.includes('binder')) {
     return {
       color: '#A855F7',
@@ -94,8 +57,6 @@ export function getMaterialHighlightStyle(tagOrName: string | null): HighlightSt
       badgeBorder: 'rgba(168, 85, 247, 0.35)',
     };
   }
-
-  // Sand / Fine Aggregate: Warm Amber Gold
   if (t === 'sand' || t.includes('sand') || t.includes('fine_aggregate')) {
     return {
       color: '#F59E0B',
@@ -106,8 +67,6 @@ export function getMaterialHighlightStyle(tagOrName: string | null): HighlightSt
       badgeBorder: 'rgba(245, 158, 11, 0.35)',
     };
   }
-
-  // Ballast / Coarse Aggregate: Indigo Slate
   if (t === 'ballast' || t.includes('ballast') || t.includes('coarse_aggregate')) {
     return {
       color: '#6366F1',
@@ -118,8 +77,6 @@ export function getMaterialHighlightStyle(tagOrName: string | null): HighlightSt
       badgeBorder: 'rgba(99, 102, 241, 0.35)',
     };
   }
-
-  // Plaster: Vibrant Coral Rose
   if (t === 'plaster' || t.includes('plaster')) {
     return {
       color: '#FB7185',
@@ -130,8 +87,6 @@ export function getMaterialHighlightStyle(tagOrName: string | null): HighlightSt
       badgeBorder: 'rgba(251, 113, 133, 0.35)',
     };
   }
-
-  // Tiles / Flooring: Radiant Emerald Green
   if (t === 'tiles' || t.includes('tile') || t.includes('flooring') || t.includes('skirting')) {
     return {
       color: '#10B981',
@@ -140,28 +95,6 @@ export function getMaterialHighlightStyle(tagOrName: string | null): HighlightSt
       badgeBg: 'rgba(16, 185, 129, 0.15)',
       badgeText: '#10B981',
       badgeBorder: 'rgba(16, 185, 129, 0.35)',
-    };
-  }
-
-  // Fallbacks
-  if (t === 'marble') {
-    return {
-      color: '#38BDF8',
-      emissive: '#0284C7',
-      label: 'Marble Flooring',
-      badgeBg: 'rgba(56, 189, 248, 0.15)',
-      badgeText: '#38BDF8',
-      badgeBorder: 'rgba(56, 189, 248, 0.35)',
-    };
-  }
-  if (t === 'wood') {
-    return {
-      color: '#D97706',
-      emissive: '#B45309',
-      label: 'Hardwood Finish',
-      badgeBg: 'rgba(217, 119, 6, 0.15)',
-      badgeText: '#D97706',
-      badgeBorder: 'rgba(217, 119, 6, 0.35)',
     };
   }
 
@@ -175,905 +108,707 @@ export function getMaterialHighlightStyle(tagOrName: string | null): HighlightSt
   };
 }
 
-function RoomFloor({
-  room,
-  theme,
-  isSelected,
-  isHighlighted,
-  highlightColor,
-  highlightEmissive,
-  isDimmed,
-  labelMode,
-  onSelect,
-}: {
-  room: Room;
-  theme: MaterialTheme;
-  isSelected: boolean;
-  isHighlighted: boolean;
-  highlightColor?: string;
-  highlightEmissive?: string;
-  isDimmed: boolean;
-  labelMode: 'smart' | 'all' | 'off';
-  onSelect: () => void;
-}) {
-  const [isHovered, setIsHovered] = useState(false);
-  const polygon = room.polygon || [];
-
-  const { shape, borderPoints, cx, cz, width, depth, area } = useMemo(() => {
-    const s = new THREE.Shape();
-    if (polygon.length === 0) {
-      return { shape: s, borderPoints: [], cx: 0, cz: 0, width: 0, depth: 0, area: 0 };
-    }
-
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minZ = Infinity;
-    let maxZ = -Infinity;
-
-    s.moveTo(polygon[0][0], polygon[0][1]);
-    for (let i = 1; i < polygon.length; i++) {
-      s.lineTo(polygon[i][0], polygon[i][1]);
-    }
-    s.closePath();
-
-    for (const [x, z] of polygon) {
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (z < minZ) minZ = z;
-      if (z > maxZ) maxZ = z;
-    }
-
-    const w = Math.round((maxX - minX) * 10) / 10;
-    const d = Math.round((maxZ - minZ) * 10) / 10;
-
-    // Shoelace formula for polygon area
-    let shoelace = 0;
-    for (let i = 0; i < polygon.length; i++) {
-      const j = (i + 1) % polygon.length;
-      shoelace += polygon[i][0] * polygon[j][1];
-      shoelace -= polygon[j][0] * polygon[i][1];
-    }
-    const a = Math.round(Math.abs(shoelace / 2) * 10) / 10;
-
-    const bPts = polygon.map(([x, z]) => new THREE.Vector3(x, 0.025, z));
-    if (polygon.length > 0) {
-      bPts.push(new THREE.Vector3(polygon[0][0], 0.025, polygon[0][1]));
-    }
-
-    return {
-      shape: s,
-      borderPoints: bPts,
-      cx: minX + (maxX - minX) / 2,
-      cz: minZ + (maxZ - minZ) / 2,
-      width: w,
-      depth: d,
-      area: a,
-    };
-  }, [polygon]);
-
-  const category = useMemo(() => categorizeRoom(room.name, room.id), [room.name, room.id]);
-  const floorParams = useMemo(() => getRoomFloorMaterialParams(category, theme), [category, theme]);
-
-  // Unit / Zone detection for clear visual differentiation
-  const unitTag = useMemo(() => {
-    const id = (room.id || '').toLowerCase();
-    const name = (room.name || '').toLowerCase();
-    if (id.includes('flat1') || name.includes('flat 1') || name.includes('flat-1')) return 'Flat 1';
-    if (id.includes('flat2') || name.includes('flat 2') || name.includes('flat-2')) return 'Flat 2';
-    if (name.includes('lawn') || name.includes('verandah') || name.includes('stair')) return 'Entrance';
-    return null;
-  }, [room.id, room.name]);
-
-  // Subtle unit color tinting so Flat 1 and Flat 2 have unique personality
-  const resolvedColor = useMemo(() => {
-    if (isHighlighted) return highlightColor || '#10B981';
-    if (isSelected) return '#E8D5BC';
-    if (isHovered) return '#DFCEB7';
-    if (unitTag === 'Flat 2' && (category === 'bedroom' || category === 'living')) {
-      return '#B8874E';
-    }
-    return floorParams.color;
-  }, [isHighlighted, highlightColor, isSelected, isHovered, unitTag, category, floorParams.color]);
-
-  const emissive = isHighlighted ? (highlightEmissive || highlightColor || '#059669') : isSelected ? '#C5A77B' : isHovered ? '#8A6A3E' : '#000000';
-  const emissiveIntensity = isHighlighted ? 0.6 : isSelected ? 0.3 : isHovered ? 0.15 : 0;
-  const opacity = isDimmed ? 0.5 : 1.0;
-
-  // Small utility room detection (toilets, ducts, shafts, wash)
-  const isSmallRoom = area < 4.5 || category === 'bathroom' || category === 'utility' || category === 'void';
-  const showExpanded = labelMode === 'all' || isSelected || isHovered;
-
-  return (
-    <group>
-      {/* Floor Slab Mesh */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0.02, 0]}
-        receiveShadow
-        onClick={(e) => {
-          e.stopPropagation();
-          onSelect();
-        }}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          setIsHovered(true);
-        }}
-        onPointerOut={() => setIsHovered(false)}
-      >
-        <shapeGeometry args={[shape]} />
-        <meshStandardMaterial
-          color={resolvedColor}
-          roughness={floorParams.roughness}
-          metalness={floorParams.metalness}
-          emissive={emissive}
-          emissiveIntensity={emissiveIntensity}
-          transparent={isDimmed}
-          opacity={opacity}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-
-      {/* Razor-sharp Perimeter Joint Border Line */}
-      {borderPoints.length > 2 && (
-        <lineLoop>
-          <bufferGeometry
-            attach="geometry"
-            onUpdate={(geo) => geo.setFromPoints(borderPoints)}
-          />
-          <lineBasicMaterial
-            attach="material"
-            color={isSelected ? '#C5A77B' : isHovered ? '#947547' : '#5E564C'}
-            linewidth={isSelected ? 2 : 1}
-          />
-        </lineLoop>
-      )}
-
-      {/* Non-congested Smart Floating Room Label */}
-      {labelMode !== 'off' && (
-        <Html
-          position={[cx, 1.35, cz]}
-          center
-          distanceFactor={18}
-          className="pointer-events-auto select-none"
-        >
-          <div
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelect();
-            }}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-            className={`transition-all duration-200 cursor-pointer ${
-              isSelected
-                ? 'scale-110 shadow-lg'
-                : isHovered
-                ? 'scale-105 shadow-md'
-                : 'shadow-sm'
-            }`}
-          >
-            {isSmallRoom && !showExpanded ? (
-              // Compact micro-pill for small spaces (Zero congestion!)
-              <div
-                className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-tight border transition-colors ${
-                  category === 'bathroom'
-                    ? 'bg-sky-50/90 text-sky-800 border-sky-300'
-                    : category === 'void'
-                    ? 'bg-slate-100/90 text-slate-600 border-slate-300'
-                    : 'bg-white/90 text-[#333] border-[#DDD8CE]'
-                }`}
-                title={`${room.name || 'Room'} • Click to focus`}
-              >
-                {category === 'bathroom' ? 'TOI' : category === 'void' ? 'OPEN' : (room.name || 'RM').slice(0, 4).toUpperCase()}
-              </div>
-            ) : (
-              // Clean, elegant primary room badge
-              <div
-                className={`px-2.5 py-1 rounded-lg border text-center transition-all ${
-                  isSelected
-                    ? 'bg-[#1A1918] text-[#FFFFFF] border-[#C5A77B] ring-2 ring-[#C5A77B]/40'
-                    : isHovered
-                    ? 'bg-[#FFFFFF] text-[#111] border-[#C5A77B]'
-                    : 'bg-white/92 backdrop-blur-md text-[#1A1918] border-[#DDD8CE]'
-                }`}
-              >
-                <div className="flex items-center justify-center gap-1.5">
-                  {unitTag && (
-                    <span
-                      className={`text-[8px] font-bold px-1 rounded uppercase tracking-wider ${
-                        unitTag === 'Flat 1'
-                          ? 'bg-amber-100 text-amber-800'
-                          : unitTag === 'Flat 2'
-                          ? 'bg-teal-100 text-teal-800'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}
-                    >
-                      {unitTag}
-                    </span>
-                  )}
-                  <span className="text-[10px] font-bold tracking-wide uppercase font-sans whitespace-nowrap">
-                    {room.name || 'Room'}
-                  </span>
-                </div>
-                {showExpanded && (
-                  <div className={`text-[9px] mt-0.5 font-mono whitespace-nowrap ${isSelected ? 'text-[#C5A77B]' : 'text-[#706C64]'}`}>
-                    {((room as any).dimensions)
-                      ? `${(room as any).dimensions} • ${area} m²`
-                      : `${width}m × ${depth}m • ${area} m²`}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </Html>
-      )}
-    </group>
-  );
-}
-
-/**
- * Strict positive whitelist & exclusion check for interior floor tile highlighting.
- * ONLY genuine enclosed interior living spaces receive interior floor tile highlighting.
- * Outdoor areas (lawn, garden, backyard, driveway, parking, porch, verandah, balcony,
- * terrace, patio, deck, sitout, staircase, outdoor wash, shafts, ducts, open voids)
- * are NEVER highlighted as interior flooring.
- */
 export const isIndoorTileTarget = (room: Room, cat: string): boolean => {
   const kind = (room.kind || (room as any).type || '').toLowerCase();
-  // Exclude all outdoor, void, or semi-open spaces
-  if (kind === 'outdoor' || kind === 'void' || kind === 'semi_open') {
+  if (kind === 'outdoor' || kind === 'void' || kind === 'semi_open') return false;
+
+  const text = `${room.name || ''} ${room.id || ''}`.toLowerCase();
+  if (/lawn|garden|backyard|yard|park|car|driveway|garage|porch|verandah|veranda|balcony|terrace|patio|deck|sitout|open|shaft|duct|void|stair|wash|utility|chhajja|canopy/i.test(text)) {
     return false;
   }
-
-  const name = (room.name || '').toLowerCase();
-  const id = (room.id || '').toLowerCase();
-  const text = `${name} ${id}`;
-
-  // Comprehensive negative exclusion for any exterior, outdoor, or semi-open spaces
-  if (
-    /lawn|garden|backyard|yard|park|car|driveway|garage|porch|verandah|veranda|balcony|terrace|patio|deck|sitout|open|shaft|duct|void|stair|wash|utility|chhajja|canopy/i.test(
-      text
-    )
-  ) {
+  if (cat === 'parking' || cat === 'lawn' || cat === 'void' || cat === 'balcony' || cat === 'utility') {
     return false;
   }
-
-  if (
-    cat === 'parking' ||
-    cat === 'lawn' ||
-    cat === 'void' ||
-    cat === 'balcony' ||
-    cat === 'utility'
-  ) {
-    return false;
-  }
-
-  // Must be an enclosed indoor living room
-  const isEnclosedLivingCategory =
-    cat === 'bedroom' ||
-    cat === 'living' ||
-    cat === 'dining' ||
-    cat === 'kitchen' ||
-    cat === 'bathroom' ||
-    (cat === 'corridor' && !text.includes('stair'));
-
-  const matchesLivingKeywords =
-    /bed|liv|drg|draw|din|kit|bath|toi|wc|dress|powder|puja|pooja|foyer|hall|lobby|passage/i.test(
-      text
-    );
-
-  return isEnclosedLivingCategory || matchesLivingKeywords;
+  return true;
 };
 
-// Complete 3D Architectural Scene
-function ArchitecturalScene({
-  isCutaway,
-  isClay,
-  labelMode,
-  showFurniture,
-  autoRotate,
-  controlsRef,
-}: {
-  isCutaway: boolean;
-  isClay: boolean;
-  labelMode: 'smart' | 'all' | 'off';
-  showFurniture: boolean;
-  autoRotate: boolean;
-  controlsRef: React.RefObject<any>;
-}) {
-  const { planData, selectedMaterialTag, activeRoomId, setActiveRoomId } = useProject();
-
-  const theme = isClay ? CLAY_THEME : REALISTIC_THEME;
-  const wallHeight = isCutaway ? 1.35 : 2.8;
-
-  // Compute distinct material highlight style and targeted architectural surfaces
-  const highlightStyle = useMemo(
-    () => getMaterialHighlightStyle(selectedMaterialTag),
-    [selectedMaterialTag]
-  );
-
-  const selTag = (selectedMaterialTag || '').toLowerCase().trim();
-
-  // Walls highlight for:
-  // 1. Brick / Masonry (structural blockwork)
-  // 2. Steel / Rebar (structural reinforcement embedded in walls & columns)
-  // 3. Plaster (interior & exterior wall surface finish)
-  // 4. Cement & Sand (mortar bonding in walls)
-  const isWallTag =
-    selTag.includes('brick') ||
-    selTag.includes('masonry') ||
-    selTag.includes('aac_blocks') ||
-    selTag.includes('steel') ||
-    selTag.includes('rebar') ||
-    selTag.includes('reinforcement') ||
-    selTag.includes('plaster') ||
-    selTag.includes('paint') ||
-    selTag.includes('cement') ||
-    selTag.includes('mortar') ||
-    selTag.includes('sand');
-
-  // Structural columns highlight for steel reinforcement & concrete
-  const isColTag =
-    selTag.includes('steel') ||
-    selTag.includes('rebar') ||
-    selTag.includes('reinforcement') ||
-    selTag.includes('column') ||
-    selTag.includes('concrete');
-
-  // Ground plinth slab / foundation highlights ONLY for coarse aggregate / ballast foundation
-  // Must NEVER highlight for steel, brick, plaster, or tiles
-  const isPlinthTag =
-    (selTag.includes('ballast') ||
-      selTag.includes('coarse_aggregate') ||
-      selTag.includes('foundation')) &&
-    !selTag.includes('steel') &&
-    !selTag.includes('rebar') &&
-    !selTag.includes('reinforcement') &&
-    !selTag.includes('brick') &&
-    !selTag.includes('masonry') &&
-    !selTag.includes('wall') &&
-    !selTag.includes('tile') &&
-    !selTag.includes('floor');
-
-  // Flooring highlights for tiles & floor finishes
-  const isFloorTag =
-    selTag.includes('tile') ||
-    selTag.includes('flooring') ||
-    selTag.includes('skirting') ||
-    selTag === 'wood' ||
-    selTag === 'marble';
-
-  const level = planData.levels?.[0] || { walls: [], rooms: [], openings: [] };
-  const rawWalls = level.walls || [];
-  const rawRooms = level.rooms || [];
-  const openings = level.openings || [];
-  const columns = (level as any).columns || [];
-
-  // 1. Filter out stray out-of-bounds rooms so rogue slabs never float behind the house
-  const rooms = useMemo(() => filterValidRooms(rawRooms, rawWalls), [rawRooms, rawWalls]);
-
-  // 2. Synthesize complete interior walls if missing, guaranteeing dividing walls are always rendered
-  const walls = useMemo(() => ensureCompleteWalls(rawWalls, rooms), [rawWalls, rooms]);
-
-  // Calculate building bounding box to ground foundation slab & center camera
-  const { minX, maxX, minZ, maxZ, cx, cz, totalW, totalD } = useMemo(() => {
-    let x0 = Infinity;
-    let x1 = -Infinity;
-    let z0 = Infinity;
-    let z1 = -Infinity;
-
-    for (const w of walls) {
-      x0 = Math.min(x0, w.start[0], w.end[0]);
-      x1 = Math.max(x1, w.start[0], w.end[0]);
-      z0 = Math.min(z0, w.start[1], w.end[1]);
-      z1 = Math.max(z1, w.start[1], w.end[1]);
-    }
-
-    if (x0 === Infinity) {
-      x0 = 0;
-      x1 = 10.5;
-      z0 = 0;
-      z1 = 8.5;
-    }
-
-    const w = x1 - x0;
-    const d = z1 - z0;
-    return {
-      minX: x0,
-      maxX: x1,
-      minZ: z0,
-      maxZ: z1,
-      cx: x0 + w / 2,
-      cz: z0 + d / 2,
-      totalW: w,
-      totalD: d,
-    };
-  }, [walls]);
-
-  // Compute camera target based on activeRoomId or building center
-  const cameraTarget: [number, number, number] = useMemo(() => {
-    if (!activeRoomId) return [cx, 0.4, cz];
-    const room = rooms.find((r) => r.id === activeRoomId);
-    if (!room || !room.polygon?.length) return [cx, 0.4, cz];
-
-    let sumX = 0;
-    let sumZ = 0;
-    for (const [x, z] of room.polygon) {
-      sumX += x;
-      sumZ += z;
-    }
-    return [sumX / room.polygon.length, 0.4, sumZ / room.polygon.length];
-  }, [activeRoomId, rooms, cx, cz]);
-
-  // Exterior wall identification (walls that touch the outer bounding box)
-  const isWallExt = (wall: Wall) => {
-    const eps = 0.3;
-    const touchesMinX = Math.abs(wall.start[0] - minX) < eps && Math.abs(wall.end[0] - minX) < eps;
-    const touchesMaxX = Math.abs(wall.start[0] - maxX) < eps && Math.abs(wall.end[0] - maxX) < eps;
-    const touchesMinZ = Math.abs(wall.start[1] - minZ) < eps && Math.abs(wall.end[1] - minZ) < eps;
-    const touchesMaxZ = Math.abs(wall.start[1] - maxZ) < eps && Math.abs(wall.end[1] - maxZ) < eps;
-    return touchesMinX || touchesMaxX || touchesMinZ || touchesMaxZ;
-  };
-
-  return (
-    <>
-      <CameraRig target={cameraTarget} autoRotate={autoRotate} controlsRef={controlsRef} />
-
-      {/* Clean Architectural Studio Neutral Grey Backdrop */}
-      <color attach="background" args={['#DFE3E8']} />
-
-      {/* Soft Architectural Daylight Lighting System */}
-      <ambientLight intensity={0.85} color="#FFFFFF" />
-      <hemisphereLight args={['#EDF2F7', '#D5DBE2', 0.65]} />
-
-      {/* Directional Sunlight from Upper Left */}
-      <directionalLight
-        position={[cx - 12, 22, cz - 10]}
-        intensity={1.7}
-        color="#FFFBF2"
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-      />
-
-      {/* Secondary Soft Cool Fill */}
-      <directionalLight
-        position={[cx + 14, 15, cz + 12]}
-        intensity={0.5}
-        color="#E4ECF4"
-      />
-
-      {/* Crisp Architectural Foundation Plinth Slab (Highlights for Cement, Sand, Ballast) */}
-      <mesh position={[cx, -0.06, cz]} receiveShadow castShadow>
-        <boxGeometry args={[totalW + 0.35, 0.12, totalD + 0.35]} />
-        <meshStandardMaterial
-          color={isPlinthTag ? highlightStyle.color : theme.foundationSlab.color}
-          emissive={isPlinthTag ? highlightStyle.emissive : '#000000'}
-          emissiveIntensity={isPlinthTag ? 0.65 : 0.0}
-          roughness={theme.foundationSlab.roughness}
-          metalness={theme.foundationSlab.metalness}
-        />
-      </mesh>
-
-      {/* Soft Contact Ambient Occlusion Shadow */}
-      <mesh position={[cx, -0.121, cz]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[totalW + 2.2, totalD + 2.2]} />
-        <meshBasicMaterial color="#CBD1D8" />
-      </mesh>
-
-      {/* Architectural Walls with True Openings (Highlights for Brick & Plaster) */}
-      <group>
-        {walls.map((wall) => (
-          <WallWithOpeningsMesh
-            key={wall.id}
-            wall={wall}
-            openings={openings}
-            wallHeight={wallHeight}
-            theme={theme}
-            isExterior={isWallExt(wall)}
-            isHighlighted={isWallTag}
-            highlightColor={highlightStyle.color}
-            highlightEmissive={highlightStyle.emissive}
-          />
-        ))}
-      </group>
-
-      {/* Structural RCC Columns with Chamfered Corners (Highlights for Steel & Concrete) */}
-      <group>
-        {columns.map((col: any) => (
-          <mesh
-            key={col.id}
-            position={[col.position[0], wallHeight / 2, col.position[1]]}
-            castShadow
-            receiveShadow
-          >
-            <boxGeometry args={[col.width || 0.23, wallHeight, col.depth || 0.23]} />
-            <meshStandardMaterial
-              color={isColTag ? highlightStyle.color : '#2B2D31'}
-              emissive={isColTag ? highlightStyle.emissive : '#000000'}
-              emissiveIntensity={isColTag ? 0.8 : 0.0}
-              roughness={0.4}
-              metalness={0.15}
-            />
-          </mesh>
-        ))}
-      </group>
-
-      {/* Room Floors & Distinct Architectural Materials (Highlights for Tiles & Floor Finishes) */}
-      <group>
-        {rooms.map((room) => {
-          const isSelected = activeRoomId === room.id;
-          const isDimmed = activeRoomId !== null && !isSelected;
-          const cat = categorizeRoom(room.name, room.id);
-
-          // Geometric boundary check: Ensure room center is enclosed by the exterior walls
-          const poly = room.polygon || [];
-          const rcx = poly.length ? poly.reduce((s, p) => s + p[0], 0) / poly.length : 0;
-          const rcz = poly.length ? poly.reduce((s, p) => s + p[1], 0) / poly.length : 0;
-          const isGeometricallyInside =
-            rcx >= minX - 0.08 && rcx <= maxX + 0.08 && rcz >= minZ - 0.08 && rcz <= maxZ + 0.08;
-
-          // Only legitimate interior living rooms receive floor tile highlighting
-          const isTargetRoom = isIndoorTileTarget(room, cat) && isGeometricallyInside;
-
-          let isRoomHighlighted = false;
-          if (isFloorTag && isTargetRoom) {
-            if (selTag.includes('wood')) {
-              isRoomHighlighted = cat === 'bedroom' || cat === 'living' || cat === 'dining';
-            } else if (selTag.includes('marble')) {
-              isRoomHighlighted = cat === 'living' || cat === 'dining';
-            } else {
-              // Standard floor & wall tiles highlight all interior rooms
-              isRoomHighlighted = true;
-            }
-          }
-
-          return (
-            <RoomFloor
-              key={room.id}
-              room={room}
-              theme={theme}
-              isSelected={isSelected}
-              isHighlighted={isRoomHighlighted}
-              highlightColor={highlightStyle.color}
-              highlightEmissive={highlightStyle.emissive}
-              isDimmed={isDimmed}
-              labelMode={labelMode}
-              onSelect={() => {
-                setActiveRoomId(activeRoomId === room.id ? null : room.id);
-              }}
-            />
-          );
-        })}
-      </group>
-
-      {/* Balcony Railings along Terrace Edges */}
-      <group>
-        {rooms
-          .filter((r) => categorizeRoom(r.name, r.id) === 'balcony')
-          .map((balconyRoom) => {
-            const poly = balconyRoom.polygon || [];
-            let bMinX = Infinity;
-            let bMaxX = -Infinity;
-            let bMinZ = Infinity;
-            let bMaxZ = -Infinity;
-            for (const [x, z] of poly) {
-              if (x < bMinX) bMinX = x;
-              if (x > bMaxX) bMaxX = x;
-              if (z < bMinZ) bMinZ = z;
-              if (z > bMaxZ) bMaxZ = z;
-            }
-            return (
-              <group key={`balcony_railings_${balconyRoom.id}`}>
-                {/* Outer East edge */}
-                <BalconyRailingMesh
-                  start={[bMaxX, bMinZ]}
-                  end={[bMaxX, bMaxZ]}
-                  height={isCutaway ? 1.05 : 1.15}
-                  theme={theme}
-                />
-                {/* Outer North edge */}
-                <BalconyRailingMesh
-                  start={[bMaxX, bMaxZ]}
-                  end={[bMinX, bMaxZ]}
-                  height={isCutaway ? 1.05 : 1.15}
-                  theme={theme}
-                />
-              </group>
-            );
-          })}
-      </group>
-
-      {/* Procedural Scaled Interior Furniture */}
-      {showFurniture && (
-        <group>
-          {rooms.map((room) => {
-            const isDimmed = activeRoomId !== null && activeRoomId !== room.id;
-            return (
-              <group key={`furniture_${room.id}`} visible={!isDimmed || isCutaway}>
-                <RoomFurnisher room={room} theme={theme} />
-              </group>
-            );
-          })}
-        </group>
-      )}
-    </>
-  );
+export interface DetectedRoomSummary {
+  id: string;
+  name: string;
+  dims?: string;
+  areaSqFt?: number;
+  areaSqM?: number;
+  centroid: THREE.Vector3;
 }
 
 export function PlanViewer() {
-  const { planData, activeRoomId, setActiveRoomId, selectedMaterialTag, setSelectedMaterialTag } =
-    useProject();
-
-  const [isCutaway, setIsCutaway] = useState(true);
-  const [isClay, setIsClay] = useState(false);
-  const [labelMode, setLabelMode] = useState<'smart' | 'all' | 'off'>('smart');
-  const [showFurniture, setShowFurniture] = useState(true);
-  const [autoRotate, setAutoRotate] = useState(false);
+  const {
+    planData,
+    activeRoomId,
+    setActiveRoomId,
+    selectedMaterialTag,
+  } = useProject();
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const controlsRef = useRef<any>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const modelRootRef = useRef<THREE.Group | null>(null);
+  const rigRef = useRef<CinematicNavigationRig | null>(null);
 
-  const level = planData.levels?.[0] || { walls: [], rooms: [] };
-  const rooms = level.rooms || [];
+  const wallsResultRef = useRef<WallsConstructionResult | null>(null);
+  const floorsResultRef = useRef<FloorsConstructionResult | null>(null);
+  const furnisherRef = useRef<FurnishingResult | null>(null);
 
-  // Reset Camera to front entrance architectural isometric overview
-  const handleResetCamera = () => {
-    setActiveRoomId(null);
-    if (controlsRef.current) {
-      controlsRef.current.target.set(5.56, 0.4, 8.38);
-      controlsRef.current.object.position.set(11.6, 15, 22.4);
-      controlsRef.current.update();
+  const [sceneReady, setSceneReady] = useState<boolean>(false);
+  const [navMode, setNavMode] = useState<CameraNavMode>('orbit');
+  const [activeRoomName, setActiveRoomName] = useState<string | null>(null);
+  const [viewPreset, setViewPreset] = useState<'iso' | 'top'>('iso');
+  const [showLabels, setShowLabels] = useState<boolean>(true);
+  const showLabelsRef = useRef<boolean>(true);
+  const [roomLabelPositions, setRoomLabelPositions] = useState<
+    { id: string; name: string; dims?: string; x: number; y: number; centroid: THREE.Vector3 }[]
+  >([]);
+  const [timelinePhase, setTimelinePhase] = useState<number>(1.0); // 1.0 = fully built
+  const [isPlayingTimeline, setIsPlayingTimeline] = useState<boolean>(false);
+  const [detectedRooms, setDetectedRooms] = useState<DetectedRoomSummary[]>([]);
+  const detectedRoomsRef = useRef<DetectedRoomSummary[]>([]);
+  const [entranceWaypoints, setEntranceWaypoints] = useState<{ entrance: THREE.Vector3; foyer: THREE.Vector3 } | null>(null);
+
+  // Setup Three.js Scene, Camera, Lights & PBR Engine
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // High performance WebGL Renderer with soft shadows
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: 'high-performance',
+      preserveDrawingBuffer: true,
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    container.innerHTML = '';
+    container.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
+
+    const scene = new THREE.Scene();
+    scene.name = 'EnscapeWalkthroughScene';
+    scene.background = new THREE.Color('#EBF3F9');
+    sceneRef.current = scene;
+
+    // Camera: default narrow isometric perspective (30°), auto-widens to 75° in rooms
+    const camera = new THREE.PerspectiveCamera(
+      30,
+      container.clientWidth / container.clientHeight,
+      0.05,
+      350
+    );
+    camera.position.set(16, 18, 22);
+    cameraRef.current = camera;
+
+    // Atmospheric warm daylight & sky lighting
+    const hemiLight = new THREE.HemisphereLight(0xdff0ff, 0xe8e2d5, 1.25);
+    hemiLight.position.set(0, 50, 0);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfff6e5, 3.2);
+    sunLight.position.set(-20, 35, 18);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 4096;
+    sunLight.shadow.mapSize.height = 4096;
+    sunLight.shadow.camera.left = -25;
+    sunLight.shadow.camera.right = 25;
+    sunLight.shadow.camera.top = 25;
+    sunLight.shadow.camera.bottom = -25;
+    sunLight.shadow.bias = -0.0003;
+    sunLight.shadow.normalBias = 0.025;
+    scene.add(sunLight);
+
+    const skyFill = new THREE.DirectionalLight(0xd4e5f7, 0.9);
+    skyFill.position.set(20, 16, -18);
+    scene.add(skyFill);
+
+    const modelRoot = new THREE.Group();
+    modelRoot.name = 'ModelRoot';
+    scene.add(modelRoot);
+    modelRootRef.current = modelRoot;
+
+    // Navigation Rig with Wide-Angle Walking & Drone Controllers
+    let rafId: number;
+    let lastTime = performance.now();
+    let frameCount = 0;
+
+    const rig = new CinematicNavigationRig({
+      container,
+      camera,
+      doors: [],
+      onModeChange: (m) => setNavMode(m),
+      onCeilingUpdate: (camY) => {
+        floorsResultRef.current?.updateCeilingVisibility(camY);
+      },
+      onRequestRender: () => {},
+    });
+    rigRef.current = rig;
+
+    // Render & Animation Loop
+    const animate = () => {
+      rafId = requestAnimationFrame(animate);
+      const now = performance.now();
+      const delta = (now - lastTime) / 1000;
+      lastTime = now;
+
+      rig.update(delta);
+
+      if (wallsResultRef.current) {
+        updateProximityDoors(wallsResultRef.current.doors, camera.position, delta);
+      }
+
+      renderer.render(scene, camera);
+
+      // Project 3D room centroids to 2D screen positions for floating area badges
+      frameCount++;
+      if (frameCount % 2 === 0 && showLabelsRef.current && rig.mode === 'orbit') {
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        const tempV = new THREE.Vector3();
+        const coords: { id: string; name: string; dims?: string; x: number; y: number; centroid: THREE.Vector3 }[] = [];
+
+        for (const r of detectedRoomsRef.current) {
+          tempV.copy(r.centroid).setY(0.35);
+          tempV.project(camera);
+          // Check if in front of camera
+          if (tempV.z >= -1 && tempV.z <= 1) {
+            const sx = (tempV.x * 0.5 + 0.5) * w;
+            const sy = (-tempV.y * 0.5 + 0.5) * h;
+            if (sx >= 25 && sx <= w - 25 && sy >= 25 && sy <= h - 25) {
+              coords.push({
+                id: r.id,
+                name: r.name,
+                dims: r.dims,
+                x: Math.round(sx),
+                y: Math.round(sy),
+                centroid: r.centroid,
+              });
+            }
+          }
+        }
+        setRoomLabelPositions(coords);
+      } else if (rig.mode !== 'orbit') {
+        // Clear labels during walkthrough and drone tours for immersive view
+        setRoomLabelPositions((prev) => (prev.length > 0 ? [] : prev));
+      }
+    };
+    rafId = requestAnimationFrame(animate);
+
+    // Resize observer
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          camera.aspect = width / height;
+          camera.updateProjectionMatrix();
+          renderer.setSize(width, height);
+        }
+      }
+    });
+    resizeObserver.observe(container);
+
+    // Raycast room floor clicks to teleport into room at human eye level (1.50m)
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    const onPointerDown = (event: MouseEvent) => {
+      if (rig.mode !== 'orbit') return;
+
+      const rect = container.getBoundingClientRect();
+      mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const floorMeshes = Array.from(floorsResultRef.current?.roomMeshes.values() || []);
+      const intersects = raycaster.intersectObjects(floorMeshes);
+
+      if (intersects.length > 0) {
+        const hit = intersects[0];
+        const point = hit.point;
+        const rName = hit.object.userData?.roomName || 'Room';
+        const rId = hit.object.userData?.roomId;
+        if (rId) setActiveRoomId(rId);
+        setActiveRoomName(rName);
+        rig.teleportToRoom(new THREE.Vector3(point.x, 1.50, point.z));
+      }
+    };
+    container.addEventListener('dblclick', onPointerDown);
+
+    setSceneReady(true);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      resizeObserver.disconnect();
+      container.removeEventListener('dblclick', onPointerDown);
+      rig.dispose();
+      renderer.dispose();
+      setSceneReady(false);
+    };
+  }, []);
+
+  // Rebuild 3D Model when planData updates
+  useEffect(() => {
+    if (!sceneReady) return;
+    const modelRoot = modelRootRef.current;
+    const rig = rigRef.current;
+    const camera = cameraRef.current;
+    if (!modelRoot || !rig || !camera) return;
+
+    if (!planData) return;
+
+    // Use normalizePlan to robustly parse both array [x,y] and object {x,y} coordinates,
+    // synthesize missing partition walls between adjacent rooms, and center origin
+    const plan = normalizePlan(planData);
+    if (plan.walls.length === 0 && plan.rooms.length === 0) return;
+
+    const mats = getPbrMaterialCatalog();
+
+    // Cleanly clear prior model children
+    while (modelRoot.children.length > 0) {
+      modelRoot.remove(modelRoot.children[0]);
     }
+
+    // Format rooms data for builders
+    const roomsData = plan.rooms.map((r) => ({
+      id: r.id,
+      name: r.label || r.id,
+      type: r.type,
+      polygon: r.polygon,
+    }));
+
+    // 1. Build Plinth, Multi-zone PBR Floors & Auto-culling Smart Ceilings
+    const floorsRes = buildFloorsWithPbr(roomsData, mats, (rId) => {
+      setActiveRoomId(rId);
+    });
+    floorsResultRef.current = floorsRes;
+    modelRoot.add(floorsRes.group);
+
+    // 2. Build Sliced Walls with Lintels, Window Sills, Skirting & Openings
+    const wallsRes = buildWallsWithOpenings(plan.walls, plan.openings, mats);
+    wallsResultRef.current = wallsRes;
+    modelRoot.add(wallsRes.group);
+    rig.doors = wallsRes.doors;
+
+    // 3. Auto-Stage PBR Furniture, Outdoor Lounge Deck Suites & Plants
+    const furnRes = furnishRoomsWithPbr(roomsData, mats);
+    furnisherRef.current = furnRes;
+    modelRoot.add(furnRes.group);
+
+    // 4. Compute Room Summaries & Exact Dimensions for Click-to-Enter Teleportation & Labels
+    let foyerPt = new THREE.Vector3(0, 1.50, 0);
+    let entrancePt = new THREE.Vector3(0, 1.55, 6);
+
+    const roomSummaries: DetectedRoomSummary[] = [];
+    for (const r of plan.rooms) {
+      if (r.polygon.length < 3) continue;
+      const sx = r.polygon.reduce((acc, p) => acc + p.x, 0) / r.polygon.length;
+      const sz = r.polygon.reduce((acc, p) => acc + p.y, 0) / r.polygon.length;
+      const centroid = new THREE.Vector3(sx, 1.50, sz);
+
+      // Compute room area via Shoelace formula
+      let areaM2 = 0;
+      for (let i = 0; i < r.polygon.length; i++) {
+        const j = (i + 1) % r.polygon.length;
+        areaM2 += r.polygon[i].x * r.polygon[j].y;
+        areaM2 -= r.polygon[j].x * r.polygon[i].y;
+      }
+      areaM2 = Math.abs(areaM2) / 2;
+      const areaSqFt = Math.round(areaM2 * 10.7639);
+
+      const dimsText =
+        r.dims && (r.dims.w > 0 || r.dims.d > 0)
+          ? `${Math.round(r.dims.w * 3.28084)}' × ${Math.round(r.dims.d * 3.28084)}' • ${areaSqFt} sq ft`
+          : `${areaSqFt} sq ft (${areaM2.toFixed(1)} m²)`;
+
+      const summary: DetectedRoomSummary = {
+        id: r.id,
+        name: r.label || r.id,
+        dims: dimsText,
+        areaSqFt,
+        areaSqM: areaM2,
+        centroid,
+      };
+      roomSummaries.push(summary);
+
+      const n = (r.label || r.id).toLowerCase();
+      if (n.includes('living') || n.includes('entry') || n.includes('foyer') || n.includes('drawing')) {
+        foyerPt = centroid.clone();
+        entrancePt = new THREE.Vector3(centroid.x, 1.55, centroid.z + 5.5);
+      }
+    }
+
+    setDetectedRooms(roomSummaries);
+    detectedRoomsRef.current = roomSummaries;
+    setEntranceWaypoints({ entrance: entrancePt, foyer: foyerPt });
+
+    // 5. Fit & Frame Camera to Entire House (Isometric Perspective)
+    const box = new THREE.Box3().setFromObject(modelRoot);
+    const sphere = box.getBoundingSphere(new THREE.Sphere());
+    const radius = Math.max(sphere.radius, 6);
+    const center = sphere.center;
+
+    if (rig.mode === 'orbit') {
+      rig.controls.target.copy(center);
+      const isoDist = radius * 2.3;
+      camera.position.set(
+        center.x + isoDist * 0.72,
+        center.y + isoDist * 0.85,
+        center.z + isoDist * 0.95
+      );
+      camera.lookAt(center);
+      rig.controls.update();
+    }
+  }, [sceneReady, planData]);
+
+  // Synchronize Material Highlighting from BOQ Sheet
+  useEffect(() => {
+    wallsResultRef.current?.updateHighlight(selectedMaterialTag);
+    floorsResultRef.current?.updateHighlight(selectedMaterialTag);
+  }, [selectedMaterialTag]);
+
+  // Synchronize Active Room
+  useEffect(() => {
+    floorsResultRef.current?.selectRoom(activeRoomId);
+  }, [activeRoomId]);
+
+  // 4D Construction Buildup Scrubber Controller
+  const handleTimelineChange = (phase: number) => {
+    setTimelinePhase(phase);
+    floorsResultRef.current?.setConstructionPhase(phase);
+    wallsResultRef.current?.setConstructionPhase(phase);
+    furnisherRef.current?.setConstructionPhase(phase);
   };
 
-  const toggleFullscreen = () => {
-    if (!containerRef.current) return;
-    if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen().catch(() => {});
-    }
+  // Play / Pause 4D Construction Animation
+  useEffect(() => {
+    if (!isPlayingTimeline) return;
+    const interval = setInterval(() => {
+      setTimelinePhase((prev) => {
+        const next = prev + 0.02;
+        if (next >= 1.0) {
+          setIsPlayingTimeline(false);
+          handleTimelineChange(1.0);
+          return 1.0;
+        }
+        handleTimelineChange(next);
+        return next;
+      });
+    }, 45);
+    return () => clearInterval(interval);
+  }, [isPlayingTimeline]);
+
+  // Camera preset views
+  const handleSetIsoView = () => {
+    setViewPreset('iso');
+    const rig = rigRef.current;
+    const modelRoot = modelRootRef.current;
+    if (!rig || !modelRoot) return;
+    const box = new THREE.Box3().setFromObject(modelRoot);
+    const sphere = box.getBoundingSphere(new THREE.Sphere());
+    const radius = Math.max(sphere.radius, 6);
+    const center = sphere.center;
+    const isoDist = radius * 2.3;
+    rig.setMode('orbit');
+    setActiveRoomName(null);
+    rig.animateTo(
+      new THREE.Vector3(
+        center.x + isoDist * 0.72,
+        center.y + isoDist * 0.85,
+        center.z + isoDist * 0.95
+      ),
+      center,
+      1.2
+    );
   };
 
-  // Find currently selected room details
-  const activeRoom = useMemo(() => {
-    if (!activeRoomId) return null;
-    return rooms.find((r) => r.id === activeRoomId) || null;
-  }, [activeRoomId, rooms]);
+  const handleSetTopView = () => {
+    setViewPreset('top');
+    const rig = rigRef.current;
+    const modelRoot = modelRootRef.current;
+    if (!rig || !modelRoot) return;
+    const box = new THREE.Box3().setFromObject(modelRoot);
+    const sphere = box.getBoundingSphere(new THREE.Sphere());
+    const radius = Math.max(sphere.radius, 6);
+    const center = sphere.center;
+    rig.setMode('orbit');
+    setActiveRoomName(null);
+    rig.animateTo(
+      new THREE.Vector3(center.x, radius * 2.8, center.z + 0.001),
+      center,
+      1.2
+    );
+  };
+
+  const handlePlayWelcomeTour = () => {
+    if (!entranceWaypoints || !rigRef.current) return;
+    setActiveRoomName('Front Entrance Arrival');
+    rigRef.current.playWelcomeArrival(entranceWaypoints.entrance, entranceWaypoints.foyer);
+  };
+
+  const handleStartDroneTour = () => {
+    if (detectedRooms.length < 2 || !rigRef.current) return;
+    const waypoints = detectedRooms.map((r) => r.centroid.clone().setY(1.50));
+    setActiveRoomName('Autonomous FPV Drone Tour');
+    rigRef.current.startDroneTour(waypoints);
+  };
+
+  const handleStopDroneTour = () => {
+    rigRef.current?.stopTour();
+    setNavMode('orbit');
+    handleSetIsoView();
+  };
+
+  // Teleport into Room with wide-angle lens (75° FOV)
+  const handleTeleportRoom = (room: { id: string; name: string; centroid: THREE.Vector3 }) => {
+    setActiveRoomId(room.id);
+    setActiveRoomName(room.name);
+    rigRef.current?.teleportToRoom(room.centroid);
+  };
+
+  // Return to Orbit
+  const handleExitToOrbit = () => {
+    handleSetIsoView();
+  };
 
   return (
-    <div
-      ref={containerRef}
-      className="relative w-full h-full min-h-[560px] bg-[#DFE3E8] overflow-hidden rounded-xl border border-[#CBD2D9] select-none shadow-sm"
-    >
-      {/* Three.js Canvas */}
-      <Canvas
-        shadows
-        camera={{ position: [11.6, 15, 22.4], fov: 34, near: 0.1, far: 120 }}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
-      >
-        <Suspense
-          fallback={
-            <Html center>
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-white shadow text-xs text-[#555]">
-                <span className="w-3 h-3 rounded-full border-2 border-[#C5A77B] border-t-transparent animate-spin" />
-                <span>Loading 3D Studio...</span>
-              </div>
-            </Html>
-          }
-        >
-          <ArchitecturalScene
-            isCutaway={isCutaway}
-            isClay={isClay}
-            labelMode={labelMode}
-            showFurniture={showFurniture}
-            autoRotate={autoRotate}
-            controlsRef={controlsRef}
-          />
-        </Suspense>
-      </Canvas>
+    <div className="relative w-full h-full min-h-[580px] bg-[#EBF3F9] overflow-hidden select-none font-sans">
+      {/* 3D WebGL Canvas */}
+      <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-      {/* Top Left Floating Status Bar */}
-      <div className="absolute top-4 left-4 z-10 flex flex-wrap items-center gap-2.5">
-        <div className="px-3.5 py-1.5 rounded-full bg-white/95 backdrop-blur-md border border-[#E0DCD3] text-xs text-[#55524E] flex items-center gap-2 shadow-md">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="font-medium text-[#1A1918]">Architectural Studio 3D</span>
-          <span className="text-[#CCC8BE]">|</span>
-          <span>{isCutaway ? 'Dollhouse Cutaway' : 'Full Height'}</span>
-        </div>
-
-        {selectedMaterialTag && (() => {
-          const style = getMaterialHighlightStyle(selectedMaterialTag);
-          return (
+      {/* Floating 3D Room / Area Labels Overlay (Visible in Orbit/Top view) */}
+      {showLabels && navMode === 'orbit' && (
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
+          {roomLabelPositions.map((lbl) => (
             <div
-              className="px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 backdrop-blur-md shadow-sm border"
-              style={{
-                backgroundColor: style.badgeBg,
-                borderColor: style.badgeBorder,
-                color: style.badgeText,
+              key={lbl.id}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleTeleportRoom({ id: lbl.id, name: lbl.name, centroid: lbl.centroid });
               }}
+              style={{
+                left: `${lbl.x}px`,
+                top: `${lbl.y}px`,
+                transform: 'translate(-50%, -50%)',
+              }}
+              className="absolute pointer-events-auto cursor-pointer group transition-transform hover:scale-105 active:scale-95"
+              title={`Click to enter ${lbl.name} (360° Walkthrough)`}
             >
-              <span
-                className="w-2 h-2 rounded-full animate-pulse"
-                style={{ backgroundColor: style.color }}
-              />
-              <span>Highlighting: <strong>{style.label}</strong></span>
-              <button
-                onClick={() => setSelectedMaterialTag(null)}
-                className="ml-1 opacity-75 hover:opacity-100 font-bold text-sm leading-none"
-                title="Clear Highlight"
-              >
-                ×
-              </button>
+              <div className="flex flex-col items-center justify-center px-3 py-1.5 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-lg shadow-black/10 group-hover:border-emerald-500 group-hover:shadow-emerald-500/20 transition-all text-center">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:scale-125 transition-transform" />
+                  <span className="text-[11px] font-bold tracking-tight text-slate-800 uppercase whitespace-nowrap">
+                    {lbl.name}
+                  </span>
+                </div>
+                {lbl.dims && (
+                  <span className="text-[10px] font-medium text-slate-500 font-mono mt-0.5">
+                    {lbl.dims}
+                  </span>
+                )}
+              </div>
             </div>
-          );
-        })()}
-      </div>
-
-      {/* Selected Room Floating Inspection Card */}
-      {activeRoom && (
-        <div className="absolute top-16 left-4 z-10 p-3.5 rounded-xl bg-white/95 backdrop-blur-md border border-[#C5A77B]/50 shadow-xl text-xs max-w-xs animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center justify-between gap-3 mb-1.5 pb-1 border-b border-[#EAE6DE]">
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-sm text-[#1A1918]">{activeRoom.name}</span>
-              {(activeRoom.id?.includes('flat1') || activeRoom.name?.includes('flat 1')) && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 uppercase">Flat 1</span>
-              )}
-              {(activeRoom.id?.includes('flat2') || activeRoom.name?.includes('flat 2')) && (
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-teal-100 text-teal-800 uppercase">Flat 2</span>
-              )}
-            </div>
-            <button
-              onClick={() => setActiveRoomId(null)}
-              className="text-[#888] hover:text-[#111] font-bold text-sm w-5 h-5 flex items-center justify-center rounded-full hover:bg-[#F0EDE6]"
-              title="Close Room Focus"
-            >
-              ×
-            </button>
-          </div>
-          <div className="text-[11px] text-[#605D57] space-y-1">
-            <p className="flex justify-between">
-              <span>Category:</span>
-              <strong className="capitalize text-[#1A1918]">{categorizeRoom(activeRoom.name, activeRoom.id)}</strong>
-            </p>
-            {((activeRoom as any).dimensions) && (
-              <p className="flex justify-between">
-                <span>Imperial Size:</span>
-                <strong className="font-mono text-[#1A1918]">{(activeRoom as any).dimensions}</strong>
-              </p>
-            )}
-            <p className="text-[10px] text-[#9E8256] pt-1">
-              Camera focused on room boundaries • Click another room to inspect
-            </p>
-          </div>
+          ))}
         </div>
       )}
 
-      {/* Top Right Floating HUD Controls Toolbar */}
-      <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5 bg-white/95 backdrop-blur-md p-1.5 rounded-lg border border-[#E0DCD3] shadow-md text-xs">
-        {/* Toggle Cutaway View */}
-        <button
-          onClick={() => setIsCutaway(!isCutaway)}
-          className={`px-2.5 py-1.5 rounded font-medium transition-colors ${
-            isCutaway
-              ? 'bg-[#1A1918] text-[#FFFFFF]'
-              : 'text-[#605D57] hover:text-[#1A1918] hover:bg-[#F0EDE6]'
-          }`}
-          title="Toggle Cutaway / Full Height"
-        >
-          {isCutaway ? 'Cutaway View' : 'Full Height'}
-        </button>
+      {/* Top Left: Mode & Status Indicator */}
+      <div className="absolute top-4 left-4 z-20 flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/85 backdrop-blur-md border border-white/10 text-xs text-white shadow-lg">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="font-semibold tracking-wide">Enscape 4D Studio</span>
+          <span className="text-white/30">|</span>
+          <span className="text-white/80 capitalize">
+            {navMode === 'walkthrough'
+              ? `Inside: ${activeRoomName || 'Room'} (Wide 75° Lens)`
+              : navMode === 'drone'
+              ? 'Autonomous Drone Tour'
+              : `${navMode} View`}
+          </span>
+        </div>
 
-        {/* Toggle Clay / Realistic Mode */}
-        <button
-          onClick={() => setIsClay(!isClay)}
-          className={`px-2.5 py-1.5 rounded font-medium transition-colors ${
-            isClay
-              ? 'bg-[#C5A77B] text-[#1A1918]'
-              : 'text-[#605D57] hover:text-[#1A1918] hover:bg-[#F0EDE6]'
-          }`}
-          title="Toggle Material Realism vs Monochrome Clay"
-        >
-          {isClay ? 'Clay Mode' : 'Materials'}
-        </button>
-
-        {/* Toggle Furniture */}
-        <button
-          onClick={() => setShowFurniture(!showFurniture)}
-          className={`px-2.5 py-1.5 rounded font-medium transition-colors ${
-            showFurniture
-              ? 'bg-[#F0EDE6] text-[#1A1918]'
-              : 'text-[#999] hover:bg-[#F0EDE6]'
-          }`}
-          title="Toggle Furnishing"
-        >
-          {showFurniture ? 'Furnished' : 'Empty'}
-        </button>
-
-        {/* Toggle Labels Mode: Smart -> All -> Off */}
-        <button
-          onClick={() => {
-            setLabelMode((prev) => (prev === 'smart' ? 'all' : prev === 'all' ? 'off' : 'smart'));
-          }}
-          className={`px-2.5 py-1.5 rounded font-medium transition-colors ${
-            labelMode === 'smart'
-              ? 'bg-[#C5A77B]/20 text-[#8A6A3E] font-semibold border border-[#C5A77B]/40'
-              : labelMode === 'all'
-              ? 'bg-[#1A1918] text-[#FFFFFF]'
-              : 'text-[#888] hover:text-[#111] hover:bg-[#F0EDE6]'
-          }`}
-          title="Toggle Labels: Smart (Non-congested) / All / Off"
-        >
-          {labelMode === 'smart' ? 'Smart Labels' : labelMode === 'all' ? 'All Labels' : 'Labels Off'}
-        </button>
-
-        <div className="h-4 w-px bg-[#DDD9D0] mx-0.5" />
-
-        {/* Auto-Rotate 360 */}
-        <button
-          onClick={() => setAutoRotate(!autoRotate)}
-          className={`p-1.5 rounded hover:bg-[#F0EDE6] transition-colors ${
-            autoRotate ? 'text-[#C5A77B] bg-[#C5A77B]/15' : 'text-[#605D57]'
-          }`}
-          title="Toggle 360° Auto-Rotate"
-        >
-          <IconRefresh className={`w-4 h-4 ${autoRotate ? 'animate-spin' : ''}`} />
-        </button>
-
-        {/* Reset Camera */}
-        <button
-          onClick={handleResetCamera}
-          className="p-1.5 rounded hover:bg-[#F0EDE6] text-[#605D57] hover:text-[#1A1918] transition-colors"
-          title="Reset Camera Framing"
-        >
-          <IconBox className="w-4 h-4" />
-        </button>
-
-        {/* Fullscreen */}
-        <button
-          onClick={toggleFullscreen}
-          className="p-1.5 rounded hover:bg-[#F0EDE6] text-[#605D57] hover:text-[#1A1918] transition-colors"
-          title="Toggle Fullscreen"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-          </svg>
-        </button>
+        {selectedMaterialTag && (
+          <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-amber-500/90 text-white text-xs font-semibold shadow-md backdrop-blur-md animate-pulse">
+            <span>BOQ Highlight: {selectedMaterialTag}</span>
+          </div>
+        )}
       </div>
 
-      {/* Bottom Room Selector Strip */}
-      <div className="absolute bottom-4 left-4 right-4 z-10 flex items-center justify-between gap-3 pointer-events-none">
-        <div className="flex items-center gap-1.5 overflow-x-auto p-1.5 rounded-lg bg-white/95 backdrop-blur-md border border-[#E0DCD3] shadow-md pointer-events-auto max-w-[85%] scrollbar-none">
+      {/* Top Right: View Controls, Drone Tour Stop, Labels & Presets */}
+      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+        {navMode === 'drone' ? (
           <button
-            onClick={() => setActiveRoomId(null)}
-            className={`px-3 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors ${
-              activeRoomId === null
-                ? 'bg-[#1A1918] text-[#FFFFFF]'
-                : 'text-[#605D57] hover:text-[#1A1918] hover:bg-[#F0EDE6]'
-            }`}
+            type="button"
+            onClick={handleStopDroneTour}
+            className="flex items-center gap-2 px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-full shadow-lg shadow-rose-600/30 animate-pulse transition-all border border-rose-400"
+            title="Stop the automated drone tour and return to orbit (or press ESC)"
           >
-            Complete Model
+            <span className="w-2.5 h-2.5 rounded-sm bg-white" />
+            <span>Stop Drone Tour</span>
+            <span className="text-[10px] bg-rose-800/80 px-1.5 py-0.5 rounded text-white/90 font-mono">ESC</span>
           </button>
-          {rooms.map((r) => (
+        ) : navMode !== 'orbit' ? (
+          <button
+            type="button"
+            onClick={handleExitToOrbit}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-900/85 hover:bg-slate-900 text-white font-semibold text-xs rounded-full shadow-lg border border-white/10 transition-all"
+          >
+            <span>Exit to Aerial Orbit</span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-1.5 p-1 bg-slate-900/85 backdrop-blur-md border border-white/10 rounded-full shadow-lg text-xs">
             <button
-              key={r.id}
-              onClick={() => setActiveRoomId(r.id)}
-              className={`px-3 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors ${
-                activeRoomId === r.id
-                  ? 'bg-[#C5A77B] text-[#101010] font-semibold shadow-sm'
-                  : 'text-[#605D57] hover:text-[#1A1918] hover:bg-[#F0EDE6]'
+              type="button"
+              onClick={handleSetIsoView}
+              className={`px-3 py-1 rounded-full font-medium transition-all ${
+                viewPreset === 'iso'
+                  ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                  : 'text-white/80 hover:text-white'
               }`}
             >
-              {r.name || 'Room'}
+              Isometric
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={handleSetTopView}
+              className={`px-3 py-1 rounded-full font-medium transition-all ${
+                viewPreset === 'top'
+                  ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                  : 'text-white/80 hover:text-white'
+              }`}
+            >
+              Top Plan
+            </button>
+            <div className="w-[1px] h-3.5 bg-white/20 mx-0.5" />
+            <button
+              type="button"
+              onClick={() => {
+                const next = !showLabels;
+                setShowLabels(next);
+                showLabelsRef.current = next;
+              }}
+              className={`px-2.5 py-1 rounded-full font-medium transition-all ${
+                showLabels
+                  ? 'bg-white/20 text-white font-semibold'
+                  : 'text-white/60 hover:text-white'
+              }`}
+              title="Toggle area and room labels in 3D"
+            >
+              {showLabels ? '🏷️ Labels On' : '🏷️ Labels Off'}
+            </button>
+            <button
+              type="button"
+              onClick={handlePlayWelcomeTour}
+              className="px-2.5 py-1 text-white/90 hover:text-white hover:bg-white/10 rounded-full font-medium transition-all"
+              title="Play realistic welcome walk entering front door"
+            >
+              Welcome Walk
+            </button>
+            <button
+              type="button"
+              onClick={handleStartDroneTour}
+              className="px-3 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold rounded-full shadow-sm transition-all"
+              title="Autonomous Higgsfield Drone Tour"
+            >
+              Drone Tour
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Center Prompt when in Drone Tour mode */}
+      {navMode === 'drone' && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 px-4 py-1.5 bg-black/75 backdrop-blur-md text-white/95 text-xs rounded-full border border-rose-500/40 shadow-lg pointer-events-none flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+          <span>Autonomous Drone Tour in Progress • Press <strong>ESC</strong> or click <strong>Stop Drone Tour</strong> to exit</span>
+        </div>
+      )}
+
+      {/* Center Prompt when in Walkthrough mode */}
+      {navMode === 'walkthrough' && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 px-4 py-1.5 bg-black/70 backdrop-blur-md text-white/95 text-xs rounded-full border border-white/15 pointer-events-none shadow-md flex items-center gap-2">
+          <span>Wide 75° Lens</span>
+          <span className="text-white/30">•</span>
+          <span>Drag to Look 360° (Look Up/Down)</span>
+          <span className="text-white/30">•</span>
+          <span>WASD or Scroll Wheel to Walk</span>
+          <span className="text-white/30">•</span>
+          <span className="text-emerald-400 font-medium">Double-click floor to teleport</span>
+        </div>
+      )}
+
+      {/* Bottom Area: 4D Construction Scrubber & Room Teleportation Chips */}
+      <div className="absolute bottom-4 left-4 right-4 z-20 flex flex-col gap-2 max-w-4xl mx-auto">
+        {/* 4D Construction Buildup Slider */}
+        <div className="flex items-center gap-3 px-4 py-2 bg-slate-900/85 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl text-white text-xs">
+          <button
+            type="button"
+            onClick={() => {
+              if (timelinePhase >= 1.0) handleTimelineChange(0);
+              setIsPlayingTimeline(!isPlayingTimeline);
+            }}
+            className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg transition-all"
+          >
+            {isPlayingTimeline ? 'Pause' : 'Play 4D Build'}
+          </button>
+
+          <span className="text-white/60 font-medium whitespace-nowrap min-w-[150px]">
+            {timelinePhase < 0.25
+              ? 'Phase 1: Plinth & Site'
+              : timelinePhase < 0.6
+              ? 'Phase 2: Walls & Lintels'
+              : timelinePhase < 0.8
+              ? 'Phase 3: Doors & Windows'
+              : 'Phase 4: Staged Realism'}
+          </span>
+
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={timelinePhase}
+            onChange={(e) => handleTimelineChange(parseFloat(e.target.value))}
+            className="w-full accent-emerald-400 h-1.5 bg-white/20 rounded-lg cursor-pointer"
+          />
+
+          <span className="font-mono text-emerald-400 w-10 text-right">
+            {Math.round(timelinePhase * 100)}%
+          </span>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/95 backdrop-blur-md border border-[#E0DCD3] text-[11px] text-[#706C64] shadow-md pointer-events-auto">
-          <span>Click room to focus • Drag to orbit • Scroll to zoom</span>
-        </div>
+        {/* Room Teleportation Selector (Click to Enter Room) */}
+        {detectedRooms.length > 0 && (
+          <div className="flex items-center gap-1.5 overflow-x-auto p-1.5 bg-slate-900/85 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl scrollbar-none">
+            <span className="text-[11px] font-semibold text-white/50 px-2 uppercase tracking-wider whitespace-nowrap">
+              Enter Room:
+            </span>
+            {detectedRooms.map((room) => (
+              <button
+                key={room.id}
+                type="button"
+                onClick={() => handleTeleportRoom(room)}
+                className={`px-3 py-1 text-xs rounded-xl font-medium whitespace-nowrap transition-all ${
+                  activeRoomName === room.name
+                    ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
+                    : 'bg-white/10 text-white/90 hover:bg-white/20'
+                }`}
+                title={`Enter and inspect ${room.name} in first-person (360°)`}
+              >
+                <span>{room.name}</span>
+                {room.areaSqFt && room.areaSqFt > 0 && (
+                  <span className="ml-1 opacity-60 text-[10px]">({room.areaSqFt} sq ft)</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
 export default PlanViewer;

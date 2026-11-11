@@ -1,841 +1,571 @@
-import type { MaterialTheme } from '../materials/materials';
+// frontend/src/features/plan-viewer/furniture/furnitureLibrary.tsx
+// High-Detail Procedural PBR Furniture Catalog
+import * as THREE from 'three';
+import {
+  getPbrMaterialCatalog,
+  type PbrMaterialCatalog,
+} from '../materials/materials';
 
-// ==========================================
-// 1. BEDROOM FURNITURE (Teal Velvet Suite)
-// ==========================================
-
-export function BedDouble({
-  width = 1.9,
-  length = 2.15,
-  theme,
-}: {
-  width?: number;
-  length?: number;
-  theme: MaterialTheme;
-}) {
-  const headboardH = 1.05;
-  const mattressH = 0.25;
-  const frameH = 0.3;
-  const nightstandW = 0.45;
-  const nightstandD = 0.4;
-  const nightstandH = 0.45;
-
-  return (
-    <group>
-      {/* Accent Woven Rug Under Bed */}
-      <mesh position={[0, 0.012, 0.3]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[width + 1.2, length + 0.8]} />
-        <meshStandardMaterial {...theme.rugSlateBlue} />
-      </mesh>
-
-      {/* Rich Teal/Petrol Velvet Headboard */}
-      <mesh position={[0, headboardH / 2, -length / 2 + 0.05]} castShadow receiveShadow>
-        <boxGeometry args={[width + 0.15, headboardH, 0.1]} />
-        <meshStandardMaterial {...theme.bedHeadboardTeal} />
-      </mesh>
-
-      {/* Bed Base Frame (Honey Oak) */}
-      <mesh position={[0, frameH / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[width, frameH, length]} />
-        <meshStandardMaterial {...theme.woodFurniture} />
-      </mesh>
-
-      {/* Crisp White Hotel Mattress */}
-      <mesh position={[0, frameH + mattressH / 2, 0.05]} castShadow receiveShadow>
-        <boxGeometry args={[width - 0.06, mattressH, length - 0.12]} />
-        <meshStandardMaterial {...theme.bedLinen} />
-      </mesh>
-
-      {/* Duvet / Bedspread */}
-      <mesh position={[0, frameH + mattressH + 0.03, 0.22]} castShadow receiveShadow>
-        <boxGeometry args={[width - 0.02, 0.06, length * 0.7]} />
-        <meshStandardMaterial {...theme.bedDuvet} />
-      </mesh>
-
-      {/* Folded Slate-Grey Accent Throw */}
-      <mesh position={[0, frameH + mattressH + 0.065, 0.65]} castShadow receiveShadow>
-        <boxGeometry args={[width + 0.02, 0.03, 0.55]} />
-        <meshStandardMaterial {...theme.bedThrow} />
-      </mesh>
-
-      {/* Pillows (Dual Pairs with Angle) */}
-      <group position={[0, frameH + mattressH + 0.08, -length / 2 + 0.35]}>
-        {/* Left Pillows */}
-        <mesh position={[-width / 4, 0, 0]} rotation={[-0.2, 0, 0]} castShadow>
-          <boxGeometry args={[width * 0.36, 0.11, 0.42]} />
-          <meshStandardMaterial {...theme.bedLinen} />
-        </mesh>
-        <mesh position={[-width / 4, 0.05, 0.12]} rotation={[-0.3, 0, 0]} castShadow>
-          <boxGeometry args={[width * 0.3, 0.09, 0.35]} />
-          <meshStandardMaterial {...theme.cushionBlue} />
-        </mesh>
-
-        {/* Right Pillows */}
-        <mesh position={[width / 4, 0, 0]} rotation={[-0.2, 0, 0]} castShadow>
-          <boxGeometry args={[width * 0.36, 0.11, 0.42]} />
-          <meshStandardMaterial {...theme.bedLinen} />
-        </mesh>
-        <mesh position={[width / 4, 0.05, 0.12]} rotation={[-0.3, 0, 0]} castShadow>
-          <boxGeometry args={[width * 0.3, 0.09, 0.35]} />
-          <meshStandardMaterial {...theme.cushionBlue} />
-        </mesh>
-      </group>
-
-      {/* Left Nightstand & Warm Bedside Lamp */}
-      <group position={[-width / 2 - nightstandW / 2 - 0.08, 0, -length / 2 + nightstandD / 2 + 0.05]}>
-        <mesh position={[0, nightstandH / 2, 0]} castShadow receiveShadow>
-          <boxGeometry args={[nightstandW, nightstandH, nightstandD]} />
-          <meshStandardMaterial {...theme.woodFurniture} />
-        </mesh>
-        {/* Lamp Base & Brass Stem */}
-        <mesh position={[0, nightstandH + 0.07, 0]} castShadow>
-          <cylinderGeometry args={[0.04, 0.06, 0.14, 12]} />
-          <meshStandardMaterial {...theme.brassGold} />
-        </mesh>
-        {/* Luminous Warm Lamp Shade */}
-        <mesh position={[0, nightstandH + 0.2, 0]} castShadow>
-          <cylinderGeometry args={[0.09, 0.12, 0.15, 16]} />
-          <meshStandardMaterial {...theme.lampGlow} />
-        </mesh>
-        <pointLight position={[0, nightstandH + 0.2, 0]} intensity={0.4} distance={3.5} color="#FFDF9E" />
-      </group>
-
-      {/* Right Nightstand & Warm Bedside Lamp */}
-      <group position={[width / 2 + nightstandW / 2 + 0.08, 0, -length / 2 + nightstandD / 2 + 0.05]}>
-        <mesh position={[0, nightstandH / 2, 0]} castShadow receiveShadow>
-          <boxGeometry args={[nightstandW, nightstandH, nightstandD]} />
-          <meshStandardMaterial {...theme.woodFurniture} />
-        </mesh>
-        {/* Lamp Base & Brass Stem */}
-        <mesh position={[0, nightstandH + 0.07, 0]} castShadow>
-          <cylinderGeometry args={[0.04, 0.06, 0.14, 12]} />
-          <meshStandardMaterial {...theme.brassGold} />
-        </mesh>
-        {/* Luminous Warm Lamp Shade */}
-        <mesh position={[0, nightstandH + 0.2, 0]} castShadow>
-          <cylinderGeometry args={[0.09, 0.12, 0.15, 16]} />
-          <meshStandardMaterial {...theme.lampGlow} />
-        </mesh>
-        <pointLight position={[0, nightstandH + 0.2, 0]} intensity={0.4} distance={3.5} color="#FFDF9E" />
-      </group>
-    </group>
-  );
+export interface FurnitureFootprint {
+  group: THREE.Group;
+  width: number;
+  depth: number;
 }
 
-export function Wardrobe({
-  width = 1.8,
-  height = 1.8,
-  depth = 0.6,
-  theme,
-}: {
-  width?: number;
-  height?: number;
-  depth?: number;
-  theme: MaterialTheme;
-}) {
-  return (
-    <group>
-      {/* Main Wardrobe Cabinet */}
-      <mesh position={[0, height / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[width, height, depth]} />
-        <meshStandardMaterial {...theme.woodFurniture} />
-      </mesh>
+/**
+ * Builds Master King Bed with tufted headboard, folded duvet, pillows & nightstand lamps
+ * Dimensions: 2.0m w x 2.15m d x 1.1m h (headboard at -Z)
+ */
+export function buildMasterKingBed(
+  mats: PbrMaterialCatalog = getPbrMaterialCatalog()
+): FurnitureFootprint {
+  const group = new THREE.Group();
+  group.name = 'MasterKingBed';
+  const w = 2.0;
+  const d = 2.15;
 
-      {/* Door Panels Divider Line */}
-      <mesh position={[0, height / 2, depth / 2 + 0.005]}>
-        <boxGeometry args={[0.015, height * 0.95, 0.01]} />
-        <meshStandardMaterial {...theme.darkWood} />
-      </mesh>
+  // Dark timber bed frame base
+  const baseGeo = new THREE.BoxGeometry(w, 0.28, d);
+  const base = new THREE.Mesh(baseGeo, mats.doorTimber);
+  base.position.set(0, 0.14, 0);
+  base.castShadow = true;
+  group.add(base);
 
-      {/* Satin Brass Modern Bar Handles */}
-      <mesh position={[-0.04, height * 0.5, depth / 2 + 0.02]} castShadow>
-        <boxGeometry args={[0.018, 0.25, 0.02]} />
-        <meshStandardMaterial {...theme.brassGold} />
-      </mesh>
-      <mesh position={[0.04, height * 0.5, depth / 2 + 0.02]} castShadow>
-        <boxGeometry args={[0.018, 0.25, 0.02]} />
-        <meshStandardMaterial {...theme.brassGold} />
-      </mesh>
-    </group>
-  );
+  // High upholstered headboard with tufted seams
+  const headGeo = new THREE.BoxGeometry(w + 0.1, 1.1, 0.12);
+  const head = new THREE.Mesh(headGeo, mats.fabricTealAccent);
+  head.position.set(0, 0.55, -d / 2 + 0.06);
+  head.castShadow = true;
+  group.add(head);
+
+  // Soft linen mattress
+  const mattGeo = new THREE.BoxGeometry(w - 0.06, 0.25, d - 0.1);
+  const matt = new THREE.Mesh(mattGeo, mats.fabricLinen);
+  matt.position.set(0, 0.28 + 0.125, 0.02);
+  matt.castShadow = true;
+  group.add(matt);
+
+  // Folded duvet & pillows
+  const duvetGeo = new THREE.BoxGeometry(w - 0.04, 0.08, d * 0.65);
+  const duvet = new THREE.Mesh(duvetGeo, mats.fabricLinen);
+  duvet.position.set(0, 0.44, 0.3);
+  duvet.castShadow = true;
+  group.add(duvet);
+
+  // Teal runner at foot
+  const runnerGeo = new THREE.BoxGeometry(w - 0.02, 0.02, 0.45);
+  const runner = new THREE.Mesh(runnerGeo, mats.fabricTealAccent);
+  runner.position.set(0, 0.485, 0.75);
+  group.add(runner);
+
+  // 4 Pillows (2 front, 2 back)
+  for (const [px, pz] of [
+    [-0.5, -0.65],
+    [0.5, -0.65],
+    [-0.5, -0.45],
+    [0.5, -0.45],
+  ]) {
+    const pillowGeo = new THREE.BoxGeometry(0.65, 0.12, 0.38);
+    const pillow = new THREE.Mesh(pillowGeo, mats.fabricLinen);
+    pillow.position.set(px, 0.46, pz);
+    pillow.rotation.x = -0.15;
+    pillow.castShadow = true;
+    group.add(pillow);
+  }
+
+  // Bedside Nightstands with glowing lamps
+  for (const sx of [-w / 2 - 0.35, w / 2 + 0.35]) {
+    const nsGeo = new THREE.BoxGeometry(0.48, 0.52, 0.42);
+    const ns = new THREE.Mesh(nsGeo, mats.doorTimber);
+    ns.position.set(sx, 0.26, -d / 2 + 0.25);
+    ns.castShadow = true;
+    group.add(ns);
+
+    // Modern bedside table lamp with glowing shade
+    const lampStem = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.015, 0.015, 0.35),
+      mats.brushedBrass
+    );
+    lampStem.position.set(sx, 0.52 + 0.175, -d / 2 + 0.25);
+    group.add(lampStem);
+
+    const lampShade = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.16, 0.2, 16),
+      mats.spotlightGlow
+    );
+    lampShade.position.set(sx, 0.52 + 0.38, -d / 2 + 0.25);
+    group.add(lampShade);
+  }
+
+  return { group, width: w + 1.2, depth: d };
 }
 
-// ==========================================
-// 2. LIVING ROOM FURNITURE (Dual Sofas & Marble/Brass Tables)
-// ==========================================
+/**
+ * Builds L-shaped sectional sofa with coffee table, area rug & OLED TV media credenza
+ */
+export function buildLivingRoomSuite(
+  mats: PbrMaterialCatalog = getPbrMaterialCatalog()
+): FurnitureFootprint {
+  const group = new THREE.Group();
+  group.name = 'LivingRoomSuite';
+  const totalW = 3.6;
+  const totalD = 3.2;
 
-export function LivingSet({
-  theme,
-}: {
-  theme: MaterialTheme;
-}) {
-  const sofaW = 2.3;
-  const sofaD = 0.88;
-  const sofaH = 0.72;
-  const seatH = 0.4;
+  // 1. L-Shaped Sectional Sofa
+  const sofaGroup = new THREE.Group();
+  sofaGroup.name = 'LSofa';
 
-  return (
-    <group>
-      {/* 1. Large Slate Denim Blue Area Rug */}
-      <mesh position={[0, 0.012, 0.55]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[3.2, 2.5]} />
-        <meshStandardMaterial {...theme.rugSlateBlue} />
-      </mesh>
+  // Main 3-seat section (facing +Z)
+  const mainSeatGeo = new THREE.BoxGeometry(2.4, 0.42, 0.95);
+  const mainSeat = new THREE.Mesh(mainSeatGeo, mats.fabricLinen);
+  mainSeat.position.set(0, 0.21, -0.6);
+  mainSeat.castShadow = true;
+  sofaGroup.add(mainSeat);
 
-      {/* 2. Layered Circular Neutral Accent Rug */}
-      <mesh position={[-0.4, 0.015, 0.7]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <circleGeometry args={[0.7, 32]} />
-        <meshStandardMaterial {...theme.rugNeutral} />
-      </mesh>
+  // Main backrest
+  const backGeo = new THREE.BoxGeometry(2.4, 0.46, 0.22);
+  const back = new THREE.Mesh(backGeo, mats.fabricLinen);
+  back.position.set(0, 0.58, -1.0);
+  back.castShadow = true;
+  sofaGroup.add(back);
 
-      {/* 3. Primary 3-Seater Sofa (Facing Room) */}
-      <group position={[0, 0, 0]}>
-        {/* Plinth Base */}
-        <mesh position={[0, 0.05, 0]} castShadow receiveShadow>
-          <boxGeometry args={[sofaW - 0.05, 0.1, sofaD - 0.05]} />
-          <meshStandardMaterial {...theme.woodFurniture} />
-        </mesh>
+  // Chaise section extending forward on the right (+X)
+  const chaiseGeo = new THREE.BoxGeometry(0.95, 0.42, 1.4);
+  const chaise = new THREE.Mesh(chaiseGeo, mats.fabricLinen);
+  chaise.position.set(1.2 - 0.475, 0.21, 0.15);
+  chaise.castShadow = true;
+  sofaGroup.add(chaise);
 
-        {/* Seat Cushion */}
-        <mesh position={[0, seatH / 2 + 0.08, 0.02]} castShadow receiveShadow>
-          <boxGeometry args={[sofaW, seatH, sofaD]} />
-          <meshStandardMaterial {...theme.sofaFabric} />
-        </mesh>
+  // Accent throw cushions
+  for (const cx of [-0.7, 0.1, 0.6]) {
+    const cushionGeo = new THREE.BoxGeometry(0.38, 0.38, 0.12);
+    const cushion = new THREE.Mesh(cushionGeo, mats.fabricTealAccent);
+    cushion.position.set(cx, 0.48, -0.85);
+    cushion.rotation.z = 0.1;
+    cushion.castShadow = true;
+    sofaGroup.add(cushion);
+  }
 
-        {/* Low Backrest */}
-        <mesh position={[0, sofaH / 2 + 0.1, -sofaD / 2 + 0.12]} castShadow>
-          <boxGeometry args={[sofaW, sofaH - 0.2, 0.24]} />
-          <meshStandardMaterial {...theme.sofaFabric} />
-        </mesh>
+  group.add(sofaGroup);
 
-        {/* Left Armrest */}
-        <mesh position={[-sofaW / 2 + 0.11, 0.52 / 2 + 0.05, 0]} castShadow>
-          <boxGeometry args={[0.22, 0.52, sofaD]} />
-          <meshStandardMaterial {...theme.sofaFabric} />
-        </mesh>
+  // 2. Large Designer Area Rug
+  const rugGeo = new THREE.BoxGeometry(2.6, 0.015, 1.9);
+  const rug = new THREE.Mesh(rugGeo, mats.fabricLinen);
+  rug.position.set(0.1, 0.008, 0.15);
+  rug.receiveShadow = true;
+  group.add(rug);
 
-        {/* Right Armrest */}
-        <mesh position={[sofaW / 2 - 0.11, 0.52 / 2 + 0.05, 0]} castShadow>
-          <boxGeometry args={[0.22, 0.52, sofaD]} />
-          <meshStandardMaterial {...theme.sofaFabric} />
-        </mesh>
+  // 3. Polished Carrara Marble Coffee Table with Brass Base
+  const tableGroup = new THREE.Group();
+  tableGroup.position.set(0.1, 0, 0.15);
 
-        {/* Accent Pillows (Slate Blue & Cream Textured) */}
-        <mesh position={[-0.65, seatH + 0.14, -0.15]} rotation={[0.15, 0.25, 0]} castShadow>
-          <boxGeometry args={[0.38, 0.38, 0.12]} />
-          <meshStandardMaterial {...theme.cushionBlue} />
-        </mesh>
-        <mesh position={[-0.35, seatH + 0.12, -0.18]} rotation={[0.12, 0.1, 0]} castShadow>
-          <boxGeometry args={[0.34, 0.34, 0.1]} />
-          <meshStandardMaterial {...theme.cushionFabric} />
-        </mesh>
-        <mesh position={[0.65, seatH + 0.14, -0.15]} rotation={[0.15, -0.25, 0]} castShadow>
-          <boxGeometry args={[0.38, 0.38, 0.12]} />
-          <meshStandardMaterial {...theme.cushionBlue} />
-        </mesh>
-      </group>
+  const tableTopGeo = new THREE.BoxGeometry(1.1, 0.04, 0.65);
+  const tableTop = new THREE.Mesh(tableTopGeo, mats.carraraMarble);
+  tableTop.position.set(0, 0.4, 0);
+  tableTop.castShadow = true;
+  tableGroup.add(tableTop);
 
-      {/* 4. Secondary Loveseat / 2-Seater (Perpendicular L-Arrangement) */}
-      <group position={[-1.7, 0, 0.85]} rotation={[0, Math.PI / 2, 0]}>
-        <mesh position={[0, 0.05, 0]} castShadow receiveShadow>
-          <boxGeometry args={[1.5, 0.1, sofaD - 0.05]} />
-          <meshStandardMaterial {...theme.woodFurniture} />
-        </mesh>
-        <mesh position={[0, seatH / 2 + 0.08, 0.02]} castShadow receiveShadow>
-          <boxGeometry args={[1.55, seatH, sofaD]} />
-          <meshStandardMaterial {...theme.sofaFabric} />
-        </mesh>
-        <mesh position={[0, sofaH / 2 + 0.1, -sofaD / 2 + 0.12]} castShadow>
-          <boxGeometry args={[1.55, sofaH - 0.2, 0.24]} />
-          <meshStandardMaterial {...theme.sofaFabric} />
-        </mesh>
-        {/* Armrest */}
-        <mesh position={[1.55 / 2 - 0.1, 0.52 / 2 + 0.05, 0]} castShadow>
-          <boxGeometry args={[0.2, 0.52, sofaD]} />
-          <meshStandardMaterial {...theme.sofaFabric} />
-        </mesh>
-        <mesh position={[0, seatH + 0.14, -0.15]} rotation={[0.15, 0, 0]} castShadow>
-          <boxGeometry args={[0.36, 0.36, 0.12]} />
-          <meshStandardMaterial {...theme.cushionBlue} />
-        </mesh>
-      </group>
+  // Brass legs
+  for (const [lx, lz] of [
+    [-0.45, -0.25],
+    [0.45, -0.25],
+    [-0.45, 0.25],
+    [0.45, 0.25],
+  ]) {
+    const leg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.018, 0.018, 0.38),
+      mats.brushedBrass
+    );
+    leg.position.set(lx, 0.19, lz);
+    leg.castShadow = true;
+    tableGroup.add(leg);
+  }
+  group.add(tableGroup);
 
-      {/* 5. Elegant Rectangular Carrara Marble & Brass Coffee Table */}
-      <group position={[0.2, 0, 0.85]}>
-        {/* Marble Top */}
-        <mesh position={[0, 0.36, 0]} castShadow receiveShadow>
-          <boxGeometry args={[1.15, 0.035, 0.6]} />
-          <meshStandardMaterial {...theme.marbleTable} />
-        </mesh>
-        {/* Warm Satin Brass Frame & Thin Legs */}
-        {[-0.52, 0.52].map((x) =>
-          [-0.26, 0.26].map((z) => (
-            <mesh key={`cleg_${x}_${z}`} position={[x, 0.17, z]} castShadow>
-              <cylinderGeometry args={[0.012, 0.012, 0.34, 8]} />
-              <meshStandardMaterial {...theme.brassGold} />
-            </mesh>
-          ))
-        )}
-        {/* Perimeter Brass Base Runner */}
-        <mesh position={[0, 0.02, 0]} castShadow>
-          <boxGeometry args={[1.05, 0.015, 0.52]} />
-          <meshStandardMaterial {...theme.brassGold} />
-        </mesh>
-      </group>
+  // 4. Media Credenza Console & OLED TV (facing sofa)
+  const tvGroup = new THREE.Group();
+  tvGroup.position.set(0.1, 0, 1.45);
 
-      {/* 6. Round Auxiliary Coffee Table / Pouf */}
-      <group position={[-0.55, 0, 1.25]}>
-        <mesh position={[0, 0.3, 0]} castShadow receiveShadow>
-          <cylinderGeometry args={[0.26, 0.26, 0.03, 24]} />
-          <meshStandardMaterial {...theme.marbleTable} />
-        </mesh>
-        <mesh position={[0, 0.15, 0]} castShadow>
-          <cylinderGeometry args={[0.016, 0.016, 0.3, 8]} />
-          <meshStandardMaterial {...theme.brassGold} />
-        </mesh>
-        <mesh position={[0, 0.015, 0]}>
-          <cylinderGeometry args={[0.18, 0.18, 0.03, 16]} />
-          <meshStandardMaterial {...theme.brassGold} />
-        </mesh>
-      </group>
+  const credGeo = new THREE.BoxGeometry(2.0, 0.45, 0.42);
+  const cred = new THREE.Mesh(credGeo, mats.leatherDark);
+  cred.position.set(0, 0.225, 0);
+  cred.castShadow = true;
+  tvGroup.add(cred);
 
-      {/* 7. Low Honey Oak TV Credenza & Ultra-Slim TV */}
-      <group position={[0, 0, 2.15]}>
-        {/* Honey Oak Body */}
-        <mesh position={[0, 0.22, 0]} castShadow receiveShadow>
-          <boxGeometry args={[1.9, 0.44, 0.38]} />
-          <meshStandardMaterial {...theme.woodFurniture} />
-        </mesh>
-        {/* Modern Shelf Cutouts */}
-        <mesh position={[0, 0.22, 0.19]}>
-          <boxGeometry args={[1.86, 0.02, 0.01]} />
-          <meshStandardMaterial {...theme.darkWood} />
-        </mesh>
-
-        {/* Framed Wall Art / Television */}
-        <group position={[0, 0.72, 0]}>
-          <mesh castShadow>
-            <boxGeometry args={[1.35, 0.75, 0.035]} />
-            <meshStandardMaterial {...theme.tvScreen} />
-          </mesh>
-          <mesh position={[0, -0.4, 0]}>
-            <boxGeometry args={[0.42, 0.02, 0.18]} />
-            <meshStandardMaterial {...theme.brassGold} />
-          </mesh>
-        </group>
-      </group>
-
-      {/* 8. Modern Brass Floor Lamp with Warm Ambient Glow */}
-      <group position={[1.45, 0, -0.25]}>
-        {/* Heavy Brass Base Disc */}
-        <mesh position={[0, 0.02, 0]} castShadow>
-          <cylinderGeometry args={[0.15, 0.15, 0.03, 20]} />
-          <meshStandardMaterial {...theme.brassGold} />
-        </mesh>
-        {/* Slender Brass Stem */}
-        <mesh position={[0, 0.75, 0]} castShadow>
-          <cylinderGeometry args={[0.012, 0.012, 1.45, 8]} />
-          <meshStandardMaterial {...theme.brassGold} />
-        </mesh>
-        {/* Cream Cylindrical Shade */}
-        <mesh position={[0, 1.42, 0]} castShadow>
-          <cylinderGeometry args={[0.16, 0.16, 0.32, 24]} />
-          <meshStandardMaterial {...theme.lampGlow} />
-        </mesh>
-        {/* Warm Golden Interior Lamp Glow */}
-        <pointLight position={[0, 1.4, 0]} intensity={0.6} distance={4.5} color="#FFDF9E" />
-      </group>
-
-      {/* 9. Potted Fiddle Leaf Fig in White Ceramic Pot */}
-      <group position={[1.45, 0, 1.4]}>
-        <mesh position={[0, 0.25, 0]} castShadow>
-          <cylinderGeometry args={[0.2, 0.16, 0.5, 20]} />
-          <meshStandardMaterial {...theme.plantPotWhite} />
-        </mesh>
-        {/* Foliage Canopy */}
-        <mesh position={[0, 0.75, 0]} castShadow>
-          <sphereGeometry args={[0.32, 16, 16]} />
-          <meshStandardMaterial {...theme.indoorPlant} />
-        </mesh>
-      </group>
-    </group>
+  // Ultra-slim OLED TV Screen
+  const tvScreen = new THREE.Mesh(
+    new THREE.BoxGeometry(1.6, 0.9, 0.03),
+    mats.leatherDark
   );
+  tvScreen.position.set(0, 0.98, 0);
+  tvScreen.castShadow = true;
+  tvGroup.add(tvScreen);
+
+  group.add(tvGroup);
+
+  return { group, width: totalW, depth: totalD };
 }
 
-// ==========================================
-// 3. DINING ROOM FURNITURE (Honey Oak & Scandinavian Chairs)
-// ==========================================
+/**
+ * Builds modern 6-seat dining table set with overhead pendant chandelier
+ */
+export function buildDiningSuite(
+  mats: PbrMaterialCatalog = getPbrMaterialCatalog()
+): FurnitureFootprint {
+  const group = new THREE.Group();
+  group.name = 'DiningSuite';
+  const w = 1.9;
+  const d = 1.0;
+  const h = 0.76;
 
-export function DiningSet({
-  theme,
-}: {
-  theme: MaterialTheme;
-}) {
-  const tableW = 1.7;
-  const tableD = 0.9;
-  const tableH = 0.75;
-  const chairW = 0.44;
-  const chairD = 0.44;
-  const seatH = 0.45;
+  // Solid wood dining tabletop with brass edge
+  const topGeo = new THREE.BoxGeometry(w, 0.05, d);
+  const top = new THREE.Mesh(topGeo, mats.doorTimber);
+  top.position.set(0, h - 0.025, 0);
+  top.castShadow = true;
+  group.add(top);
 
-  return (
-    <group>
-      {/* Slate Denim Blue Area Rug Under Dining Set */}
-      <mesh position={[0, 0.012, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[2.7, 2.0]} />
-        <meshStandardMaterial {...theme.rugSlateBlue} />
-      </mesh>
+  // 4 Legs
+  for (const [lx, lz] of [
+    [-w / 2 + 0.12, -d / 2 + 0.12],
+    [w / 2 - 0.12, -d / 2 + 0.12],
+    [-w / 2 + 0.12, d / 2 - 0.12],
+    [w / 2 - 0.12, d / 2 - 0.12],
+  ]) {
+    const leg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03, 0.022, h - 0.05),
+      mats.brushedBrass
+    );
+    leg.position.set(lx, (h - 0.05) / 2, lz);
+    leg.castShadow = true;
+    group.add(leg);
+  }
 
-      {/* Solid Honey Oak Dining Table Top */}
-      <mesh position={[0, tableH, 0]} castShadow receiveShadow>
-        <boxGeometry args={[tableW, 0.045, tableD]} />
-        <meshStandardMaterial {...theme.woodFurniture} />
-      </mesh>
+  // 6 Upholstered Chairs (3 each side, pushed in)
+  for (const cz of [-d / 2 - 0.22, d / 2 + 0.22]) {
+    for (const cx of [-0.55, 0, 0.55]) {
+      const chair = new THREE.Group();
+      chair.position.set(cx, 0, cz);
 
-      {/* Tapered Wood Table Legs */}
-      {[-tableW / 2 + 0.12, tableW / 2 - 0.12].map((x) =>
-        [-tableD / 2 + 0.1, tableD / 2 - 0.1].map((z) => (
-          <mesh key={`dleg_${x}_${z}`} position={[x, tableH / 2 - 0.02, z]} castShadow>
-            <cylinderGeometry args={[0.028, 0.018, tableH - 0.04, 12]} />
-            <meshStandardMaterial {...theme.woodFurniture} />
-          </mesh>
-        ))
-      )}
+      // Seat
+      const seat = new THREE.Mesh(
+        new THREE.BoxGeometry(0.44, 0.06, 0.44),
+        mats.fabricLinen
+      );
+      seat.position.set(0, 0.45, 0);
+      seat.castShadow = true;
+      chair.add(seat);
 
-      {/* Table Centerpiece Decorative Ceramic Bowl */}
-      <mesh position={[0, tableH + 0.04, 0]} castShadow>
-        <cylinderGeometry args={[0.1, 0.06, 0.06, 16]} />
-        <meshStandardMaterial {...theme.plantPotWhite} />
-      </mesh>
+      // Backrest
+      const back = new THREE.Mesh(
+        new THREE.BoxGeometry(0.42, 0.42, 0.04),
+        mats.fabricTealAccent
+      );
+      back.position.set(0, 0.68, cz > 0 ? 0.2 : -0.2);
+      back.castShadow = true;
+      chair.add(back);
 
-      {/* 6 Scandinavian Tub Chairs with Cream Upholstered Seats */}
-      {/* Front 3 Chairs */}
-      {[-0.5, 0, 0.5].map((x, i) => (
-        <group key={`front_chair_${i}`} position={[x, 0, tableD / 2 + 0.28]} rotation={[0, Math.PI, 0]}>
-          {/* Cream Upholstered Curved Seat */}
-          <mesh position={[0, seatH, 0]} castShadow>
-            <boxGeometry args={[chairW, 0.05, chairD]} />
-            <meshStandardMaterial {...theme.chairFabric} />
-          </mesh>
-          {/* Curved Backrest */}
-          <mesh position={[0, seatH + 0.2, -chairD / 2 + 0.02]} castShadow>
-            <boxGeometry args={[chairW, 0.36, 0.04]} />
-            <meshStandardMaterial {...theme.chairFabric} />
-          </mesh>
-          {/* Natural Wood Splayed Legs */}
-          {[-0.16, 0.16].map((cx) =>
-            [-0.16, 0.16].map((cz) => (
-              <mesh key={`cleg_${cx}_${cz}`} position={[cx, seatH / 2, cz]}>
-                <cylinderGeometry args={[0.016, 0.012, seatH, 8]} />
-                <meshStandardMaterial {...theme.woodFurniture} />
-              </mesh>
-            ))
-          )}
-        </group>
-      ))}
+      group.add(chair);
+    }
+  }
 
-      {/* Back 3 Chairs */}
-      {[-0.5, 0, 0.5].map((x, i) => (
-        <group key={`back_chair_${i}`} position={[x, 0, -tableD / 2 - 0.28]}>
-          <mesh position={[0, seatH, 0]} castShadow>
-            <boxGeometry args={[chairW, 0.05, chairD]} />
-            <meshStandardMaterial {...theme.chairFabric} />
-          </mesh>
-          <mesh position={[0, seatH + 0.2, -chairD / 2 + 0.02]} castShadow>
-            <boxGeometry args={[chairW, 0.36, 0.04]} />
-            <meshStandardMaterial {...theme.chairFabric} />
-          </mesh>
-          {[-0.16, 0.16].map((cx) =>
-            [-0.16, 0.16].map((cz) => (
-              <mesh key={`cleg2_${cx}_${cz}`} position={[cx, seatH / 2, cz]}>
-                <cylinderGeometry args={[0.016, 0.012, seatH, 8]} />
-                <meshStandardMaterial {...theme.woodFurniture} />
-              </mesh>
-            ))
-          )}
-        </group>
-      ))}
+  // Overhead Hanging Chandelier
+  const chandelier = new THREE.Group();
+  chandelier.position.set(0, 2.2, 0);
 
-      {/* Side Accent Potted Plant */}
-      <group position={[tableW / 2 + 0.5, 0, 0.3]}>
-        <mesh position={[0, 0.2, 0]} castShadow>
-          <cylinderGeometry args={[0.18, 0.14, 0.4, 16]} />
-          <meshStandardMaterial {...theme.plantPotWhite} />
-        </mesh>
-        <mesh position={[0, 0.55, 0]} castShadow>
-          <sphereGeometry args={[0.26, 12, 12]} />
-          <meshStandardMaterial {...theme.indoorPlant} />
-        </mesh>
-      </group>
-    </group>
+  const cord = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.008, 0.008, 0.65),
+    mats.brushedBrass
   );
+  cord.position.set(0, 0.325, 0);
+  chandelier.add(cord);
+
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.4, 0.02, 12, 32),
+    mats.spotlightGlow
+  );
+  ring.rotation.x = Math.PI / 2;
+  chandelier.add(ring);
+  group.add(chandelier);
+
+  return { group, width: w + 0.8, depth: d + 0.8 };
 }
 
-// ==========================================
-// 4. KITCHEN FURNITURE & APPLIANCES
-// ==========================================
-
-export function KitchenSet({
+/**
+ * Builds quartz kitchen run with waterfall island & modern bar stools
+ */
+export function buildKitchenSuite(
   length = 3.0,
-  theme,
-}: {
-  length?: number;
-  theme: MaterialTheme;
-}) {
-  const counterDepth = 0.65;
-  const counterH = 0.88;
+  mats: PbrMaterialCatalog = getPbrMaterialCatalog()
+): FurnitureFootprint {
+  const group = new THREE.Group();
+  group.name = 'KitchenSuite';
 
-  return (
-    <group>
-      {/* Base Cabinets (Slate-Grey / Sage) */}
-      <mesh position={[0, counterH / 2, 0]} castShadow receiveShadow>
-        <boxGeometry args={[length, counterH, counterDepth]} />
-        <meshStandardMaterial {...theme.cabinetry} />
-      </mesh>
+  // 1. Counter Run along wall
+  const baseH = 0.85;
+  const baseD = 0.65;
 
-      {/* Pure White Quartz Countertop */}
-      <mesh position={[0, counterH + 0.02, 0]} castShadow receiveShadow>
-        <boxGeometry args={[length + 0.02, 0.04, counterDepth + 0.03]} />
-        <meshStandardMaterial {...theme.countertop} />
-      </mesh>
-
-      {/* Stainless Steel Undermount Sink */}
-      <group position={[-length / 3, counterH + 0.02, 0]}>
-        <mesh>
-          <boxGeometry args={[0.65, 0.01, 0.42]} />
-          <meshStandardMaterial color="#2B2D30" roughness={0.3} metalness={0.8} />
-        </mesh>
-        <mesh position={[0, -0.08, 0]}>
-          <boxGeometry args={[0.55, 0.15, 0.35]} />
-          <meshStandardMaterial color="#888888" roughness={0.2} metalness={0.9} />
-        </mesh>
-        {/* Gooseneck Chrome Faucet */}
-        <group position={[0, 0.02, -0.16]}>
-          <mesh position={[0, 0.14, 0]} castShadow>
-            <cylinderGeometry args={[0.014, 0.014, 0.28, 12]} />
-            <meshStandardMaterial {...theme.chromeFixture} />
-          </mesh>
-          <mesh position={[0, 0.26, 0.06]} rotation={[Math.PI / 4, 0, 0]}>
-            <cylinderGeometry args={[0.013, 0.013, 0.12, 12]} />
-            <meshStandardMaterial {...theme.chromeFixture} />
-          </mesh>
-        </group>
-      </group>
-
-      {/* Cooktop & Modern Oven */}
-      <group position={[length / 4, counterH + 0.045, 0]}>
-        <mesh castShadow>
-          <boxGeometry args={[0.65, 0.01, 0.5]} />
-          <meshStandardMaterial color="#0A0B0D" roughness={0.15} metalness={0.9} />
-        </mesh>
-      </group>
-
-      {/* Refrigerator Tower Unit */}
-      <group position={[length / 2 + 0.42, 0.9, 0]}>
-        <mesh castShadow receiveShadow>
-          <boxGeometry args={[0.75, 1.8, counterDepth + 0.05]} />
-          <meshStandardMaterial color="#E2E4E8" roughness={0.25} metalness={0.7} />
-        </mesh>
-        <mesh position={[0.3, 0.2, counterDepth / 2 + 0.04]} castShadow>
-          <cylinderGeometry args={[0.012, 0.012, 0.6, 8]} />
-          <meshStandardMaterial {...theme.chromeFixture} />
-        </mesh>
-      </group>
-    </group>
+  const baseCab = new THREE.Mesh(
+    new THREE.BoxGeometry(length, baseH, baseD),
+    mats.leatherDark
   );
+  baseCab.position.set(0, baseH / 2, 0);
+  baseCab.castShadow = true;
+  group.add(baseCab);
+
+  // Polished quartz countertop
+  const top = new THREE.Mesh(
+    new THREE.BoxGeometry(length + 0.02, 0.05, baseD + 0.04),
+    mats.carraraMarble
+  );
+  top.position.set(0, baseH + 0.025, 0);
+  top.castShadow = true;
+  group.add(top);
+
+  // Induction cooktop (4 burner rings)
+  const hob = new THREE.Mesh(
+    new THREE.BoxGeometry(0.72, 0.015, 0.52),
+    mats.doorBronzeFrame
+  );
+  hob.position.set(-length / 4, baseH + 0.055, 0);
+  group.add(hob);
+
+  // Undermount sink with gooseneck faucet
+  const sink = new THREE.Mesh(
+    new THREE.BoxGeometry(0.68, 0.02, 0.44),
+    mats.doorBronzeFrame
+  );
+  sink.position.set(length / 4, baseH + 0.045, 0);
+  group.add(sink);
+
+  const faucet = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.015, 0.015, 0.32),
+    mats.brushedBrass
+  );
+  faucet.position.set(length / 4, baseH + 0.2, -0.16);
+  group.add(faucet);
+
+  // 2. Breakfast Bar Island with 3 Bar Stools
+  const islandW = 1.8;
+  const islandD = 0.8;
+  const islandH = 0.92;
+
+  const islandGroup = new THREE.Group();
+  islandGroup.position.set(0, 0, 1.4);
+
+  // Waterfall marble top & side gables
+  const islandTop = new THREE.Mesh(
+    new THREE.BoxGeometry(islandW, 0.06, islandD),
+    mats.carraraMarble
+  );
+  islandTop.position.set(0, islandH - 0.03, 0);
+  islandTop.castShadow = true;
+  islandGroup.add(islandTop);
+
+  // Left gable
+  const leftGable = new THREE.Mesh(
+    new THREE.BoxGeometry(0.06, islandH - 0.06, islandD),
+    mats.carraraMarble
+  );
+  leftGable.position.set(-islandW / 2 + 0.03, (islandH - 0.06) / 2, 0);
+  islandGroup.add(leftGable);
+
+  // Right gable
+  const rightGable = new THREE.Mesh(
+    new THREE.BoxGeometry(0.06, islandH - 0.06, islandD),
+    mats.carraraMarble
+  );
+  rightGable.position.set(islandW / 2 - 0.03, (islandH - 0.06) / 2, 0);
+  islandGroup.add(rightGable);
+
+  // 3 Bar Stools
+  for (const sx of [-0.5, 0, 0.5]) {
+    const stool = new THREE.Group();
+    stool.position.set(sx, 0, islandD / 2 + 0.22);
+
+    const seat = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.18, 0.05, 16),
+      mats.leatherDark
+    );
+    seat.position.set(0, 0.65, 0);
+    seat.castShadow = true;
+    stool.add(seat);
+
+    const leg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.014, 0.014, 0.65),
+      mats.brushedBrass
+    );
+    leg.position.set(0, 0.325, 0);
+    stool.add(leg);
+
+    islandGroup.add(stool);
+  }
+
+  group.add(islandGroup);
+
+  return { group, width: length, depth: 2.2 };
 }
 
-// ==========================================
-// 5. BATHROOM SUITE
-// ==========================================
+/**
+ * Builds luxury bathroom suite with floating vanity, LED backlit mirror & WC
+ */
+export function buildBathroomSuite(
+  mats: PbrMaterialCatalog = getPbrMaterialCatalog()
+): FurnitureFootprint {
+  const group = new THREE.Group();
+  group.name = 'BathroomSuite';
 
-export function BathroomSuite({
-  theme,
-}: {
-  theme: MaterialTheme;
-}) {
-  return (
-    <group>
-      {/* Modern Ceramic Toilet */}
-      <group position={[-0.65, 0, 0]}>
-        <mesh position={[0, 0.5, -0.22]} castShadow receiveShadow>
-          <boxGeometry args={[0.38, 0.5, 0.18]} />
-          <meshStandardMaterial {...theme.sanitaryCeramic} />
-        </mesh>
-        <mesh position={[0, 0.22, 0.08]} castShadow receiveShadow>
-          <boxGeometry args={[0.36, 0.42, 0.48]} />
-          <meshStandardMaterial {...theme.sanitaryCeramic} />
-        </mesh>
-      </group>
+  // 1. Floating Vanity with Stone Top & Illuminated Mirror
+  const vanityW = 0.85;
+  const vanityD = 0.5;
+  const vanityH = 0.55;
 
-      {/* Floating Honey Oak Vanity & Round Mirror */}
-      <group position={[0.55, 0, 0]}>
-        <mesh position={[0, 0.45, 0]} castShadow receiveShadow>
-          <boxGeometry args={[0.78, 0.5, 0.5]} />
-          <meshStandardMaterial {...theme.woodFurniture} />
-        </mesh>
-        <mesh position={[0, 0.72, 0]} castShadow>
-          <boxGeometry args={[0.8, 0.05, 0.52]} />
-          <meshStandardMaterial {...theme.countertop} />
-        </mesh>
-        {/* Round Brass Framed Mirror */}
-        <group position={[0, 1.45, -0.22]}>
-          <mesh castShadow>
-            <cylinderGeometry args={[0.32, 0.32, 0.02, 32]} />
-            <meshStandardMaterial {...theme.brassGold} />
-          </mesh>
-          <mesh position={[0, 0, 0.015]} rotation={[-Math.PI / 2, 0, 0]}>
-            <circleGeometry args={[0.3, 32]} />
-            <meshStandardMaterial color="#E8F4F8" roughness={0.1} metalness={0.9} />
-          </mesh>
-        </group>
-      </group>
-
-      {/* Glass Shower Screen */}
-      <group position={[0, 0, 0.95]}>
-        <mesh position={[0, 0.03, 0]}>
-          <boxGeometry args={[1.4, 0.06, 0.08]} />
-          <meshStandardMaterial color="#444444" roughness={0.5} />
-        </mesh>
-        <mesh position={[0, 0.95, 0]}>
-          <boxGeometry args={[1.35, 1.85, 0.015]} />
-          <meshStandardMaterial {...theme.railingGlass} />
-        </mesh>
-      </group>
-    </group>
+  const vanity = new THREE.Mesh(
+    new THREE.BoxGeometry(vanityW, vanityH, vanityD),
+    mats.doorTimber
   );
+  vanity.position.set(-0.4, 0.55, 0);
+  vanity.castShadow = true;
+  group.add(vanity);
+
+  const basin = new THREE.Mesh(
+    new THREE.BoxGeometry(0.48, 0.12, 0.36),
+    mats.carraraMarble
+  );
+  basin.position.set(-0.4, 0.88, 0);
+  basin.castShadow = true;
+  group.add(basin);
+
+  // Backlit LED Mirror
+  const mirror = new THREE.Mesh(
+    new THREE.BoxGeometry(0.75, 0.9, 0.03),
+    mats.spotlightGlow
+  );
+  mirror.position.set(-0.4, 1.6, -vanityD / 2);
+  group.add(mirror);
+
+  // 2. Wall-Hung Modern WC
+  const wc = new THREE.Mesh(
+    new THREE.BoxGeometry(0.38, 0.4, 0.58),
+    mats.carraraMarble
+  );
+  wc.position.set(0.5, 0.3, 0);
+  wc.castShadow = true;
+  group.add(wc);
+
+  return { group, width: 1.8, depth: 1.2 };
 }
 
-// ==========================================
-// 6. BALCONY BISTRO SEATING
-// ==========================================
+/**
+ * Builds architectural indoor potted plant (Fiddle Leaf Fig / Monstera)
+ */
+export function buildArchitecturalPlant(
+  mats: PbrMaterialCatalog = getPbrMaterialCatalog()
+): THREE.Group {
+  const group = new THREE.Group();
+  group.name = 'ArchitecturalPlant';
 
-export function BalconySet({
-  theme,
-}: {
-  theme: MaterialTheme;
-}) {
-  return (
-    <group>
-      {/* Round Bistro Table */}
-      <group position={[0, 0, 0]}>
-        <mesh position={[0, 0.72, 0]} castShadow>
-          <cylinderGeometry args={[0.35, 0.35, 0.03, 24]} />
-          <meshStandardMaterial {...theme.woodFurniture} />
-        </mesh>
-        <mesh position={[0, 0.36, 0]} castShadow>
-          <cylinderGeometry args={[0.025, 0.025, 0.7, 12]} />
-          <meshStandardMaterial {...theme.doorFrame} />
-        </mesh>
-      </group>
-
-      {/* 2 Outdoor Chairs */}
-      {[-0.55, 0.55].map((x, i) => (
-        <group key={`chair_${i}`} position={[x, 0, 0]} rotation={[0, i === 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
-          <mesh position={[0, 0.44, 0]} castShadow>
-            <cylinderGeometry args={[0.2, 0.2, 0.03, 16]} />
-            <meshStandardMaterial {...theme.woodFurniture} />
-          </mesh>
-          <mesh position={[0, 0.65, -0.16]} castShadow>
-            <boxGeometry args={[0.36, 0.35, 0.03]} />
-            <meshStandardMaterial {...theme.doorFrame} />
-          </mesh>
-        </group>
-      ))}
-    </group>
+  // Modern ceramic cylinder pot
+  const pot = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.22, 0.18, 0.45, 16),
+    mats.carraraMarble
   );
+  pot.position.set(0, 0.225, 0);
+  pot.castShadow = true;
+  group.add(pot);
+
+  // Cluster of lush organic foliage blobs
+  const leavesMat = new THREE.MeshStandardMaterial({
+    color: 0x3d7036,
+    roughness: 0.65,
+    metalness: 0.0,
+  });
+
+  for (let i = 0; i < 5; i++) {
+    const angle = (i / 5) * Math.PI * 2;
+    const leaf = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.18 + (i % 2) * 0.05, 2),
+      leavesMat
+    );
+    leaf.position.set(
+      Math.cos(angle) * 0.12,
+      0.55 + i * 0.12,
+      Math.sin(angle) * 0.12
+    );
+    leaf.scale.set(1.1, 1.3, 1.0);
+    leaf.castShadow = true;
+    group.add(leaf);
+  }
+
+  return group;
 }
 
-// ==========================================
-// 7. LAWN & LANDSCAPE GARDEN SET
-// ==========================================
+/**
+ * Builds expansive luxury outdoor patio / deck lounge suite (as in reference image 1000204412.jpg)
+ * Includes teak wood frame daybed / sofa, off-white linen cushions, low slatted coffee table & patio planter
+ */
+export function buildOutdoorDeckSuite(
+  mats: PbrMaterialCatalog = getPbrMaterialCatalog()
+): FurnitureFootprint {
+  const group = new THREE.Group();
+  group.name = 'OutdoorDeckSuite';
 
-export function LawnGardenSet({
-  theme,
-}: {
-  theme: MaterialTheme;
-}) {
-  return (
-    <group>
-      {/* 1. Stone Pathway Stepping Stones */}
-      {[-0.8, -0.2, 0.4, 1.0].map((z, idx) => (
-        <mesh key={`step_${idx}`} position={[0, 0.025, z]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <circleGeometry args={[0.24, 16]} />
-          <meshStandardMaterial {...theme.balconyFloor} />
-        </mesh>
-      ))}
-
-      {/* 2. Potted Garden Shrubs */}
-      {[-0.9, 0.9].map((x, idx) => (
-        <group key={`garden_plant_${idx}`} position={[x, 0, -0.5]}>
-          <mesh position={[0, 0.22, 0]} castShadow>
-            <cylinderGeometry args={[0.22, 0.16, 0.44, 16]} />
-            <meshStandardMaterial {...theme.plantPotWhite} />
-          </mesh>
-          <mesh position={[0, 0.58, 0]} castShadow>
-            <sphereGeometry args={[0.32, 16, 16]} />
-            <meshStandardMaterial {...theme.indoorPlant} />
-          </mesh>
-        </group>
-      ))}
-
-      {/* 3. Outdoor Teak Garden Bench */}
-      <group position={[0.7, 0, 0.5]} rotation={[0, -Math.PI / 3, 0]}>
-        {/* Bench seat */}
-        <mesh position={[0, 0.42, 0]} castShadow>
-          <boxGeometry args={[1.2, 0.05, 0.45]} />
-          <meshStandardMaterial {...theme.woodFurniture} />
-        </mesh>
-        {/* Bench back */}
-        <mesh position={[0, 0.72, -0.2]} castShadow>
-          <boxGeometry args={[1.2, 0.45, 0.04]} />
-          <meshStandardMaterial {...theme.woodFurniture} />
-        </mesh>
-        {/* Legs */}
-        {[-0.52, 0.52].map((lx, i) => (
-          <mesh key={`leg_${i}`} position={[lx, 0.21, 0]} castShadow>
-            <boxGeometry args={[0.06, 0.42, 0.38]} />
-            <meshStandardMaterial {...theme.doorFrame} />
-          </mesh>
-        ))}
-      </group>
-    </group>
+  // 1. Teak slatted outdoor lounge sofa
+  const sofaW = 2.4;
+  const sofaD = 0.95;
+  const sofaBase = new THREE.Mesh(
+    new THREE.BoxGeometry(sofaW, 0.18, sofaD),
+    mats.doorTimber
   );
+  sofaBase.position.set(0, 0.09, 0);
+  sofaBase.castShadow = true;
+  group.add(sofaBase);
+
+  // Soft cream weather-resistant seat cushions
+  const cushionW = (sofaW - 0.1) / 3;
+  for (let i = 0; i < 3; i++) {
+    const seat = new THREE.Mesh(
+      new THREE.BoxGeometry(cushionW - 0.03, 0.14, sofaD - 0.15),
+      mats.fabricLinen
+    );
+    seat.position.set(-sofaW / 2 + 0.05 + cushionW * i + cushionW / 2, 0.25, 0.05);
+    seat.castShadow = true;
+    group.add(seat);
+
+    // Backrest cushion
+    const back = new THREE.Mesh(
+      new THREE.BoxGeometry(cushionW - 0.03, 0.32, 0.14),
+      mats.fabricLinen
+    );
+    back.position.set(-sofaW / 2 + 0.05 + cushionW * i + cushionW / 2, 0.44, -sofaD / 2 + 0.12);
+    back.castShadow = true;
+    group.add(back);
+  }
+
+  // 2. Low Teak Patio Coffee Table
+  const tableW = 1.2;
+  const tableD = 0.65;
+  const table = new THREE.Mesh(
+    new THREE.BoxGeometry(tableW, 0.28, tableD),
+    mats.doorTimber
+  );
+  table.position.set(0, 0.14, sofaD / 2 + tableD / 2 + 0.4);
+  table.castShadow = true;
+  group.add(table);
+
+  // Marble serving tray on table
+  const tray = new THREE.Mesh(
+    new THREE.BoxGeometry(0.42, 0.02, 0.3),
+    mats.carraraMarble
+  );
+  tray.position.set(0, 0.29, sofaD / 2 + tableD / 2 + 0.4);
+  group.add(tray);
+
+  // 3. Potted Patio Palm
+  const palm = buildArchitecturalPlant(mats);
+  palm.position.set(sofaW / 2 + 0.55, 0, -sofaD / 2);
+  group.add(palm);
+
+  return { group, width: sofaW + 1.2, depth: sofaD + 1.4 };
 }
 
-// ==========================================
-// 8. ARCHITECTURAL STAIRCASE SET
-// ==========================================
-
-export function StaircaseSet({
-  theme,
-  stepsCount = 9,
-  width = 1.35,
-}: {
-  theme: MaterialTheme;
-  stepsCount?: number;
-  width?: number;
-}) {
-  const riserH = 0.16;
-  const treadD = 0.28;
-
-  return (
-    <group position={[0, 0, 0]}>
-      {/* Treads and Risers */}
-      {Array.from({ length: stepsCount }).map((_, i) => {
-        const stepY = i * riserH;
-        const stepZ = (i - stepsCount / 2) * treadD;
-        return (
-          <group key={`step_${i}`}>
-            {/* Step Riser Block */}
-            <mesh position={[0, stepY + riserH / 2, stepZ]} castShadow receiveShadow>
-              <boxGeometry args={[width, riserH, treadD]} />
-              <meshStandardMaterial {...theme.woodFurniture} />
-            </mesh>
-            {/* Bullnose Tread Lip */}
-            <mesh position={[0, stepY + riserH - 0.015, stepZ + treadD / 2 - 0.01]} castShadow>
-              <boxGeometry args={[width + 0.02, 0.03, 0.04]} />
-              <meshStandardMaterial {...theme.woodFurniture} />
-            </mesh>
-          </group>
-        );
-      })}
-
-      {/* Modern Black Steel Balustrade & Handrail */}
-      <mesh
-        position={[width / 2 - 0.04, (stepsCount * riserH) / 2 + 0.45, 0]}
-        rotation={[Math.atan2(stepsCount * riserH, stepsCount * treadD), 0, 0]}
-        castShadow
-      >
-        <cylinderGeometry args={[0.025, 0.025, Math.hypot(stepsCount * riserH, stepsCount * treadD) + 0.4, 12]} />
-        <meshStandardMaterial {...theme.railingMetal} />
-      </mesh>
-
-      {/* Upright Support Balusters */}
-      {[-1, 0, 1].map((posMultiplier) => {
-        const idx = Math.floor(stepsCount / 2) + posMultiplier * 3;
-        const bZ = (idx - stepsCount / 2) * treadD;
-        const bY = idx * riserH;
-        return (
-          <mesh key={`baluster_${posMultiplier}`} position={[width / 2 - 0.04, bY + 0.4, bZ]} castShadow>
-            <cylinderGeometry args={[0.015, 0.015, 0.8, 8]} />
-            <meshStandardMaterial {...theme.railingMetal} />
-          </mesh>
-        );
-      })}
-    </group>
-  );
-}
-
-// ==========================================
-// 9. LAUNDRY & UTILITY WASH SET
-// ==========================================
-
-export function UtilitySet({
-  theme,
-}: {
-  theme: MaterialTheme;
-}) {
-  return (
-    <group position={[0, 0, 0]}>
-      {/* Front-load Modern Washing Machine */}
-      <group position={[-0.45, 0, 0]}>
-        {/* Machine Body */}
-        <mesh position={[0, 0.44, 0]} castShadow receiveShadow>
-          <boxGeometry args={[0.6, 0.85, 0.6]} />
-          <meshStandardMaterial color="#E8ECEF" roughness={0.25} metalness={0.15} />
-        </mesh>
-        {/* Circular Front Porthole Door */}
-        <mesh position={[0, 0.42, 0.31]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-          <cylinderGeometry args={[0.22, 0.22, 0.04, 24]} />
-          <meshStandardMaterial color="#2B303A" roughness={0.1} metalness={0.7} />
-        </mesh>
-        <mesh position={[0, 0.42, 0.33]} rotation={[Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[0.16, 24]} />
-          <meshStandardMaterial color="#4A607A" transparent opacity={0.65} roughness={0.1} />
-        </mesh>
-        {/* Control Dial & Digital Display */}
-        <mesh position={[0.18, 0.78, 0.31]} castShadow>
-          <cylinderGeometry args={[0.03, 0.03, 0.02, 16]} />
-          <meshStandardMaterial color="#1E2024" roughness={0.3} metalness={0.8} />
-        </mesh>
-      </group>
-
-      {/* Stainless Steel Utility Sink Basin */}
-      <group position={[0.35, 0, 0]}>
-        <mesh position={[0, 0.42, 0]} castShadow receiveShadow>
-          <boxGeometry args={[0.55, 0.84, 0.55]} />
-          <meshStandardMaterial {...theme.cabinetry} />
-        </mesh>
-        {/* Sink Bowl */}
-        <mesh position={[0, 0.845, 0]} receiveShadow>
-          <boxGeometry args={[0.45, 0.02, 0.45]} />
-          <meshStandardMaterial {...theme.chromeFixture} />
-        </mesh>
-        {/* Chrome Gooseneck Faucet */}
-        <mesh position={[0, 0.98, -0.16]} castShadow>
-          <cylinderGeometry args={[0.015, 0.015, 0.24, 12]} />
-          <meshStandardMaterial {...theme.chromeFixture} />
-        </mesh>
-      </group>
-
-      {/* Wall Shelf with Laundry Detergents & Folded Towels */}
-      <group position={[0, 1.45, -0.22]}>
-        <mesh position={[0, 0, 0]} castShadow>
-          <boxGeometry args={[1.2, 0.03, 0.25]} />
-          <meshStandardMaterial {...theme.woodFurniture} />
-        </mesh>
-        {/* Folded Clean Linen */}
-        <mesh position={[-0.3, 0.08, 0]} castShadow>
-          <boxGeometry args={[0.35, 0.12, 0.2]} />
-          <meshStandardMaterial color="#F5F5F7" roughness={0.9} />
-        </mesh>
-        {/* Detergent Bottles */}
-        <mesh position={[0.25, 0.12, 0]} castShadow>
-          <cylinderGeometry args={[0.05, 0.06, 0.2, 16]} />
-          <meshStandardMaterial color="#3B82F6" roughness={0.3} />
-        </mesh>
-      </group>
-    </group>
-  );
-}

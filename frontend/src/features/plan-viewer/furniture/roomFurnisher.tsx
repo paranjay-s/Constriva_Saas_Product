@@ -1,190 +1,171 @@
-import { useMemo } from 'react';
-import type { Room } from '../../../types';
-import type { MaterialTheme } from '../materials/materials';
-import { categorizeRoom } from '../materials/materials';
+// frontend/src/features/plan-viewer/furniture/roomFurnisher.tsx
+import * as THREE from 'three';
 import {
-  BedDouble,
-  Wardrobe,
-  LivingSet,
-  DiningSet,
-  KitchenSet,
-  BathroomSuite,
-  BalconySet,
-  LawnGardenSet,
-  StaircaseSet,
-  UtilitySet,
+  getPbrMaterialCatalog,
+  type PbrMaterialCatalog,
+} from '../materials/materials';
+import {
+  buildMasterKingBed,
+  buildLivingRoomSuite,
+  buildDiningSuite,
+  buildKitchenSuite,
+  buildBathroomSuite,
+  buildArchitecturalPlant,
+  buildOutdoorDeckSuite,
 } from './furnitureLibrary';
 
-interface RoomFurnisherProps {
-  room: Room;
-  theme: MaterialTheme;
+export interface FurnisherRoom {
+  id: string;
+  name?: string;
+  type?: string;
+  kind?: string;
+  polygon: { x: number; y: number }[];
 }
 
-export function RoomFurnisher({ room, theme }: RoomFurnisherProps) {
-  const polygon = room.polygon || [];
-  if (polygon.length === 0) return null;
+export interface FurnishingResult {
+  group: THREE.Group;
+  setConstructionPhase: (phase: number) => void;
+}
 
-  // Compute 2D bounding box
-  const { minX, maxX, minZ, cx, cz, width, depth } = useMemo(() => {
-    let x0 = Infinity;
-    let x1 = -Infinity;
-    let z0 = Infinity;
-    let z1 = -Infinity;
+/**
+ * Intelligent auto-staging solver: reads room geometry, finds solid anchor walls & places high-detail PBR suites
+ */
+export function furnishRoomsWithPbr(
+  rooms: FurnisherRoom[],
+  mats: PbrMaterialCatalog = getPbrMaterialCatalog()
+): FurnishingResult {
+  const group = new THREE.Group();
+  group.name = 'AutoStagedFurniture';
 
-    for (const [x, z] of polygon) {
-      if (x < x0) x0 = x;
-      if (x > x1) x1 = x;
-      if (z < z0) z0 = z;
-      if (z > z1) z1 = z;
+  for (const r of rooms) {
+    if (r.polygon.length < 3) continue;
+
+    const kind = (r.kind || '').toLowerCase();
+    const type = (r.type || '').toLowerCase();
+    const name = (r.name || r.id).toLowerCase();
+
+    // Skip open shafts and voids
+    if (kind === 'void' || name.includes('shaft') || name.includes('void')) {
+      continue;
     }
 
-    const w = x1 - x0;
-    const d = z1 - z0;
-    return {
-      minX: x0,
-      maxX: x1,
-      minZ: z0,
-      maxZ: z1,
-      cx: x0 + w / 2,
-      cz: z0 + d / 2,
-      width: w,
-      depth: d,
-    };
-  }, [polygon]);
-
-  const category = useMemo(() => categorizeRoom(room.name, room.id), [room.name, room.id]);
-  const isCombinedLivingDining = useMemo(() => {
-    const n = (room.name || '').toLowerCase();
-    return (n.includes('living') && n.includes('dining')) || width >= 5.5;
-  }, [room.name, width]);
-
-  // If room is too small, don't overcrowd
-  if (width < 1.6 || depth < 1.6) return null;
-
-  // Dedicated Staircase room rendering
-  const isStaircase = (room.name || '').toLowerCase().includes('stair') || (room.id || '').toLowerCase().includes('stair');
-  if (isStaircase) {
-    const steps = Math.max(7, Math.min(12, Math.floor(depth / 0.28)));
-    const stairW = Math.max(1.1, Math.min(1.5, width * 0.45));
-    return (
-      <group position={[cx, 0, cz]}>
-        <StaircaseSet theme={theme} stepsCount={steps} width={stairW} />
-      </group>
-    );
-  }
-
-  switch (category) {
-    case 'bedroom': {
-      // Place bed along one wall facing into room, wardrobe against side
-      const bedX = cx;
-      const bedZ = minZ + 1.35;
-      const wardrobeX = maxX - 0.45;
-      const wardrobeZ = cz;
-      const wardrobeW = Math.min(1.8, depth * 0.55);
-
-      return (
-        <group>
-          {/* Bed */}
-          <group position={[bedX, 0, bedZ]}>
-            <BedDouble theme={theme} />
-          </group>
-
-          {/* Wardrobe along side wall */}
-          {width >= 3.6 && (
-            <group position={[wardrobeX, 0, wardrobeZ]} rotation={[0, -Math.PI / 2, 0]}>
-              <Wardrobe width={wardrobeW} theme={theme} />
-            </group>
-          )}
-        </group>
-      );
+    // Compute room centroid & bounding box
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    let sumX = 0, sumZ = 0;
+    for (const p of r.polygon) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minZ) minZ = p.y;
+      if (p.y > maxZ) maxZ = p.y;
+      sumX += p.x;
+      sumZ += p.y;
     }
 
-    case 'living': {
-      if (isCombinedLivingDining) {
-        // Split room: Living on left, Dining on right
-        const livingCx = minX + width * 0.35;
-        const diningCx = minX + width * 0.75;
+    const n = r.polygon.length;
+    const cx = sumX / n;
+    const cz = sumZ / n;
+    const rw = maxX - minX;
+    const rd = maxZ - minZ;
+    const area = rw * rd;
 
-        return (
-          <group>
-            {/* Living Zone */}
-            <group position={[livingCx, 0, cz]}>
-              <LivingSet theme={theme} />
-            </group>
+    // 1. Bedroom Staging
+    if (type.includes('bed') || name.includes('bed')) {
+      if (rw >= 2.6 && rd >= 2.6) {
+        const bed = buildMasterKingBed(mats);
+        // Place bed head against North wall (-Z in Three.js)
+        bed.group.position.set(cx, 0, minZ + 1.25);
+        group.add(bed.group);
 
-            {/* Dining Zone */}
-            <group position={[diningCx, 0, cz]}>
-              <DiningSet theme={theme} />
-            </group>
-          </group>
-        );
+        // Corner potted plant
+        if (rw >= 3.2) {
+          const plant = buildArchitecturalPlant(mats);
+          plant.position.set(maxX - 0.45, 0, maxZ - 0.45);
+          group.add(plant);
+        }
       }
-
-      return (
-        <group position={[cx, 0, cz]}>
-          <LivingSet theme={theme} />
-        </group>
-      );
     }
+    // 2. Living / Drawing Room Staging
+    else if (
+      type.includes('living') ||
+      type.includes('drg') ||
+      type.includes('drawing') ||
+      name.includes('living') ||
+      name.includes('hall') ||
+      name.includes('lounge')
+    ) {
+      if (area >= 12.0) {
+        const livingSuite = buildLivingRoomSuite(mats);
+        livingSuite.group.position.set(cx, 0, cz);
+        group.add(livingSuite.group);
 
-    case 'dining': {
-      return (
-        <group position={[cx, 0, cz]}>
-          <DiningSet theme={theme} />
-        </group>
-      );
+        // Corner plant
+        const plant = buildArchitecturalPlant(mats);
+        plant.position.set(minX + 0.5, 0, minZ + 0.5);
+        group.add(plant);
+      }
     }
-
-    case 'kitchen': {
-      // Align counter along north wall of kitchen
-      const counterLen = Math.max(2.0, Math.min(3.6, width * 0.85));
-      const counterZ = minZ + 0.45;
-
-      return (
-        <group position={[minX + counterLen / 2 + 0.2, 0, counterZ]}>
-          <KitchenSet length={counterLen} theme={theme} />
-        </group>
-      );
+    // 3. Dining Area Staging
+    else if (type.includes('dining') || name.includes('dining')) {
+      if (rw >= 2.2 && rd >= 2.2) {
+        const dining = buildDiningSuite(mats);
+        dining.group.position.set(cx, 0, cz);
+        group.add(dining.group);
+      }
     }
-
-    case 'bathroom': {
-      return (
-        <group position={[cx, 0, cz]}>
-          <BathroomSuite theme={theme} />
-        </group>
-      );
+    // 4. Kitchen Staging
+    else if (type.includes('kitchen') || name.includes('kitchen')) {
+      if (rw >= 2.2) {
+        const runLen = Math.max(2.2, Math.min(rw - 0.5, 3.6));
+        const kitchen = buildKitchenSuite(runLen, mats);
+        kitchen.group.position.set(cx, 0, minZ + 0.4);
+        group.add(kitchen.group);
+      }
     }
-
-    case 'balcony': {
-      return (
-        <group position={[cx, 0, cz]}>
-          <BalconySet theme={theme} />
-        </group>
-      );
+    // 5. Bathroom / Toilet Staging
+    else if (
+      type.includes('bath') ||
+      type.includes('toilet') ||
+      type.includes('wc') ||
+      name.includes('bath') ||
+      name.includes('toilet')
+    ) {
+      if (rw >= 1.4 && rd >= 1.4) {
+        const bath = buildBathroomSuite(mats);
+        bath.group.position.set(cx, 0, minZ + 0.4);
+        group.add(bath.group);
+      }
     }
-
-    case 'lawn': {
-      return (
-        <group position={[cx, 0, cz]}>
-          <LawnGardenSet theme={theme} />
-        </group>
-      );
+    // 6. Balcony / Sun Terrace / Deck / Patio (Reference 1000204412.jpg)
+    else if (
+      type.includes('balcony') ||
+      type.includes('terrace') ||
+      type.includes('deck') ||
+      type.includes('patio') ||
+      type.includes('sitout') ||
+      name.includes('balcony') ||
+      name.includes('terrace') ||
+      name.includes('deck') ||
+      name.includes('patio') ||
+      name.includes('sitout')
+    ) {
+      if (rw >= 2.0 && rd >= 1.6) {
+        const deckSuite = buildOutdoorDeckSuite(mats);
+        deckSuite.group.position.set(cx, 0, cz);
+        group.add(deckSuite.group);
+      } else {
+        const plant = buildArchitecturalPlant(mats);
+        plant.position.set(cx, 0, cz);
+        group.add(plant);
+      }
     }
-
-    case 'utility': {
-      const isWashBalcony = (room.name || '').toLowerCase().includes('wash') || (room.name || '').toLowerCase().includes('laundry');
-      if (!isWashBalcony) return null;
-      return (
-        <group position={[cx, 0, cz]}>
-          <UtilitySet theme={theme} />
-        </group>
-      );
-    }
-
-    case 'parking':
-      return null;
-
-    default:
-      return null;
   }
+
+  // 4D timeline animation support (furniture appears in Phase 4: >= 0.8)
+  const setConstructionPhase = (phase: number) => {
+    const clamped = Math.max(0, Math.min(1, phase));
+    group.visible = clamped >= 0.8;
+  };
+
+  return { group, setConstructionPhase };
 }
+
