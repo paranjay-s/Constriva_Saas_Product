@@ -131,6 +131,81 @@ export interface DetectedRoomSummary {
   centroid: THREE.Vector3;
 }
 
+export function getRoomFinishDescription(
+  roomName: string,
+  roomType?: string
+): { flooring: string; wallFinish: string } {
+  const n = `${roomName} ${roomType || ''}`.toLowerCase();
+  if (n.includes('bed') || n.includes('mbr')) {
+    return {
+      flooring: 'Warm Natural Herringbone Oak Parquet',
+      wallFinish: 'Eggshell Silk Plaster with 10cm Timber Skirting',
+    };
+  }
+  if (n.includes('liv') || n.includes('draw') || n.includes('hall') || n.includes('foyer')) {
+    return {
+      flooring: 'Polished Italian Carrara Marble',
+      wallFinish: 'Silk Plaster with 10cm Timber Skirting & Crown Moulding',
+    };
+  }
+  if (n.includes('bath') || n.includes('toilet') || n.includes('wc')) {
+    return {
+      flooring: 'Anti-Skid Matte Ceramic Tile & Marble Threshold',
+      wallFinish: 'Full-Height Glazed Vitrified Dado Tiles',
+    };
+  }
+  if (n.includes('kit') || n.includes('pantry')) {
+    return {
+      flooring: 'Polished Carrara Marble & Granite Borders',
+      wallFinish: 'Washable Eggshell Acrylic & Quartz Splashbacks',
+    };
+  }
+  if (
+    n.includes('balcony') ||
+    n.includes('terrace') ||
+    n.includes('deck') ||
+    n.includes('patio') ||
+    n.includes('sitout') ||
+    n.includes('verandah')
+  ) {
+    return {
+      flooring: 'Weatherproof Ribbed Teak Wood Decking',
+      wallFinish: 'Exterior Sand Stucco with Architectural Slate Cap',
+    };
+  }
+  if (n.includes('park') || n.includes('garage') || n.includes('car')) {
+    return {
+      flooring: 'Heavy-Duty Paver Finish & Drainage Channels',
+      wallFinish: 'Exterior Sand Stucco Masonry',
+    };
+  }
+  return {
+    flooring: 'Polished Italian Carrara Marble',
+    wallFinish: 'Silk Plaster with 10cm Timber Skirting & Crown Moulding',
+  };
+}
+
+export function getRoomIcon(roomName: string): string {
+  const n = roomName.toLowerCase();
+  if (n.includes('bed')) return '🛏️';
+  if (n.includes('liv') || n.includes('draw')) return '🛋️';
+  if (n.includes('kit')) return '🍳';
+  if (n.includes('din')) return '🍽️';
+  if (n.includes('bath') || n.includes('toilet') || n.includes('wc')) return '🚿';
+  if (
+    n.includes('balcony') ||
+    n.includes('terrace') ||
+    n.includes('deck') ||
+    n.includes('patio') ||
+    n.includes('sitout') ||
+    n.includes('verandah')
+  )
+    return '🌿';
+  if (n.includes('park') || n.includes('garage') || n.includes('car')) return '🚗';
+  if (n.includes('puja') || n.includes('mandir')) return '🪔';
+  return '🚪';
+}
+
 export function PlanViewer() {
   const {
     planData,
@@ -154,16 +229,49 @@ export function PlanViewer() {
   const [navMode, setNavMode] = useState<CameraNavMode>('orbit');
   const [activeRoomName, setActiveRoomName] = useState<string | null>(null);
   const [viewPreset, setViewPreset] = useState<'iso' | 'top'>('iso');
-  const [showLabels, setShowLabels] = useState<boolean>(true);
-  const showLabelsRef = useRef<boolean>(true);
-  const [roomLabelPositions, setRoomLabelPositions] = useState<
-    { id: string; name: string; dims?: string; x: number; y: number; centroid: THREE.Vector3 }[]
-  >([]);
   const [timelinePhase, setTimelinePhase] = useState<number>(1.0); // 1.0 = fully built
   const [isPlayingTimeline, setIsPlayingTimeline] = useState<boolean>(false);
   const [detectedRooms, setDetectedRooms] = useState<DetectedRoomSummary[]>([]);
   const detectedRoomsRef = useRef<DetectedRoomSummary[]>([]);
   const [entranceWaypoints, setEntranceWaypoints] = useState<{ entrance: THREE.Vector3; foyer: THREE.Vector3 } | null>(null);
+
+  // Cinematic Room Entrance Notification Banner
+  const entranceTimeoutRef = useRef<number | null>(null);
+  const [activeEnteringRoom, setActiveEnteringRoom] = useState<DetectedRoomSummary | null>(null);
+  const [showEntranceBanner, setShowEntranceBanner] = useState<boolean>(false);
+  const [currentFovPreset, setCurrentFovPreset] = useState<number>(94);
+
+  const handleRoomEntrance = (room: {
+    id: string;
+    name: string;
+    dims?: string;
+    areaSqFt?: number;
+    areaSqM?: number;
+    centroid?: THREE.Vector3;
+  }) => {
+    setActiveRoomId(room.id);
+    setActiveRoomName(room.name);
+
+    const summary = detectedRoomsRef.current.find((r) => r.id === room.id) || {
+      id: room.id,
+      name: room.name,
+      dims: room.dims,
+      areaSqFt: room.areaSqFt,
+      areaSqM: room.areaSqM,
+      centroid: room.centroid || new THREE.Vector3(0, 1.5, 0),
+    };
+
+    setActiveEnteringRoom(summary);
+    setShowEntranceBanner(true);
+
+    if (entranceTimeoutRef.current) {
+      window.clearTimeout(entranceTimeoutRef.current);
+    }
+    // Automatically transition full entrance banner to subtle top pill after 4.5 seconds
+    entranceTimeoutRef.current = window.setTimeout(() => {
+      setShowEntranceBanner(false);
+    }, 4500);
+  };
 
   // Setup Three.js Scene, Camera, Lights & PBR Engine
   useEffect(() => {
@@ -194,11 +302,11 @@ export function PlanViewer() {
     scene.background = new THREE.Color('#EBF3F9');
     sceneRef.current = scene;
 
-    // Camera: default narrow isometric perspective (30°), auto-widens to 75° in rooms
+    // Camera: default narrow isometric perspective (30°), auto-widens to 94° in rooms
     const camera = new THREE.PerspectiveCamera(
       30,
       container.clientWidth / container.clientHeight,
-      0.05,
+      0.04,
       350
     );
     camera.position.set(16, 18, 22);
@@ -234,7 +342,6 @@ export function PlanViewer() {
     // Navigation Rig with Wide-Angle Walking & Drone Controllers
     let rafId: number;
     let lastTime = performance.now();
-    let frameCount = 0;
 
     const rig = new CinematicNavigationRig({
       container,
@@ -243,6 +350,9 @@ export function PlanViewer() {
       onModeChange: (m) => setNavMode(m),
       onCeilingUpdate: (camY) => {
         floorsResultRef.current?.updateCeilingVisibility(camY);
+      },
+      onRoomEnter: (room) => {
+        handleRoomEntrance(room);
       },
       onRequestRender: () => {},
     });
@@ -262,39 +372,6 @@ export function PlanViewer() {
       }
 
       renderer.render(scene, camera);
-
-      // Project 3D room centroids to 2D screen positions for floating area badges
-      frameCount++;
-      if (frameCount % 2 === 0 && showLabelsRef.current && rig.mode === 'orbit') {
-        const w = container.clientWidth;
-        const h = container.clientHeight;
-        const tempV = new THREE.Vector3();
-        const coords: { id: string; name: string; dims?: string; x: number; y: number; centroid: THREE.Vector3 }[] = [];
-
-        for (const r of detectedRoomsRef.current) {
-          tempV.copy(r.centroid).setY(0.35);
-          tempV.project(camera);
-          // Check if in front of camera
-          if (tempV.z >= -1 && tempV.z <= 1) {
-            const sx = (tempV.x * 0.5 + 0.5) * w;
-            const sy = (-tempV.y * 0.5 + 0.5) * h;
-            if (sx >= 25 && sx <= w - 25 && sy >= 25 && sy <= h - 25) {
-              coords.push({
-                id: r.id,
-                name: r.name,
-                dims: r.dims,
-                x: Math.round(sx),
-                y: Math.round(sy),
-                centroid: r.centroid,
-              });
-            }
-          }
-        }
-        setRoomLabelPositions(coords);
-      } else if (rig.mode !== 'orbit') {
-        // Clear labels during walkthrough and drone tours for immersive view
-        setRoomLabelPositions((prev) => (prev.length > 0 ? [] : prev));
-      }
     };
     rafId = requestAnimationFrame(animate);
 
@@ -311,7 +388,7 @@ export function PlanViewer() {
     });
     resizeObserver.observe(container);
 
-    // Raycast room floor clicks to teleport into room at human eye level (1.50m)
+    // Raycast room floor clicks to teleport into room at human eye level (1.50m) with panoramic FOV
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
@@ -333,7 +410,25 @@ export function PlanViewer() {
         const rId = hit.object.userData?.roomId;
         if (rId) setActiveRoomId(rId);
         setActiveRoomName(rName);
-        rig.teleportToRoom(new THREE.Vector3(point.x, 1.50, point.z));
+
+        const targetSummary = detectedRoomsRef.current.find((r) => r.id === rId);
+        if (targetSummary) {
+          handleRoomEntrance(targetSummary);
+        }
+        rig.teleportToRoom(
+          new THREE.Vector3(point.x, 1.50, point.z),
+          undefined,
+          targetSummary
+            ? {
+                id: targetSummary.id,
+                name: targetSummary.name,
+                polygon: [],
+                dims: targetSummary.dims,
+                areaSqFt: targetSummary.areaSqFt,
+                areaSqM: targetSummary.areaSqM,
+              }
+            : undefined
+        );
       }
     };
     container.addEventListener('dblclick', onPointerDown);
@@ -344,6 +439,9 @@ export function PlanViewer() {
       cancelAnimationFrame(rafId);
       resizeObserver.disconnect();
       container.removeEventListener('dblclick', onPointerDown);
+      if (entranceTimeoutRef.current) {
+        window.clearTimeout(entranceTimeoutRef.current);
+      }
       rig.dispose();
       renderer.dispose();
       setSceneReady(false);
@@ -444,6 +542,19 @@ export function PlanViewer() {
     setDetectedRooms(roomSummaries);
     detectedRoomsRef.current = roomSummaries;
     setEntranceWaypoints({ entrance: entrancePt, foyer: foyerPt });
+
+    // Populate rig.rooms with polygon geometry for live room-entry tracking
+    rig.rooms = plan.rooms.map((r, i) => {
+      const summary = roomSummaries[i];
+      return {
+        id: r.id,
+        name: r.label || r.id,
+        polygon: r.polygon,
+        dims: summary?.dims,
+        areaSqFt: summary?.areaSqFt,
+        areaSqM: summary?.areaSqM,
+      };
+    });
 
     // 5. Fit & Frame Camera to Entire House (Isometric Perspective)
     const box = new THREE.Box3().setFromObject(modelRoot);
@@ -559,18 +670,28 @@ export function PlanViewer() {
   const handleStopDroneTour = () => {
     rigRef.current?.stopTour();
     setNavMode('orbit');
+    setActiveEnteringRoom(null);
+    setShowEntranceBanner(false);
     handleSetIsoView();
   };
 
-  // Teleport into Room with wide-angle lens (75° FOV)
-  const handleTeleportRoom = (room: { id: string; name: string; centroid: THREE.Vector3 }) => {
-    setActiveRoomId(room.id);
-    setActiveRoomName(room.name);
-    rigRef.current?.teleportToRoom(room.centroid);
+  // Teleport into Room with ultra-wide panoramic lens (94° FOV) and entrance notification
+  const handleTeleportRoom = (room: DetectedRoomSummary) => {
+    handleRoomEntrance(room);
+    rigRef.current?.teleportToRoom(room.centroid, undefined, {
+      id: room.id,
+      name: room.name,
+      polygon: [],
+      dims: room.dims,
+      areaSqFt: room.areaSqFt,
+      areaSqM: room.areaSqM,
+    });
   };
 
   // Return to Orbit
   const handleExitToOrbit = () => {
+    setActiveEnteringRoom(null);
+    setShowEntranceBanner(false);
     handleSetIsoView();
   };
 
@@ -579,39 +700,59 @@ export function PlanViewer() {
       {/* 3D WebGL Canvas */}
       <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
-      {/* Floating 3D Room / Area Labels Overlay (Visible in Orbit/Top view) */}
-      {showLabels && navMode === 'orbit' && (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden z-10">
-          {roomLabelPositions.map((lbl) => (
-            <div
-              key={lbl.id}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleTeleportRoom({ id: lbl.id, name: lbl.name, centroid: lbl.centroid });
-              }}
-              style={{
-                left: `${lbl.x}px`,
-                top: `${lbl.y}px`,
-                transform: 'translate(-50%, -50%)',
-              }}
-              className="absolute pointer-events-auto cursor-pointer group transition-transform hover:scale-105 active:scale-95"
-              title={`Click to enter ${lbl.name} (360° Walkthrough)`}
-            >
-              <div className="flex flex-col items-center justify-center px-3 py-1.5 rounded-2xl bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-lg shadow-black/10 group-hover:border-emerald-500 group-hover:shadow-emerald-500/20 transition-all text-center">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:scale-125 transition-transform" />
-                  <span className="text-[11px] font-bold tracking-tight text-slate-800 uppercase whitespace-nowrap">
-                    {lbl.name}
-                  </span>
-                </div>
-                {lbl.dims && (
-                  <span className="text-[10px] font-medium text-slate-500 font-mono mt-0.5">
-                    {lbl.dims}
-                  </span>
-                )}
+      {/* Cinematic Room Entrance Title Card / Banner (Appears only when entering any room) */}
+      {activeEnteringRoom && showEntranceBanner && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 max-w-lg w-[92%] sm:w-auto pointer-events-auto">
+          <div className="relative px-5 py-3.5 rounded-2xl bg-slate-950/90 backdrop-blur-xl border border-emerald-500/40 shadow-2xl shadow-emerald-950/40 text-white flex flex-col gap-1.5 ring-1 ring-white/10">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase">
+                  Entering Room
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEntranceBanner(false)}
+                className="text-white/40 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-white/10"
+                title="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl">{getRoomIcon(activeEnteringRoom.name)}</span>
+              <h2 className="text-base sm:text-lg font-bold tracking-tight text-white uppercase">
+                {activeEnteringRoom.name}
+              </h2>
+              {activeEnteringRoom.dims && (
+                <span className="text-xs font-medium text-emerald-300 font-mono">
+                  {activeEnteringRoom.dims}
+                </span>
+              )}
+            </div>
+
+            <div className="text-[11px] text-slate-300 flex flex-col gap-0.5 pt-1 border-t border-white/10">
+              <div>
+                <span className="text-slate-400">Flooring:</span>{' '}
+                <span className="text-slate-200 font-medium">
+                  {getRoomFinishDescription(activeEnteringRoom.name).flooring}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400">Walls:</span>{' '}
+                <span className="text-slate-200 font-medium">
+                  {getRoomFinishDescription(activeEnteringRoom.name).wallFinish}
+                </span>
               </div>
             </div>
-          ))}
+
+            <div className="flex items-center justify-between text-[10px] text-white/50 pt-1 border-t border-white/5">
+              <span>WASD or Scroll Wheel to Walk • Drag to Look 360°</span>
+              <span className="text-emerald-400 font-medium">Panoramic Lens ({currentFovPreset}°)</span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -623,10 +764,10 @@ export function PlanViewer() {
           <span className="text-white/30">|</span>
           <span className="text-white/80 capitalize">
             {navMode === 'walkthrough'
-              ? `Inside: ${activeRoomName || 'Room'} (Wide 75° Lens)`
+              ? `Inside: ${activeRoomName || 'Room'} (${currentFovPreset}° Panoramic)`
               : navMode === 'drone'
               ? 'Autonomous Drone Tour'
-              : `${navMode} View`}
+              : 'Isometric Aerial View'}
           </span>
         </div>
 
@@ -637,27 +778,102 @@ export function PlanViewer() {
         )}
       </div>
 
-      {/* Top Right: View Controls, Drone Tour Stop, Labels & Presets */}
+      {/* Top Right: View Controls, Drone Tour Stop & Panoramic Lens Switchers */}
       <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
         {navMode === 'drone' ? (
           <button
             type="button"
             onClick={handleStopDroneTour}
-            className="flex items-center gap-2 px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-full shadow-lg shadow-rose-600/30 animate-pulse transition-all border border-rose-400"
-            title="Stop the automated drone tour and return to orbit (or press ESC)"
+            className="flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-full shadow-xl shadow-rose-600/40 animate-pulse transition-all border border-rose-300 ring-2 ring-rose-500/50"
+            title="Stop the automated drone tour and return to orbit (or press ESC / Space)"
           >
             <span className="w-2.5 h-2.5 rounded-sm bg-white" />
-            <span>Stop Drone Tour</span>
-            <span className="text-[10px] bg-rose-800/80 px-1.5 py-0.5 rounded text-white/90 font-mono">ESC</span>
+            <span>STOP DRONE TOUR</span>
+            <span className="text-[10px] bg-rose-950/70 px-1.5 py-0.5 rounded text-white font-mono font-bold">ESC</span>
           </button>
-        ) : navMode !== 'orbit' ? (
-          <button
-            type="button"
-            onClick={handleExitToOrbit}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-900/85 hover:bg-slate-900 text-white font-semibold text-xs rounded-full shadow-lg border border-white/10 transition-all"
-          >
-            <span>Exit to Aerial Orbit</span>
-          </button>
+        ) : navMode === 'walkthrough' ? (
+          <div className="flex items-center gap-1.5 p-1 bg-slate-900/85 backdrop-blur-md border border-white/10 rounded-full shadow-lg text-xs">
+            <span className="text-[11px] font-semibold text-white/50 px-2 uppercase tracking-wider">Lens:</span>
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentFovPreset(84);
+                rigRef.current?.setCustomFov(84);
+              }}
+              className={`px-2.5 py-1 rounded-full font-medium transition-all ${
+                currentFovPreset === 84
+                  ? 'bg-emerald-500 text-slate-950 font-bold'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+              title="84° Wide Lens"
+            >
+              84° Wide
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentFovPreset(94);
+                rigRef.current?.setCustomFov(94);
+              }}
+              className={`px-2.5 py-1 rounded-full font-medium transition-all ${
+                currentFovPreset === 94
+                  ? 'bg-emerald-500 text-slate-950 font-bold'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+              title="94° Panoramic Lens (Optimal View)"
+            >
+              94° Panoramic
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentFovPreset(104);
+                rigRef.current?.setCustomFov(104);
+              }}
+              className={`px-2.5 py-1 rounded-full font-medium transition-all ${
+                currentFovPreset === 104
+                  ? 'bg-emerald-500 text-slate-950 font-bold'
+                  : 'text-white/80 hover:text-white hover:bg-white/10'
+              }`}
+              title="104° Ultra-Wide Lens (Full Ceiling & Floor View)"
+            >
+              104° Ultra
+            </button>
+            <div className="w-[1px] h-3.5 bg-white/20 mx-0.5" />
+            <button
+              type="button"
+              onClick={() => {
+                const next = Math.max(60, currentFovPreset - 5);
+                setCurrentFovPreset(next);
+                rigRef.current?.setCustomFov(next);
+              }}
+              className="w-6 h-6 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white font-bold"
+              title="Zoom In (Decrease FOV)"
+            >
+              +
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const next = Math.min(115, currentFovPreset + 5);
+                setCurrentFovPreset(next);
+                rigRef.current?.setCustomFov(next);
+              }}
+              className="w-6 h-6 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white font-bold"
+              title="Zoom Out (Expand FOV)"
+            >
+              -
+            </button>
+            <div className="w-[1px] h-3.5 bg-white/20 mx-0.5" />
+            <button
+              type="button"
+              onClick={handleExitToOrbit}
+              className="px-3 py-1 bg-white/15 hover:bg-white/25 text-white font-semibold rounded-full transition-all"
+              title="Exit walkthrough to aerial orbit"
+            >
+              Exit to Aerial Orbit
+            </button>
+          </div>
         ) : (
           <div className="flex items-center gap-1.5 p-1 bg-slate-900/85 backdrop-blur-md border border-white/10 rounded-full shadow-lg text-xs">
             <button
@@ -685,22 +901,6 @@ export function PlanViewer() {
             <div className="w-[1px] h-3.5 bg-white/20 mx-0.5" />
             <button
               type="button"
-              onClick={() => {
-                const next = !showLabels;
-                setShowLabels(next);
-                showLabelsRef.current = next;
-              }}
-              className={`px-2.5 py-1 rounded-full font-medium transition-all ${
-                showLabels
-                  ? 'bg-white/20 text-white font-semibold'
-                  : 'text-white/60 hover:text-white'
-              }`}
-              title="Toggle area and room labels in 3D"
-            >
-              {showLabels ? '🏷️ Labels On' : '🏷️ Labels Off'}
-            </button>
-            <button
-              type="button"
               onClick={handlePlayWelcomeTour}
               className="px-2.5 py-1 text-white/90 hover:text-white hover:bg-white/10 rounded-full font-medium transition-all"
               title="Play realistic welcome walk entering front door"
@@ -721,26 +921,33 @@ export function PlanViewer() {
 
       {/* Center Prompt when in Drone Tour mode */}
       {navMode === 'drone' && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 px-4 py-1.5 bg-black/75 backdrop-blur-md text-white/95 text-xs rounded-full border border-rose-500/40 shadow-lg pointer-events-none flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-          <span>Autonomous Drone Tour in Progress • Press <strong>ESC</strong> or click <strong>Stop Drone Tour</strong> to exit</span>
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-5 py-2 bg-black/85 backdrop-blur-md text-white/95 text-xs rounded-full border border-rose-500/50 shadow-2xl pointer-events-auto">
+          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+          <span>Autonomous Drone Tour in Progress</span>
+          <button
+            type="button"
+            onClick={handleStopDroneTour}
+            className="px-2.5 py-0.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] rounded-full shadow border border-rose-400"
+          >
+            ⏹ Stop (ESC)
+          </button>
         </div>
       )}
 
       {/* Center Prompt when in Walkthrough mode */}
-      {navMode === 'walkthrough' && (
+      {navMode === 'walkthrough' && !showEntranceBanner && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 px-4 py-1.5 bg-black/70 backdrop-blur-md text-white/95 text-xs rounded-full border border-white/15 pointer-events-none shadow-md flex items-center gap-2">
-          <span>Wide 75° Lens</span>
+          <span>Panoramic {currentFovPreset}° Lens</span>
           <span className="text-white/30">•</span>
           <span>Drag to Look 360° (Look Up/Down)</span>
           <span className="text-white/30">•</span>
           <span>WASD or Scroll Wheel to Walk</span>
           <span className="text-white/30">•</span>
-          <span className="text-emerald-400 font-medium">Double-click floor to teleport</span>
+          <span className="text-emerald-400 font-medium">Double-click floor to step</span>
         </div>
       )}
 
-      {/* Bottom Area: 4D Construction Scrubber & Room Teleportation Chips */}
+      {/* Bottom Area: 4D Construction Scrubber & Room Navigation Chips */}
       <div className="absolute bottom-4 left-4 right-4 z-20 flex flex-col gap-2 max-w-4xl mx-auto">
         {/* 4D Construction Buildup Slider */}
         <div className="flex items-center gap-3 px-4 py-2 bg-slate-900/85 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl text-white text-xs">
@@ -780,30 +987,47 @@ export function PlanViewer() {
           </span>
         </div>
 
-        {/* Room Teleportation Selector (Click to Enter Room) */}
+        {/* Room Navigation Selector (Click to Enter Room) */}
         {detectedRooms.length > 0 && (
           <div className="flex items-center gap-1.5 overflow-x-auto p-1.5 bg-slate-900/85 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl scrollbar-none">
             <span className="text-[11px] font-semibold text-white/50 px-2 uppercase tracking-wider whitespace-nowrap">
-              Enter Room:
+              Explore:
             </span>
-            {detectedRooms.map((room) => (
-              <button
-                key={room.id}
-                type="button"
-                onClick={() => handleTeleportRoom(room)}
-                className={`px-3 py-1 text-xs rounded-xl font-medium whitespace-nowrap transition-all ${
-                  activeRoomName === room.name
-                    ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
-                    : 'bg-white/10 text-white/90 hover:bg-white/20'
-                }`}
-                title={`Enter and inspect ${room.name} in first-person (360°)`}
-              >
-                <span>{room.name}</span>
-                {room.areaSqFt && room.areaSqFt > 0 && (
-                  <span className="ml-1 opacity-60 text-[10px]">({room.areaSqFt} sq ft)</span>
-                )}
-              </button>
-            ))}
+            <button
+              type="button"
+              onClick={handleExitToOrbit}
+              className={`px-3 py-1 text-xs rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                navMode === 'orbit'
+                  ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
+                  : 'bg-white/10 text-white/90 hover:bg-white/20'
+              }`}
+              title="View entire house from aerial dollhouse cutaway"
+            >
+              <span>🏠</span>
+              <span>Complete House</span>
+            </button>
+            {detectedRooms.map((room) => {
+              const isActive = navMode === 'walkthrough' && activeRoomName === room.name;
+              return (
+                <button
+                  key={room.id}
+                  type="button"
+                  onClick={() => handleTeleportRoom(room)}
+                  className={`px-3 py-1 text-xs rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                    isActive
+                      ? 'bg-emerald-500 text-slate-950 shadow-md font-bold ring-2 ring-emerald-300'
+                      : 'bg-white/10 text-white/90 hover:bg-white/20'
+                  }`}
+                  title={`Enter and inspect ${room.name} in first-person (360° panoramic)`}
+                >
+                  <span>{getRoomIcon(room.name)}</span>
+                  <span>{room.name}</span>
+                  {room.areaSqFt && room.areaSqFt > 0 && (
+                    <span className="opacity-60 text-[10px]">({room.areaSqFt} sq ft)</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

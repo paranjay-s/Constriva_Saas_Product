@@ -226,7 +226,7 @@ export function normalizePlan(raw: any): Plan {
       const wDy = (w.b.y - w.a.y) / wLen;
 
       const dot = Math.abs(segDx * wDx + segDy * wDy);
-      if (dot < 0.95) continue;
+      if (dot < 0.85) continue;
 
       const toP1x = p1.x - w.a.x;
       const toP1y = p1.y - w.a.y;
@@ -283,10 +283,15 @@ export function normalizePlan(raw: any): Plan {
           const dy2 = (q2.y - q1.y) / qLen;
 
           const dot = Math.abs(dx1 * dx2 + dy1 * dy2);
-          if (dot < 0.95) continue;
+          if (dot < 0.82) continue;
 
-          const perp = Math.abs((q1.x - p1.x) * (-dy1) + (q1.y - p1.y) * dx1);
-          if (perp > 0.2) continue;
+          // Normal vector perpendicular to edge 1
+          const nx = -dy1;
+          const ny = dx1;
+          const perpSigned = (q1.x - p1.x) * nx + (q1.y - p1.y) * ny;
+          const perp = Math.abs(perpSigned);
+          // Accommodate architectural gaps up to 45cm (standard 4.5", 9", and 14" partition walls)
+          if (perp > 0.45) continue;
 
           const tQ1 = (q1.x - p1.x) * dx1 + (q1.y - p1.y) * dy1;
           const tQ2 = (q2.x - p1.x) * dx1 + (q2.y - p1.y) * dy1;
@@ -297,25 +302,28 @@ export function normalizePlan(raw: any): Plan {
           const overlapEnd = Math.min(edgeLen, maxQ);
           const overlapLen = overlapEnd - overlapStart;
 
-          if (overlapLen > 0.35) {
+          if (overlapLen > 0.22) {
             sharedWithOtherRoom = true;
             // Prevent duplicate partition walls when checked from the other room
             if (i < j) {
+              const midOffset = perpSigned / 2;
               const startPt: Vec2 = {
-                x: p1.x + dx1 * overlapStart,
-                y: p1.y + dy1 * overlapStart,
+                x: p1.x + dx1 * overlapStart + nx * midOffset,
+                y: p1.y + dy1 * overlapStart + ny * midOffset,
               };
               const endPt: Vec2 = {
-                x: p1.x + dx1 * overlapEnd,
-                y: p1.y + dy1 * overlapEnd,
+                x: p1.x + dx1 * overlapEnd + nx * midOffset,
+                y: p1.y + dy1 * overlapEnd + ny * midOffset,
               };
 
-              if (!isSegmentCoveredByWalls(startPt, endPt, walls)) {
+              const synthThick = Math.max(0.115, Math.min(0.24, perp > 0.05 ? perp : 0.12));
+
+              if (!isSegmentCoveredByWalls(startPt, endPt, walls, 0.28)) {
                 const synthWall: Wall = {
                   id: `synth_partition_${r1.id}_${r2.id}_${synthCounter++}`,
                   a: startPt,
                   b: endPt,
-                  thickness: 0.12,
+                  thickness: synthThick,
                   height: defaultHeight,
                   kind: 'interior',
                 };

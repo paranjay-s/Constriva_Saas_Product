@@ -124,5 +124,80 @@ describe('3D Architectural Viewer - Material & Categorization Engine', () => {
     const furn = furnishRoomsWithPbr(roomsData, mats);
     expect(furn.group.children.length).toBeGreaterThan(0);
   });
+
+  it('provides luxurious architectural finish descriptions and icons upon room entrance', async () => {
+    const { getRoomFinishDescription, getRoomIcon } = await import('./PlanViewer');
+
+    const bedFinish = getRoomFinishDescription('Master Bedroom Suite');
+    expect(bedFinish.flooring).toContain('Herringbone Oak');
+    expect(bedFinish.wallFinish).toContain('Skirting');
+    expect(getRoomIcon('Master Bedroom')).toBe('🛏️');
+
+    const livingFinish = getRoomFinishDescription('Living & Dining Hall');
+    expect(livingFinish.flooring).toContain('Carrara Marble');
+    expect(livingFinish.wallFinish).toContain('Crown Moulding');
+    expect(getRoomIcon('Living Room')).toBe('🛋️');
+
+    const bathFinish = getRoomFinishDescription('Attached Toilet & Bath');
+    expect(bathFinish.flooring).toContain('Ceramic Tile');
+    expect(getRoomIcon('Toilet')).toBe('🚿');
+
+    const deckFinish = getRoomFinishDescription('Outdoor Teak Verandah & Deck');
+    expect(deckFinish.flooring).toContain('Teak Wood');
+    expect(getRoomIcon('Patio Deck')).toBe('🌿');
+  });
+
+  it('guarantees dividing partition walls between adjacent rooms separated by a standard 0.23m wall gap', async () => {
+    const { normalizePlan } = await import('../../viewer3d/adapter/normalizePlan');
+
+    // Two adjacent rooms separated by 0.23m (9 inch) gap where CAD plan omitted the dividing wall
+    const rawPlanWithMissingDivider = {
+      units: 'm',
+      levels: [
+        {
+          rooms: [
+            {
+              id: 'room_a',
+              name: 'BEDROOM 1',
+              polygon: [
+                [0, 0],
+                [4, 0],
+                [4, 4],
+                [0, 4],
+              ],
+            },
+            {
+              id: 'room_b',
+              name: 'BEDROOM 2',
+              polygon: [
+                [4.23, 0], // Separated by 0.23m wall gap
+                [8.23, 0],
+                [8.23, 4],
+                [4.23, 4],
+              ],
+            },
+          ],
+          walls: [
+            // Only outer perimeter walls, interior divider is missing!
+            { id: 'w_ext_top', a: [0, 0], b: [8.23, 0], kind: 'exterior' },
+            { id: 'w_ext_right', a: [8.23, 0], b: [8.23, 4], kind: 'exterior' },
+            { id: 'w_ext_bottom', a: [8.23, 4], b: [0, 4], kind: 'exterior' },
+            { id: 'w_ext_left', a: [0, 4], b: [0, 0], kind: 'exterior' },
+          ],
+        },
+      ],
+    };
+
+    const normalized = normalizePlan(rawPlanWithMissingDivider);
+    const interiorDividers = normalized.walls.filter(
+      (w) => w.kind === 'interior' || w.id.includes('synth_partition')
+    );
+
+    expect(interiorDividers.length).toBeGreaterThanOrEqual(1);
+    const divider = interiorDividers.find(
+      (w) => Math.abs(w.a.x - w.b.x) < 0.1 && Math.abs(w.b.y - w.a.y) >= 3.5
+    );
+    expect(divider).toBeDefined();
+  });
 });
 
