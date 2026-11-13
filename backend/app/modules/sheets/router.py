@@ -110,12 +110,15 @@ async def get_project_sheet(
             "id": clean_proj_id,
             "project_id": clean_proj_id,
             "name": "Standard Construction Cost Estimate",
-            "items": SheetService.get_default_boq_items(),
+            "items": SheetService.get_default_boq_items(clean_proj_id),
             "subtotal": 601000.0,
+            "contingency_rate": 0.05,
+            "contingency": 30050.0,
             "contingency_percent": 5.0,
             "contingency_amount": 30050.0,
             "total_cost": 631050.0,
             "status": "ready",
+            "stale": False,
         }
 
 
@@ -163,8 +166,8 @@ async def calculate_project_sheet(
                 pass
 
     if not plan_json:
-        from app.modules.parsing.models import DEFAULT_VERIFIED_PLAN
-        plan_json = DEFAULT_VERIFIED_PLAN.model_dump()
+        from app.modules.parsing.service import get_default_verified_plan
+        plan_json = get_default_verified_plan()
 
     try:
         updated_sheet = SheetService.recalculate_from_plan(clean_proj_id, plan_json, plan_id=plan_id)
@@ -549,9 +552,9 @@ async def get_raw_materials_survey(
         return survey
     except Exception as e:
         logger.error(f"Failed to compute raw materials survey for {project_id}: {e}")
-        from app.modules.parsing.models import DEFAULT_VERIFIED_PLAN
+        from app.modules.parsing.service import get_default_verified_plan
         from app.modules.sheets.llm_mapper import map_plan_to_materials
-        return map_plan_to_materials(DEFAULT_VERIFIED_PLAN.model_dump())
+        return map_plan_to_materials(get_default_verified_plan())
 
 
 @router.put(
@@ -642,11 +645,14 @@ async def recalculate_from_plan_endpoint(
             "id": clean_proj_id,
             "project_id": clean_proj_id,
             "name": "Standard Construction Cost Estimate",
-            "items": SheetService.get_default_boq_items(),
+            "items": SheetService.get_default_boq_items(clean_proj_id),
             "subtotal": 601000.0,
+            "contingency_rate": 0.05,
+            "contingency": 30050.0,
             "contingency_percent": 5.0,
             "contingency_amount": 30050.0,
             "total_cost": 631050.0,
             "status": "ready",
+            "stale": False,
         }
 

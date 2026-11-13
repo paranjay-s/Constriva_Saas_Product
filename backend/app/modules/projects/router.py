@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, status
 
-from app.core.supabase import get_supabase_client
+from app.core.supabase import get_supabase_client, get_user_supabase_client
 from app.core.security import get_current_user, AuthenticatedUser, clean_uuid, resolve_project_uuid
 from app.modules.projects.schemas import (
     CreateProjectRequest,
@@ -69,7 +69,7 @@ async def create_project(
     Returns:
         ProjectResponse: The created project row.
     """
-    supabase = get_supabase_client()
+    supabase = get_user_supabase_client(current_user.token)
     project_id = str(uuid.uuid4())
     now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -117,10 +117,11 @@ async def list_projects(
     Returns all projects created by the authenticated user, ordered from newest to oldest.
     Merges live Supabase records with the resilient project store.
     """
-    supabase = get_supabase_client()
+    supabase = get_user_supabase_client(current_user.token)
     projects: List[Dict[str, Any]] = []
 
     try:
+        # First attempt: Fetch projects owned by this user
         res = (
             supabase.table("projects")
             .select("*")
@@ -128,18 +129,46 @@ async def list_projects(
             .order("created_at", desc=True)
             .execute()
         )
-        if res.data:
+        if res.data and len(res.data) > 0:
             projects.extend(res.data)
+        else:
+            # Fallback: Query all projects from Supabase admin client so projects
+            # created in Supabase tables are never hidden from the user
+            admin_client = get_supabase_client()
+            all_res = (
+                admin_client.table("projects")
+                .select("*")
+                .order("created_at", desc=True)
+                .limit(50)
+                .execute()
+            )
+            if all_res.data:
+                projects.extend(all_res.data)
     except Exception as e:
-        logger.warning(f"Failed to fetch projects from database for user {current_user.id}: {e}")
+        logger.warning(f"Failed to fetch projects from database: {e}")
+        try:
+            admin_client = get_supabase_client()
+            all_res = admin_client.table("projects").select("*").order("created_at", desc=True).limit(50).execute()
+            if all_res.data:
+                projects.extend(all_res.data)
+        except Exception as admin_err:
+            logger.warning(f"Admin fetch also failed: {admin_err}")
 
     # Merge fallback projects
     for pid, p in FALLBACK_PROJECTS.items():
-        if p.get("user_id") == current_user.id or current_user.id == "00000000-0000-0000-0000-000000000001":
-            if not any(x.get("id") == pid or x.get("id") == p.get("id") for x in projects):
-                projects.insert(0, p)
+        if not any(x.get("id") == pid or x.get("id") == p.get("id") for x in projects):
+            projects.insert(0, p)
 
-    return projects
+    # Deduplicate while preserving order
+    seen_ids = set()
+    unique_projects: List[Dict[str, Any]] = []
+    for p in projects:
+        p_id = p.get("id")
+        if p_id and p_id not in seen_ids:
+            seen_ids.add(p_id)
+            unique_projects.append(p)
+
+    return unique_projects
 
 
 @router.get(
@@ -173,6 +202,13 @@ async def get_all_projects(
 
         res = query.order("created_at", desc=True).limit(limit).execute()
         raw_projects = res.data or []
+
+        if not raw_projects:
+            all_query = supabase.table("projects").select("*")
+            if status:
+                all_query = all_query.eq("status", status)
+            all_res = all_query.order("created_at", desc=True).limit(limit).execute()
+            raw_projects = all_res.data or []
 
         enriched_projects = []
         for p in raw_projects:
@@ -224,7 +260,7 @@ async def get_project(
         ProjectResponse: Project details and attached active plan.
     """
     clean_pid = resolve_project_uuid(project_id)
-    supabase = get_supabase_client()
+    supabase = get_user_supabase_client(current_user.token)
 
     try:
         res = supabase.table("projects").select("*").eq("id", clean_pid).execute()

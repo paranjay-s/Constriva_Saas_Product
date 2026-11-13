@@ -74,10 +74,11 @@ class AuthenticatedUser:
     """
     Represents an authenticated user extracted from the Supabase JWT.
     """
-    def __init__(self, user_id: str, email: str, metadata: Optional[Dict[str, Any]] = None):
+    def __init__(self, user_id: str, email: str, metadata: Optional[Dict[str, Any]] = None, token: Optional[str] = None):
         self.id = user_id
         self.email = email
         self.metadata = metadata or {}
+        self.token = token
 
     def __repr__(self) -> str:
         return f"<AuthenticatedUser id={self.id} email={self.email}>"
@@ -144,7 +145,6 @@ def get_fallback_user() -> AuthenticatedUser:
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
 ) -> AuthenticatedUser:
-    print("=== GET_CURRENT_USER CALLED ===", flush=True)
     """
     FastAPI dependency that validates the Bearer JWT token from the Authorization header.
     Supports both native Supabase API validation and fallback local decoding across all algorithms
@@ -167,7 +167,8 @@ async def get_current_user(
             return AuthenticatedUser(
                 user_id=str(user_res.user.id),
                 email=user_res.user.email or "",
-                metadata=user_res.user.user_metadata or {}
+                metadata=user_res.user.user_metadata or {},
+                token=token,
             )
     except Exception as api_err:
         logger.debug(f"Supabase auth.get_user check bypassed: {api_err}")
@@ -190,7 +191,8 @@ async def get_current_user(
                     return AuthenticatedUser(
                         user_id=user_id,
                         email=payload.get("email", ""),
-                        metadata=payload.get("user_metadata", {})
+                        metadata=payload.get("user_metadata", {}),
+                        token=token,
                     )
         except jwt.ExpiredSignatureError:
             raise HTTPException(
@@ -213,7 +215,8 @@ async def get_current_user(
             return AuthenticatedUser(
                 user_id=str(user_id),
                 email=email,
-                metadata=user_meta
+                metadata=user_meta,
+                token=token,
             )
     except Exception as unverified_err:
         logger.error(f"Unverified token parse failure: {unverified_err}")

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { DEFAULT_ARCHITECTURAL_PLAN, INITIAL_MATERIAL_ITEMS } from '../lib/defaultPlan';
 import type { LoanComparison, MaterialQuantityItem, PlanJSON, Project, ProjectType } from '../types';
 import { projectsApi } from '../features/projects/api';
+import { filesApi } from '../features/files/api';
 
 interface ProjectContextType {
   projects: Project[];
@@ -14,7 +15,7 @@ interface ProjectContextType {
   loanComparison: LoanComparison;
   fetchProjects: () => Promise<void>;
   createProject: (name: string, type: ProjectType, description?: string) => Promise<Project>;
-  selectProject: (project: Project) => void;
+  selectProject: (project: Project) => Promise<void> | void;
   deleteProject: (projectId: string) => Promise<void>;
   setPlanData: (plan: PlanJSON) => void;
   setMaterials: React.Dispatch<React.SetStateAction<MaterialQuantityItem[]>>;
@@ -100,12 +101,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [activeProject]);
 
-  // Fetch projects on initial mount if authenticated
+  // Fetch projects on initial mount
   const fetchProjects = async () => {
-    const token = localStorage.getItem('construtiva_auth_token');
-    if (!token) {
-      return;
-    }
     setIsLoadingProjects(true);
     try {
       const list = await projectsApi.list();
@@ -152,9 +149,32 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  const selectProject = (project: Project) => {
+  const selectProject = async (project: Project) => {
     setActiveProject(project);
     localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(project));
+
+    // 1. Instant cache check: if cached plan exists for this project, load immediately (<10ms)
+    const cacheKey = `construtiva_plan_cache_${project.id}`;
+    const cachedStr = localStorage.getItem(cacheKey);
+    if (cachedStr) {
+      try {
+        const cached = JSON.parse(cachedStr);
+        if (cached && (cached.levels || cached.walls)) {
+          setPlanDataState(cached);
+        }
+      } catch {}
+    }
+
+    // 2. Fetch the latest active architectural plan from backend database
+    try {
+      const res = await filesApi.getProjectPlan(project.id);
+      if (res && res.plan_json) {
+        setPlanData(res.plan_json);
+        localStorage.setItem(cacheKey, JSON.stringify(res.plan_json));
+      }
+    } catch (err) {
+      console.warn(`Could not fetch backend plan for project ${project.id}:`, err);
+    }
   };
 
   const deleteProject = async (projectId: string) => {

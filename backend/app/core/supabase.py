@@ -26,32 +26,10 @@ _supabase_client: Optional[Client] = None
 REQUIRED_BUCKETS = ["blueprints", "rasters", "site-photos"]
 
 
-def get_service_role_jwt() -> Optional[str]:
-    """
-    Returns or mints a valid JWT with role='service_role' to ensure PostgREST
-    bypasses Row-Level Security (BYPASSRLS) across all tables.
-    """
-    if settings.supabase_service_role_key and settings.supabase_service_role_key.count(".") == 2:
-        return settings.supabase_service_role_key
-
-    if settings.supabase_jwt_secret:
-        try:
-            payload = {
-                "role": "service_role",
-                "iss": "supabase",
-                "iat": int(time.time()) - 30,
-                "exp": int(time.time()) + 10 * 365 * 24 * 3600,
-            }
-            return jwt.encode(payload, settings.supabase_jwt_secret, algorithm="HS256")
-        except Exception as e:
-            logger.debug(f"Could not mint service_role JWT: {e}")
-    return None
-
-
 def get_supabase_client() -> Client:
     """
-    Returns the singleton Supabase client initialized with the Service Role Key.
-    This client has full administrative access to query tables and read/write storage buckets.
+    Returns the singleton administrative Supabase client initialized with the Service Role Key.
+    This client has administrative access to query tables and read/write storage buckets.
     """
     global _supabase_client
     if _supabase_client is None:
@@ -63,18 +41,32 @@ def get_supabase_client() -> Client:
             settings.supabase_url,
             settings.supabase_service_role_key,
         )
-
-        # Ensure PostgREST sends a service_role JWT to bypass RLS policies
-        service_jwt = get_service_role_jwt()
-        if service_jwt:
-            try:
-                _supabase_client.postgrest.auth(service_jwt)
-                logger.info("Supabase admin client initialized with service_role BYPASSRLS authorization.")
-            except Exception as e:
-                logger.debug(f"Could not set postgrest auth: {e}")
-        else:
-            logger.info("Supabase admin client initialized successfully.")
+        logger.info("Supabase admin client initialized successfully.")
     return _supabase_client
+
+
+def get_user_supabase_client(token: Optional[str] = None) -> Client:
+    """
+    Returns a Supabase client authenticated as the current user using their Bearer JWT.
+    This ensures database queries run within the user's Row-Level Security (RLS) context
+    where auth.uid() matches the logged-in user ID.
+    Falls back to get_supabase_client() if token is absent, empty, or not a JWT.
+    """
+    if not token or token.strip().lower() in ("", "none", "null", "undefined"):
+        return get_supabase_client()
+
+    clean_token = token.strip()
+    if clean_token.count(".") != 2:
+        return get_supabase_client()
+
+    try:
+        anon_key = settings.supabase_anon_key or settings.supabase_service_role_key
+        user_client = create_client(settings.supabase_url, anon_key)
+        user_client.postgrest.auth(clean_token)
+        return user_client
+    except Exception as e:
+        logger.debug(f"Could not initialize user-scoped Supabase client: {e}")
+        return get_supabase_client()
 
 
 def ensure_storage_buckets() -> None:

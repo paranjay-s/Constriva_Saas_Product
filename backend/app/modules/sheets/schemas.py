@@ -11,8 +11,9 @@ Purpose:
 =============================================================================
 """
 
-from typing import Optional, List
-from pydantic import BaseModel, Field
+import uuid
+from typing import Optional, List, Any, Dict
+from pydantic import BaseModel, Field, model_validator
 
 
 class SheetItemBase(BaseModel):
@@ -61,13 +62,31 @@ class SheetItemResponse(SheetItemBase):
     """
     Representation of a saved sheet item returned to the client.
     """
-    id: str
-    sheet_id: str
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    sheet_id: str = "default_sheet"
     material_id: Optional[str] = None
-    total_quantity: float = Field(..., description="Final quantity including wastage = quantity * (1 + waste_factor)")
-    amount: Optional[float] = Field(0.0, description="Line total amount = total_quantity * unit_price")
+    total_quantity: float = Field(default=0.0, description="Final quantity including wastage = quantity * (1 + waste_factor)")
+    amount: Optional[float] = Field(default=0.0, description="Line total amount = total_quantity * unit_price")
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_item_defaults(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("id"):
+                data["id"] = str(uuid.uuid4())
+            if not data.get("sheet_id"):
+                data["sheet_id"] = "default_sheet"
+            qty = float(data.get("quantity") or 0.0)
+            waste = float(data.get("waste_factor") or 0.0)
+            rate = float(data.get("unit_price") or 0.0)
+            if data.get("total_quantity") is None:
+                data["total_quantity"] = round(qty * (1.0 + waste), 2)
+            if data.get("amount") is None:
+                tot_qty = float(data.get("total_quantity") or 0.0)
+                data["amount"] = round(tot_qty * rate, 2)
+        return data
 
 
 class SheetResponse(BaseModel):
@@ -77,17 +96,50 @@ class SheetResponse(BaseModel):
     id: str
     project_id: str
     plan_id: Optional[str] = None
-    name: str
-    status: str
-    stale: bool = Field(..., description="True if underlying 2D/3D PlanJSON geometry changed and sheet needs recalculation")
+    name: str = "Standard Construction Cost Estimate"
+    status: str = "ready"
+    stale: bool = Field(default=False, description="True if underlying 2D/3D PlanJSON geometry changed and sheet needs recalculation")
     currency: str = "INR"
-    subtotal: float
-    contingency_rate: float
-    contingency: float
-    total_cost: float
+    subtotal: float = 0.0
+    contingency_rate: float = 0.05
+    contingency: float = 0.0
+    contingency_percent: Optional[float] = 5.0
+    contingency_amount: Optional[float] = 0.0
+    total_cost: float = 0.0
     items: List[SheetItemResponse] = []
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_contingency_and_stale(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            data.setdefault("stale", False)
+            data.setdefault("status", "ready")
+            subtotal = float(data.get("subtotal") or 0.0)
+
+            # Resolve contingency amount and rate
+            amt = data.get("contingency")
+            if amt is None:
+                amt = data.get("contingency_amount")
+            if amt is None:
+                amt = round(subtotal * 0.05, 2)
+            data["contingency"] = float(amt)
+            data["contingency_amount"] = float(amt)
+
+            rate = data.get("contingency_rate")
+            if rate is None:
+                pct = data.get("contingency_percent")
+                if pct is not None:
+                    rate = float(pct) / 100.0 if float(pct) > 1.0 else float(pct)
+                else:
+                    rate = 0.05
+            data["contingency_rate"] = float(rate)
+            data["contingency_percent"] = float(data.get("contingency_percent") or (float(rate) * 100.0))
+
+            if not data.get("total_cost"):
+                data["total_cost"] = round(subtotal + float(data["contingency"]), 2)
+        return data
 
 
 class MaterialCatalogueItem(BaseModel):

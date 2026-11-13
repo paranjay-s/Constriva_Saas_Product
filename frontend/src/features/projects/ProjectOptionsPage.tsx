@@ -33,6 +33,22 @@ export const ProjectOptionsPage: React.FC = () => {
           </p>
         </div>
 
+        {/* Instant Access to 3D Workspace for Existing Plans */}
+        <div className="mb-8 p-4 rounded-2xl bg-white/[0.04] border border-[#C5A77B]/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="w-2 h-2 rounded-full bg-[#C5A77B] animate-pulse shrink-0" />
+            <span className="text-xs text-white/80 font-mono">
+              Already have an architectural model or verified plan for this project?
+            </span>
+          </div>
+          <button
+            onClick={() => navigate('/projects/3d-workspace')}
+            className="px-4 py-2 text-xs font-mono font-medium rounded-full bg-[#C5A77B] text-black hover:bg-[#d6b88c] transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+          >
+            Open 3D Workspace <ArrowRightIcon size={12} />
+          </button>
+        </div>
+
         {/* The Two Clear Options */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Option 1: Import Existing 2D Plan */}

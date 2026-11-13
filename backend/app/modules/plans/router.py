@@ -80,6 +80,20 @@ async def get_project_plan(
         )
         if res.data:
             row = res.data[0]
+        elif clean_proj_id != project_id:
+            try:
+                res_raw = (
+                    supabase.table("plans")
+                    .select("*")
+                    .eq("project_id", project_id)
+                    .order("created_at", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+                if res_raw.data:
+                    row = res_raw.data[0]
+            except Exception:
+                pass
     except Exception as e:
         logger.warning(f"Error querying plans table for project {clean_proj_id}: {e}")
 
@@ -99,8 +113,8 @@ async def get_project_plan(
             pass
 
     if not plan_json:
-        from app.modules.parsing.models import DEFAULT_VERIFIED_PLAN
-        plan_json = DEFAULT_VERIFIED_PLAN.model_dump()
+        from app.modules.parsing.service import get_default_verified_plan
+        plan_json = get_default_verified_plan()
 
     return {
         "id": f"plan_{clean_proj_id[:8]}",

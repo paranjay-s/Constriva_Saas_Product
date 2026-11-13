@@ -236,7 +236,8 @@ async def get_current_user_profile(
     Returns:
         UserProfileResponse: User id, email, full name, phone.
     """
-    supabase = get_supabase_client()
+    from app.core.supabase import get_user_supabase_client
+    supabase = get_user_supabase_client(current_user.token)
 
     try:
         prof_res = supabase.table("profiles").select("*").eq("id", current_user.id).execute()
@@ -256,10 +257,10 @@ async def get_current_user_profile(
             phone=None,
         )
     except Exception as e:
-        logger.error(f"Error fetching profile for {current_user.id}: {e}")
+        logger.warning(f"Could not fetch profile from Supabase for {current_user.id}: {e}")
         return UserProfileResponse(
             id=current_user.id,
             email=current_user.email,
-            full_name="Architect User",
+            full_name=current_user.metadata.get("full_name") or "Architect User",
             phone=None,
         )

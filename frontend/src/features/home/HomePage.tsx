@@ -26,9 +26,9 @@ export const HomePage: React.FC = () => {
     fetchProjects();
   }, []);
 
-  const handleOpenProject = (project: (typeof projects)[0]) => {
-    selectProject(project);
-    navigate('/projects/options');
+  const handleOpenProject = async (project: (typeof projects)[0]) => {
+    await selectProject(project);
+    navigate('/projects/3d-workspace');
   };
 
   const handleDeleteProject = async (e: React.MouseEvent, projectId: string) => {

@@ -4,6 +4,7 @@ import { useProject } from '../../context/ProjectContext';
 import { PlanViewer, getMaterialHighlightStyle } from './PlanViewer';
 import { Button } from '../../components/ui/Button';
 import { sheetsApi, type SheetItem } from '../sheets';
+import { filesApi } from '../files';
 import {
   IconArrowLeft,
   IconArrowRight,
@@ -17,6 +18,7 @@ export function WorkspacePage() {
   const navigate = useNavigate();
   const {
     activeProject,
+    setPlanData,
     selectedMaterialTag,
     setSelectedMaterialTag,
   } = useProject();
@@ -33,10 +35,23 @@ export function WorkspacePage() {
   const [isRecalculating, setIsRecalculating] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Fetch sheet exclusively from FastAPI backend on project mount/change
+  // Fetch sheet and plan exclusively from FastAPI backend on project mount/change
   useEffect(() => {
     if (!activeProject?.id) return;
     let isCurrent = true;
+
+    // Load active architectural plan from backend for this project
+    filesApi
+      .getProjectPlan(activeProject.id)
+      .then((res) => {
+        if (!isCurrent) return;
+        if (res && res.plan_json) {
+          setPlanData(res.plan_json);
+        }
+      })
+      .catch((planErr) => {
+        console.warn('Backend plan sync note:', planErr);
+      });
 
     setIsLoading(true);
     setErrorMsg(null);

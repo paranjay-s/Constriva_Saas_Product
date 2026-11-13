@@ -17,12 +17,39 @@ Purpose:
 
 import uuid
 import logging
+import json
+from pathlib import Path
 from typing import Dict, Any, Optional
 from app.core.supabase import get_supabase_client, upload_to_storage, ensure_storage_buckets
 from app.modules.parsing.pdf_to_image import convert_pdf_page_to_png
 from app.modules.parsing.llm_parser import parse_blueprint_image_with_llm
 
 logger = logging.getLogger("construtiva.parsing")
+
+# Load verified plan from extracted_plan.json as singleton default
+DEFAULT_VERIFIED_PLAN: Dict[str, Any] = {}
+_extracted_plan_path = Path(__file__).resolve().parents[2] / "extracted_plan.json"
+if _extracted_plan_path.exists():
+    try:
+        with open(_extracted_plan_path, "r", encoding="utf-8") as _f:
+            DEFAULT_VERIFIED_PLAN = json.load(_f)
+    except Exception as _e:
+        logger.warning(f"Could not load extracted_plan.json: {_e}")
+
+if not DEFAULT_VERIFIED_PLAN:
+    DEFAULT_VERIFIED_PLAN = {
+        "metadata": {"name": "Precision Architectural Floor Plan (36'6\" x 55')", "scale": 1.0, "units": "meters"},
+        "walls": [],
+        "rooms": [],
+        "doors": [],
+        "windows": [],
+    }
+
+
+def get_default_verified_plan() -> Dict[str, Any]:
+    if hasattr(DEFAULT_VERIFIED_PLAN, "model_dump"):
+        return DEFAULT_VERIFIED_PLAN.model_dump()
+    return DEFAULT_VERIFIED_PLAN
 
 
 class ParsingService:

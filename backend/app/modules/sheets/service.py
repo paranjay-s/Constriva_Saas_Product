@@ -125,12 +125,12 @@ class SheetService:
     """
 
     @classmethod
-    def get_default_boq_items(cls) -> List[Dict[str, Any]]:
+    def get_default_boq_items(cls, sheet_id: str = "default_sheet") -> List[Dict[str, Any]]:
         """
         Returns guaranteed non-empty calibrated BOQ line items for the 7 standard materials.
         Used as an instant fail-safe to ensure architectural PDF reports never render empty.
         """
-        return [
+        raw_items = [
             {
                 "name": "Brick",
                 "category": "Masonry",
@@ -244,6 +244,13 @@ class SheetService:
                 "is_custom": False,
             },
         ]
+        items = []
+        for idx, item in enumerate(raw_items):
+            item_copy = dict(item)
+            item_copy["id"] = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{sheet_id}_{item['name']}_{idx}"))
+            item_copy["sheet_id"] = sheet_id
+            items.append(item_copy)
+        return items
 
     @classmethod
     def get_material_catalogue(cls) -> List[Dict[str, Any]]:
@@ -358,8 +365,8 @@ class SheetService:
             area = TAG_AREA_MAP.get(surface_tag)
 
         return {
-            "id": row.get("id"),
-            "sheet_id": row.get("sheet_id"),
+            "id": str(row.get("id") or uuid.uuid4()),
+            "sheet_id": str(row.get("sheet_id") or "default_sheet"),
             "material_id": row.get("material_id"),
             "name": name,
             "category": category,
@@ -572,7 +579,7 @@ class SheetService:
             sheet_id = str(uuid.uuid4())
             new_sheet = {
                 "id": sheet_id,
-                "project_id": project_uuid,
+                "project_id": project_id,
                 "plan_id": target_plan_id or str(uuid.uuid4()),
                 "name": "Standard Construction Cost Estimate",
                 "stale": False,
@@ -673,11 +680,11 @@ class SheetService:
 
         # Guarantee API response fields for SheetResponse schema
         sheet.setdefault("status", "ready")
-        if "contingency" not in sheet:
-            sheet["contingency"] = float(sheet.get("contingency_amount") or 0.0)
-        if "contingency_rate" not in sheet:
-            sheet["contingency_rate"] = float(sheet.get("contingency_percent") or 5.0) / 100.0
-
+        sheet.setdefault("stale", False)
+        sheet["contingency"] = float(sheet.get("contingency_amount") if sheet.get("contingency_amount") is not None else sheet.get("contingency", 0.0))
+        sheet["contingency_rate"] = float(sheet.get("contingency_percent") or 5.0) / 100.0 if float(sheet.get("contingency_percent") or 5.0) > 1.0 else float(sheet.get("contingency_rate", 0.05))
+        sheet["contingency_percent"] = float(sheet.get("contingency_percent") or (sheet["contingency_rate"] * 100.0))
+        sheet["contingency_amount"] = sheet["contingency"]
         return sheet
 
     @classmethod
@@ -714,7 +721,7 @@ class SheetService:
                 target_plan_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"plan_{project_uuid}"))
             sheet = {
                 "id": sheet_id,
-                "project_id": project_uuid,
+                "project_id": project_id,
                 "plan_id": target_plan_id,
                 "name": "Standard Construction Cost Estimate",
                 "stale": False,
@@ -802,8 +809,11 @@ class SheetService:
         if not sheet["items"]:
             sheet["items"] = cls.get_default_boq_items()
         sheet.setdefault("status", "ready")
-        sheet.setdefault("contingency", float(sheet.get("contingency_amount") or 0.0))
-        sheet.setdefault("contingency_rate", float(sheet.get("contingency_percent") or 5.0) / 100.0)
+        sheet.setdefault("stale", False)
+        sheet["contingency"] = float(sheet.get("contingency_amount") if sheet.get("contingency_amount") is not None else sheet.get("contingency", 0.0))
+        sheet["contingency_rate"] = float(sheet.get("contingency_percent") or 5.0) / 100.0 if float(sheet.get("contingency_percent") or 5.0) > 1.0 else float(sheet.get("contingency_rate", 0.05))
+        sheet["contingency_percent"] = float(sheet.get("contingency_percent") or (sheet["contingency_rate"] * 100.0))
+        sheet["contingency_amount"] = sheet["contingency"]
         return sheet
 
     @classmethod
@@ -841,8 +851,8 @@ class SheetService:
                     logger.warning(f"Failed to read local extracted_plan.json: {e}")
 
         if not plan_json:
-            from app.modules.parsing.models import DEFAULT_VERIFIED_PLAN
-            plan_json = DEFAULT_VERIFIED_PLAN.model_dump()
+            from app.modules.parsing.service import get_default_verified_plan
+            plan_json = get_default_verified_plan()
 
         from app.modules.sheets.llm_mapper import map_plan_to_materials
         return map_plan_to_materials(plan_json)
