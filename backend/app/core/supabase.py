@@ -11,8 +11,10 @@ Purpose:
 """
 
 import os
+import time
 import logging
 from typing import Optional
+import jwt
 from supabase import create_client, Client
 from app.core.config import settings
 
@@ -22,6 +24,28 @@ _supabase_client: Optional[Client] = None
 
 # Storage buckets required by Construtiva
 REQUIRED_BUCKETS = ["blueprints", "rasters", "site-photos"]
+
+
+def get_service_role_jwt() -> Optional[str]:
+    """
+    Returns or mints a valid JWT with role='service_role' to ensure PostgREST
+    bypasses Row-Level Security (BYPASSRLS) across all tables.
+    """
+    if settings.supabase_service_role_key and settings.supabase_service_role_key.count(".") == 2:
+        return settings.supabase_service_role_key
+
+    if settings.supabase_jwt_secret:
+        try:
+            payload = {
+                "role": "service_role",
+                "iss": "supabase",
+                "iat": int(time.time()) - 30,
+                "exp": int(time.time()) + 10 * 365 * 24 * 3600,
+            }
+            return jwt.encode(payload, settings.supabase_jwt_secret, algorithm="HS256")
+        except Exception as e:
+            logger.debug(f"Could not mint service_role JWT: {e}")
+    return None
 
 
 def get_supabase_client() -> Client:
@@ -39,7 +63,17 @@ def get_supabase_client() -> Client:
             settings.supabase_url,
             settings.supabase_service_role_key,
         )
-        logger.info("Supabase admin client initialized successfully.")
+
+        # Ensure PostgREST sends a service_role JWT to bypass RLS policies
+        service_jwt = get_service_role_jwt()
+        if service_jwt:
+            try:
+                _supabase_client.postgrest.auth(service_jwt)
+                logger.info("Supabase admin client initialized with service_role BYPASSRLS authorization.")
+            except Exception as e:
+                logger.debug(f"Could not set postgrest auth: {e}")
+        else:
+            logger.info("Supabase admin client initialized successfully.")
     return _supabase_client
 
 

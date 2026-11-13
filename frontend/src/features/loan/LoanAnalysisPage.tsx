@@ -65,7 +65,7 @@ export function LoanAnalysisPage() {
 
   const handleDownloadReport = () => {
     const reportContent =
-      `CONSTRUTIVA ARCHITECTURAL SUITE - LOAN FEASIBILITY ASSESSMENT\n` +
+      `CONSTRIVA ARCHITECTURAL SUITE - LOAN FEASIBILITY ASSESSMENT\n` +
       `Project: ${activeProject?.name || 'Residence'}\n` +
       `Date: ${new Date().toLocaleDateString('en-IN')}\n\n` +
       `FINANCIAL SUMMARY:\n` +
@@ -90,32 +90,37 @@ export function LoanAnalysisPage() {
   };
 
   return (
-    <div className="min-h-screen bg-canvas text-primary flex flex-col">
-      {/* Top Header */}
-      <header className="border-b border-border bg-surface/80 backdrop-blur-md px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+    <div className="min-h-screen bg-[#0d0f12] text-white flex flex-col font-sans">
+      {/* Contextual Toolbar Sub-bar */}
+      <div
+        role="toolbar"
+        aria-label="Loan Feasibility Controls"
+        className="border-b border-white/10 bg-[#0d0f12]/85 backdrop-blur-md px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4 sticky top-0 z-30"
+      >
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate('/projects/3d-workspace')}
             leftIcon={<IconArrowLeft className="w-4 h-4" />}
+            className="text-white/70 hover:text-white"
           >
             3D Workspace
           </Button>
 
-          <div className="h-4 w-px bg-border" />
+          <div className="h-4 w-px bg-white/10 hidden sm:block" />
 
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-serif font-medium text-primary text-base sm:text-lg">
+              <h1 className="font-display font-medium text-white text-sm sm:text-base">
                 Construction Loan Feasibility Analysis
               </h1>
-              <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-accent/15 text-accent border border-accent/30">
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-[#C5A77B]/15 text-[#C5A77B] border border-[#C5A77B]/30">
                 {activeProject?.name || 'Pavilion Serena'}
               </span>
             </div>
-            <p className="text-xs text-secondary hidden sm:block">
-              Compare your sanctioned bank credit against estimated bill of materials to verify financial viability.
+            <p className="text-[11px] text-white/50 hidden sm:block font-mono">
+              Compare sanctioned bank credit facility against computed 3D material BOQ requirements.
             </p>
           </div>
         </div>
@@ -126,73 +131,92 @@ export function LoanAnalysisPage() {
             size="sm"
             onClick={handleDownloadReport}
             leftIcon={downloadSuccess ? <IconCheck className="w-3.5 h-3.5 text-emerald-400" /> : <IconDownload className="w-3.5 h-3.5" />}
+            className="border-white/10 bg-white/[0.04] text-xs hover:bg-white/[0.08]"
           >
             {downloadSuccess ? 'Downloaded Report' : 'Export Feasibility Report'}
           </Button>
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
       <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Top 3 KPI Comparative Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
           {/* Card 1: Available Loan */}
-          <Card className="p-5 border-border bg-panel/70">
-            <span className="text-xs font-semibold text-secondary uppercase tracking-wider block mb-1">
+          <div className="arch-glass arch-glass-hover p-5 rounded-2xl">
+            <span className="text-[10px] font-mono font-semibold text-white/50 uppercase tracking-widest block mb-1">
               Sanctioned Loan Facility
             </span>
             <div className="flex items-baseline gap-2">
-              <span className="font-serif text-2xl sm:text-3xl font-bold text-primary tracking-tight">
+              <span className="font-display text-2xl sm:text-3xl font-medium text-white tracking-tight">
                 ₹{currentAvailableLoan.toLocaleString('en-IN')}
               </span>
             </div>
-            <p className="text-xs text-secondary mt-2 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-accent" />
+            <p className="text-xs text-white/60 mt-2 flex items-center gap-1.5 font-mono">
+              <span className="w-2 h-2 rounded-full bg-[#ffbf7a]" />
               {docBankName || 'Self-Reported Banking Facility'}
             </p>
-          </Card>
+          </div>
 
           {/* Card 2: Material BOQ Cost */}
-          <Card className="p-5 border-border bg-panel/70">
-            <span className="text-xs font-semibold text-secondary uppercase tracking-wider block mb-1">
+          <div className="arch-glass arch-glass-hover p-5 rounded-2xl">
+            <span className="text-[10px] font-mono font-semibold text-white/50 uppercase tracking-widest block mb-1">
               Estimated Material BOQ Cost
             </span>
             <div className="flex items-baseline gap-2">
-              <span className="font-serif text-2xl sm:text-3xl font-bold text-accent tracking-tight">
+              <span className="font-display text-2xl sm:text-3xl font-medium text-[#ffbf7a] tracking-tight">
                 ₹{totalCost.toLocaleString('en-IN')}
               </span>
             </div>
-            <p className="text-xs text-secondary mt-2">
-              Derived from 3D Model • Includes 5% handling allowance
+            <p className="text-xs text-white/60 mt-2 font-mono">
+              Derived from 3D Model • Includes 5% allowance
             </p>
-          </Card>
+          </div>
 
           {/* Card 3: Surplus / Shortfall Status */}
-          <Card
-            className={`p-5 border ${
+          <div
+            className={`p-5 rounded-2xl arch-glass border ${
               isSufficient
-                ? 'border-emerald-500/40 bg-emerald-500/5'
-                : 'border-rose-500/40 bg-rose-500/5'
+                ? 'border-emerald-500/40 bg-emerald-500/10'
+                : 'border-rose-500/40 bg-rose-500/10'
             }`}
           >
-            <span className="text-xs font-semibold text-secondary uppercase tracking-wider block mb-1">
+            <span className="text-[10px] font-mono font-semibold text-white/50 uppercase tracking-widest block mb-1">
               {isSufficient ? 'Remaining Liquidity Buffer' : 'Estimated Capital Shortfall'}
             </span>
             <div className="flex items-baseline gap-2">
               <span
-                className={`font-serif text-2xl sm:text-3xl font-bold tracking-tight ${
+                className={`font-display text-2xl sm:text-3xl font-medium tracking-tight ${
                   isSufficient ? 'text-emerald-400' : 'text-rose-400'
                 }`}
               >
                 ₹{(isSufficient ? surplus : shortfall).toLocaleString('en-IN')}
               </span>
             </div>
-            <p className="text-xs text-secondary mt-2">
+            <p className="text-xs text-white/70 mt-2 font-mono">
               {isSufficient
-                ? `Buffer available for civil labor & MEP works (${utilizationPercentage}% loan consumed)`
+                ? `Buffer available for civil & MEP works (${utilizationPercentage}% loan consumed)`
                 : 'Sanction is insufficient to cover raw materials alone'}
             </p>
-          </Card>
+          </div>
+        </div>
+
+        {/* Loan Utilization Visual Gauge */}
+        <div className="arch-glass p-4 rounded-xl border border-white/10 flex flex-col gap-2">
+          <div className="flex items-center justify-between text-xs font-mono">
+            <span className="text-white/70">Material Cost Loan Absorption</span>
+            <span className={`font-semibold ${utilizationPercentage > 100 ? 'text-rose-400' : 'text-[#ffbf7a]'}`}>
+              {utilizationPercentage}% of facility
+            </span>
+          </div>
+          <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden relative">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                utilizationPercentage > 100 ? 'bg-rose-500' : 'bg-gradient-to-r from-[#C5A77B] to-[#ffbf7a]'
+              }`}
+              style={{ width: `${Math.min(utilizationPercentage, 100)}%` }}
+            />
+          </div>
         </div>
 
         {/* Loan Input Configuration & Document Upload */}
@@ -360,7 +384,7 @@ export function LoanAnalysisPage() {
             Regulatory & Estimation Disclaimer:
           </p>
           <p>
-            Construtiva provides architectural estimation services based on digital floor plan geometry and standard regional Schedule of Rates (SOR). This financial comparison evaluates raw material budgets only and does not constitute credit underwriting, banking advice, or commitment of loan disbursement by any financial institution.
+            Constriva provides architectural estimation services based on digital floor plan geometry and standard regional Schedule of Rates (SOR). This financial comparison evaluates raw material budgets only and does not constitute credit underwriting, banking advice, or commitment of loan disbursement by any financial institution.
           </p>
         </div>
       </main>

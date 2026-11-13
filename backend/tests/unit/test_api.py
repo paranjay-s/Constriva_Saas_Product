@@ -22,7 +22,7 @@ def test_health(client: TestClient) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["status"] == "ok"
-    assert "Construtiva" in payload["app"]
+    assert "Constriva" in payload["app"]
 
 
 @pytest.mark.parametrize("name", STUB_MODULES)

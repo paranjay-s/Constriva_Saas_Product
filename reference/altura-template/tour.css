@@ -1,0 +1,234 @@
+/* Walkthrough — a sticky stage whose camera move is scrubbed by scroll. */
+
+.tour {
+  --tour-h: calc(100svh - 2 * var(--inset));
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --font-thin: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --tour-ink: #ffffff;
+  --tour-ink-dim: rgba(255, 255, 255, 0.82);
+  --title-size: clamp(2.6rem, 1.1rem + 5.6vw, 7.4rem);
+  --tour-pad: clamp(18px, 2.6vw, 44px);
+  position: relative;
+  margin-top: var(--inset);
+  height: 820svh;
+}
+
+.tour__sticky {
+  position: sticky;
+  top: var(--inset);
+  height: var(--tour-h);
+  min-height: 480px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  isolation: isolate;
+  background: #1a1612;
+  color: var(--tour-ink);
+}
+
+.tour__canvas,
+.tour__poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.tour__poster { object-fit: cover; z-index: 0; }
+.tour__canvas { z-index: 1; }
+.tour.is-live .tour__poster { visibility: hidden; }
+
+/* Quiet edges so white type holds over the bright travertine and sky. */
+.tour__shade {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(10, 8, 6, 0.48) 0%, rgba(10, 8, 6, 0) 22%),
+    linear-gradient(0deg, rgba(10, 8, 6, 0.42) 0%, rgba(10, 8, 6, 0) 26%),
+    radial-gradient(ellipse 70% 60% at var(--shade-x, 25%) var(--shade-y, 45%), rgba(10, 8, 6, 0.34), rgba(10, 8, 6, 0) 70%);
+  transition: background-position 0.6s var(--ease-soft);
+}
+
+.tour a:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+/* ---------- Beats ---------- */
+
+.tour__beats {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.beat {
+  --o: 0;
+  --b: 10px;
+  --y: 14px;
+  position: absolute;
+  max-width: min(46vw, 780px);
+  opacity: var(--o);
+  filter: blur(var(--b));
+  transform: translate3d(0, var(--y), 0);
+  will-change: opacity, filter, transform;
+  text-shadow: 0 2px 28px rgba(0, 0, 0, 0.28);
+}
+
+.beat.is-on { pointer-events: auto; }
+
+.beat--intro {
+  inset: 0;
+  max-width: none;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+  padding: var(--tour-pad);
+}
+
+.beat--left      { left: var(--tour-pad); top: 22%; }
+.beat--right     { right: var(--tour-pad); top: 24%; text-align: right; }
+.beat--low-left  { left: var(--tour-pad); bottom: 15%; }
+.beat--low-right { right: var(--tour-pad); bottom: 15%; text-align: right; }
+.beat--end {
+  left: var(--tour-pad);
+  right: var(--tour-pad);
+  top: 50%;
+  translate: 0 -50%;
+  margin-inline: auto;
+  text-align: center;
+  max-width: 900px;
+}
+
+.beat__eyebrow,
+.beat__sub {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--tour-ink-dim);
+}
+
+.beat__eyebrow { margin-bottom: clamp(10px, 1.2vw, 18px); }
+.beat__sub { margin-top: clamp(12px, 1.4vw, 22px); line-height: 1.6; }
+
+.beat__title {
+  margin: 0;
+  font-family: var(--font-thin);
+  font-weight: 200;
+  font-size: var(--title-size);
+  line-height: 0.92;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+  color: var(--tour-ink);
+}
+
+.beat__title--xl {
+  font-size: clamp(3.4rem, 1rem + 9vw, 11rem);
+  letter-spacing: -0.04em;
+}
+
+.beat__cue {
+  display: block;
+  width: 26px;
+  height: 26px;
+  margin-top: 22px;
+  opacity: 0.9;
+}
+
+.beat__cue svg { width: 100%; height: 100%; }
+
+.beat__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 26px;
+  padding: 13px 20px 13px 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #14110d;
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  text-shadow: none;
+  transition: background 0.2s;
+}
+
+.beat__cta:hover { background: #fff; }
+.beat__cta svg { width: 14px; height: 14px; }
+
+/* ---------- Progress ---------- */
+
+.tour__progress {
+  position: absolute;
+  z-index: 4;
+  left: var(--tour-pad);
+  bottom: calc(var(--tour-pad) * 0.7);
+  width: min(26vw, 280px);
+  height: 1px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.tour__progress span {
+  display: block;
+  height: 100%;
+  background: #fff;
+  transform-origin: 0 50%;
+  transform: scaleX(var(--p, 0));
+}
+
+.tour__dot {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: calc(var(--tour-pad) * 0.7 - 3px);
+  width: 7px;
+  height: 7px;
+  margin-left: -3.5px;
+  border-radius: 50%;
+  border: 1px solid #fff;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 960px) {
+  .beat { max-width: calc(100% - 2 * var(--tour-pad)); }
+}
+
+@media (max-width: 600px) {
+  .tour { --title-size: clamp(2.4rem, 0.8rem + 9vw, 3.6rem); height: 760svh; }
+  .tour__shade {
+    background:
+      linear-gradient(180deg, rgba(10, 8, 6, 0.5) 0%, rgba(10, 8, 6, 0) 24%),
+      linear-gradient(0deg, rgba(10, 8, 6, 0.55) 0%, rgba(10, 8, 6, 0) 40%);
+  }
+  .beat--left,
+  .beat--right,
+  .beat--low-left,
+  .beat--low-right {
+    left: var(--tour-pad);
+    right: var(--tour-pad);
+    top: auto;
+    bottom: 13%;
+    text-align: left;
+  }
+  .beat__sub { font-size: 0.625rem; }
+  .tour__progress { width: 40vw; }
+}
+
+/* Without scripting the poster stays and every beat is readable in order. */
+html:not(.js) .tour { height: auto; }
+html:not(.js) .tour__sticky { position: relative; height: auto; min-height: 0; padding: 120px var(--tour-pad) 80px; }
+html:not(.js) .tour__beats { position: relative; display: grid; gap: 64px; }
+html:not(.js) .beat { position: relative; inset: auto; translate: none; --o: 1; --b: 0px; --y: 0px; }
+html:not(.js) .beat--intro { place-content: start; justify-items: start; text-align: left; padding: 0; }

@@ -46,6 +46,8 @@ export function AiGeneratorPage() {
 
   // Generation state
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [generationStage, setGenerationStage] = useState<string>('Initializing spatial drafting engine...');
+  const [blueprintFilter, setBlueprintFilter] = useState<'blueprint' | 'dark' | 'paper'>('blueprint');
   const [generatedPlan, setGeneratedPlan] = useState<GeneratedPlanResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState<boolean>(false);
@@ -58,7 +60,7 @@ export function AiGeneratorPage() {
     {
       id: 'welcome',
       sender: 'assistant',
-      text: "Welcome to Construtiva's 2D Floor Plan Synthesis Studio. Specify your plot dimensions, facing, goal, and layout requirements below, and I will draft a precision CAD architectural working drawing.",
+      text: "Welcome to Constriva's 2D Floor Plan Synthesis Studio. Specify your plot dimensions, facing, goal, and layout requirements below, and I will draft a precision CAD architectural working drawing.",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -131,6 +133,17 @@ export function AiGeneratorPage() {
 
     setIsGenerating(true);
     setErrorMessage(null);
+    setGenerationStage(`Calibrating plot boundary (${plotWidth}' × ${plotLength}') & Vastu ${facing} axis...`);
+
+    const stageTimer1 = setTimeout(() => {
+      setGenerationStage('Synthesizing perimeter shear walls & structural columns...');
+    }, 900);
+    const stageTimer2 = setTimeout(() => {
+      setGenerationStage('Arranging room geometries, fenestration apertures & circulation shafts...');
+    }, 1800);
+    const stageTimer3 = setTimeout(() => {
+      setGenerationStage('Rendering calibrated Er. Vikas Patodi CAD title block & annotations...');
+    }, 2700);
 
     try {
       const res = await aiPlanApi.generatePlan({
@@ -161,6 +174,9 @@ export function AiGeneratorPage() {
       console.error('Plan generation failed:', err);
       setErrorMessage(err.detail || err.message || 'Failed to generate 2D floor plan. Please check backend connection.');
     } finally {
+      clearTimeout(stageTimer1);
+      clearTimeout(stageTimer2);
+      clearTimeout(stageTimer3);
       setIsGenerating(false);
     }
   };
@@ -265,33 +281,37 @@ export function AiGeneratorPage() {
 
   return (
     <div className="min-h-screen bg-[#111317] text-[#FFFFFF] flex flex-col font-sans select-none">
-      {/* Top Engineering Studio Header */}
-      <header className="border-b border-[#23272F] bg-[#16181D]/90 backdrop-blur-md px-4 sm:px-6 py-3 flex items-center justify-between gap-4 sticky top-0 z-30">
+      {/* Engineering Studio Contextual Sub-bar */}
+      <div
+        role="toolbar"
+        aria-label="CAD Generator Studio Actions"
+        className="border-b border-white/10 bg-[#0d0f12]/80 backdrop-blur-md px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 sticky top-0 z-30"
+      >
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate('/projects/options')}
             leftIcon={<IconArrowLeft className="w-4 h-4" />}
-            className="text-[#9E9E9E] hover:text-[#FFFFFF]"
+            className="text-white/70 hover:text-white"
           >
             Options
           </Button>
 
-          <div className="h-4 w-px bg-[#2B303B]" />
+          <div className="h-4 w-px bg-white/10 hidden sm:block" />
 
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-display font-medium text-[#FFFFFF] text-base sm:text-lg">
-                Create 2D Floor Plan • AI Floor Plan Generator
+              <h1 className="font-display font-medium text-white text-sm sm:text-base">
+                2D Floor Plan Synthesis Studio • AI Floor Plan Generator
               </h1>
-              <span className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-[#C5A77B]/15 text-[#C5A77B] border border-[#C5A77B]/30 flex items-center gap-1">
-                <IconSparkles className="w-3 h-3" />
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-[#C5A77B]/15 text-[#C5A77B] border border-[#C5A77B]/30 flex items-center gap-1">
+                <IconSparkles className="w-3 h-3 text-[#ffbf7a]" />
                 Conversational CAD
               </span>
             </div>
-            <p className="text-xs text-[#8A8F98] hidden sm:block">
-              Construtiva Architect AI: Specify plot dimensions, goal &amp; room layout to synthesize high-resolution CAD working drawings.
+            <p className="text-[11px] text-white/50 hidden sm:block font-mono">
+              Constriva Architect AI: Specify plot dimensions, goal &amp; room layout to synthesize high-resolution CAD working drawings.
             </p>
           </div>
         </div>
@@ -303,7 +323,7 @@ export function AiGeneratorPage() {
               size="sm"
               onClick={handleDownloadBlueprint}
               leftIcon={downloadSuccess ? <IconCheck className="w-3.5 h-3.5 text-emerald-400" /> : <IconDownload className="w-3.5 h-3.5" />}
-              className="border-[#2D333F] bg-[#1C2028] text-xs"
+              className="border-white/10 bg-white/[0.04] text-xs hover:bg-white/[0.08]"
             >
               {downloadSuccess ? 'Downloaded CAD PNG' : 'Download Blueprint PNG'}
             </Button>
@@ -314,12 +334,12 @@ export function AiGeneratorPage() {
             size="sm"
             onClick={handleProceedTo3D}
             rightIcon={<IconArrowRight className="w-4 h-4" />}
-            className="bg-[#C5A77B] text-[#121212] font-semibold hover:bg-[#D4B88E] shadow-sm text-xs"
+            className="bg-[#C5A77B] text-[#121212] font-semibold hover:bg-[#D4B88E] shadow-sm text-xs cursor-pointer"
           >
             Open in 3D Workspace
           </Button>
         </div>
-      </header>
+      </div>
 
       {/* Main Split Interface */}
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-[calc(100vh-65px)]">
@@ -684,45 +704,128 @@ export function AiGeneratorPage() {
           </div>
 
           {/* View Container */}
-          <div className="flex-1 flex flex-col justify-center items-center min-h-[520px] rounded-xl bg-[#13161C] border border-[#222834] overflow-hidden relative shadow-inner">
+          <div className="flex-1 flex flex-col justify-center items-center min-h-[520px] rounded-xl bg-[#0e1117] border border-white/10 overflow-hidden relative shadow-inner">
             {isGenerating ? (
-              <div className="flex flex-col items-center justify-center p-8 space-y-4">
-                <div className="w-12 h-12 rounded-full border-3 border-[#C5A77B] border-t-transparent animate-spin" />
-                <div className="text-center">
-                  <div className="text-sm font-medium text-[#FFFFFF]">Synthesizing 2D CAD Blueprint...</div>
-                  <div className="text-xs text-[#7B8394] mt-1 font-mono">
-                    Applying Er. Vikas Patodi CAD standards ({plotWidth}' × {plotLength}', {facing} Facing)
+              <div className="flex-1 w-full h-full flex flex-col items-center justify-center p-8 space-y-6 relative overflow-hidden drafting-grid">
+                {/* Holographic Laser Scanline Bar */}
+                <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-[#ffbf7a] to-transparent animate-scanline pointer-events-none shadow-[0_0_18px_#ffbf7a]" />
+
+                {/* Diagnostic Radar / HUD */}
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full border border-[#C5A77B]/30 animate-ping opacity-25" />
+                  <div className="w-20 h-20 rounded-full border-2 border-[#C5A77B] border-t-transparent animate-spin absolute inset-0" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <IconSparkles className="w-7 h-7 text-[#ffbf7a] animate-pulse-glow" />
                   </div>
                 </div>
+
+                <div className="text-center z-10 max-w-md">
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-[#ffbf7a] mb-1">
+                    Spatial Synthesis Engine
+                  </div>
+                  <div className="text-base font-medium text-white">Synthesizing 2D CAD Blueprint</div>
+                  <div className="text-xs text-white/80 mt-2 font-mono px-4 py-1.5 rounded-full bg-white/[0.05] border border-white/10 inline-block animate-pulse">
+                    {generationStage}
+                  </div>
+                </div>
+
+                {/* Caliper overlay markers */}
+                <div className="absolute top-4 left-4 text-[10px] font-mono text-white/30">[0, 0] ARCH_GRID</div>
+                <div className="absolute top-4 right-4 text-[10px] font-mono text-white/30">[{plotWidth}', 0] VASTU_{facing.toUpperCase()}</div>
+                <div className="absolute bottom-4 left-4 text-[10px] font-mono text-white/30">[0, {plotLength}'] {areaSqFt.toLocaleString()} SQFT</div>
+                <div className="absolute bottom-4 right-4 text-[10px] font-mono text-white/30">SCALE: 1/4" = 1'-0"</div>
               </div>
             ) : activeView === 'blueprint' ? (
               /* CAD Blueprint Image View */
-              <div className="w-full h-full flex items-center justify-center p-4 overflow-auto">
+              <div className="w-full h-full flex flex-col items-center justify-center p-4 relative drafting-grid overflow-hidden">
                 {generatedPlan?.png_base64 ? (
-                  <div
-                    style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }}
-                    className="transition-transform duration-150 flex items-center justify-center max-w-full max-h-full"
-                  >
-                    <img
-                      src={`data:image/png;base64,${generatedPlan.png_base64}`}
-                      alt={generatedPlan.name || '2D Architectural Floor Plan'}
-                      className="max-h-[680px] w-auto object-contain rounded border border-[#2D3545] shadow-2xl"
-                    />
-                  </div>
+                  <>
+                    {/* Blueprint Mode Switcher & Metric Ribbon */}
+                    <div className="absolute top-3 left-3 z-20 flex items-center gap-2 arch-glass px-3 py-1.5 rounded-lg border border-white/10 text-xs">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="font-mono text-[11px] text-white/80 truncate max-w-[180px] sm:max-w-xs">
+                        {generatedPlan.name || '2D Architectural Plan'}
+                      </span>
+                      <span className="text-white/20">•</span>
+                      <span className="font-mono text-[10px] text-[#C5A77B]">
+                        {areaSqFt.toLocaleString()} sq.ft
+                      </span>
+                    </div>
+
+                    {/* Filter mode pill */}
+                    <div className="absolute top-3 right-3 z-20 flex items-center gap-1 arch-glass p-1 rounded-lg border border-white/10 text-[10px] font-mono">
+                      <button
+                        onClick={() => setBlueprintFilter('blueprint')}
+                        className={`px-2.5 py-1 rounded cursor-pointer transition-all ${
+                          blueprintFilter === 'blueprint'
+                            ? 'bg-[#0f2f6b] text-white font-semibold shadow-sm'
+                            : 'text-white/60 hover:text-white'
+                        }`}
+                      >
+                        Blueprint
+                      </button>
+                      <button
+                        onClick={() => setBlueprintFilter('dark')}
+                        className={`px-2.5 py-1 rounded cursor-pointer transition-all ${
+                          blueprintFilter === 'dark'
+                            ? 'bg-black text-white font-semibold shadow-sm'
+                            : 'text-white/60 hover:text-white'
+                        }`}
+                      >
+                        Obsidian CAD
+                      </button>
+                      <button
+                        onClick={() => setBlueprintFilter('paper')}
+                        className={`px-2.5 py-1 rounded cursor-pointer transition-all ${
+                          blueprintFilter === 'paper'
+                            ? 'bg-white/20 text-white font-semibold shadow-sm'
+                            : 'text-white/60 hover:text-white'
+                        }`}
+                      >
+                        Paper
+                      </button>
+                    </div>
+
+                    {/* The CAD Blueprint with Tactile Reveal */}
+                    <div
+                      style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center' }}
+                      className="transition-transform duration-150 flex items-center justify-center max-w-full max-h-full animate-blueprint-reveal z-10"
+                    >
+                      <div
+                        className={`relative p-2 rounded-xl transition-all ${
+                          blueprintFilter === 'blueprint'
+                            ? 'bg-[#06152b]/85 border-2 border-[#1e4976] shadow-[0_0_35px_rgba(30,73,118,0.4)]'
+                            : blueprintFilter === 'paper'
+                            ? 'bg-[#f4efe6] border-2 border-[#d0c5b4] shadow-2xl invert-[0.9]'
+                            : 'bg-[#0a0c10] border border-white/15 shadow-2xl'
+                        }`}
+                      >
+                        <img
+                          src={`data:image/png;base64,${generatedPlan.png_base64}`}
+                          alt={generatedPlan.name || '2D Architectural Floor Plan'}
+                          className="max-h-[660px] w-auto object-contain rounded"
+                        />
+                        {/* Subtle Watermark Overlay */}
+                        <div className="absolute bottom-3 right-4 pointer-events-none text-[9px] font-mono tracking-widest text-white/50 uppercase bg-black/50 px-2 py-0.5 rounded backdrop-blur-sm">
+                          CONSTRIVA ARCHITECTURAL CAD • VASTU {facing.toUpperCase()}
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 ) : (
-                  <div className="text-center p-8 text-[#707888] flex flex-col items-center justify-center max-w-sm">
-                    <div className="w-14 h-14 rounded-2xl bg-[#1B1F27] border border-[#2B3242] flex items-center justify-center mb-3.5 shadow-md">
+                  <div className="text-center p-8 text-[#707888] flex flex-col items-center justify-center max-w-sm arch-glass rounded-2xl border border-white/10">
+                    <div className="w-14 h-14 rounded-2xl bg-white/[0.06] border border-white/15 flex items-center justify-center mb-3.5 shadow-md">
                       <IconSparkles className="w-7 h-7 text-[#C5A77B]" />
                     </div>
-                    <h3 className="text-sm font-semibold text-[#FFFFFF] mb-1.5">Awaiting Your Requirements</h3>
+                    <h3 className="text-sm font-semibold text-[#FFFFFF] mb-1.5">Awaiting Your Specifications</h3>
                     <p className="text-xs text-[#8A93A4] leading-relaxed mb-4">
-                      Review or adjust your plot dimensions, facing direction, building purpose, and custom specifications on the left, then click <strong>Generate 2D Floor Plan</strong> to draft your blueprint.
+                      Review plot dimensions, facing orientation, and custom room layout on the left, then click <strong>Generate 2D Floor Plan</strong> to draft your working drawing.
                     </p>
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#181C24] border border-[#282F3E] text-[11px] text-[#A6AFC0] font-mono">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-[11px] text-[#A6AFC0] font-mono">
                       <span>Plot: {plotWidth}' × {plotLength}'</span>
-                      <span className="text-[#4B5565]">•</span>
+                      <span className="text-white/20">•</span>
                       <span>{areaSqFt.toLocaleString()} sq.ft</span>
-                      <span className="text-[#4B5565]">•</span>
+                      <span className="text-white/20">•</span>
                       <span>{facing} Facing</span>
                     </div>
                   </div>

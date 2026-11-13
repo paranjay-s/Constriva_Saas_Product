@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Altura — Architect-led homes on the California coast</title>
+  <meta name="description" content="Architect-led homes on the California coast, shown privately with every cost on the table before you fall for the view.">
+  <meta name="theme-color" content="#0d0f12">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@200;300;400;500;600&family=Poppins:wght@500&display=swap">
+  <link rel="preload" as="image" href="assets/house-bg.webp?v=evening1" fetchpriority="high">
+  <link rel="preload" as="image" href="assets/house-fg.webp?v=evening1" fetchpriority="high">
+  <link rel="stylesheet" href="styles.css?v=glass3c">
+  <link rel="stylesheet" href="tour.css?v=nonav">
+</head>
+<body>
+  <main class="page">
+    <section class="hero" id="hero" aria-labelledby="hero-title">
+
+      <!-- Layer 1: full photo (sky + house) -->
+      <div class="stage stage--bg" aria-hidden="true">
+        <img class="stage__img" src="assets/house-bg.webp?v=evening1" width="1200" height="1000" alt="" decoding="async" fetchpriority="high">
+        <div class="stage__sky"></div>
+      </div>
+
+      <!-- Layer 2: giant wordmark, sits behind the house -->
+      <h1 class="wordmark" id="hero-title" aria-label="Altura">
+        <span class="wordmark__line" aria-hidden="true"><span class="wordmark__char" style="--i:0">a</span><span class="wordmark__char" style="--i:1">l</span><span class="wordmark__char" style="--i:2">t</span><span class="wordmark__char" style="--i:3">u</span><span class="wordmark__char" style="--i:4">r</span><span class="wordmark__char" style="--i:5">a</span></span>
+      </h1>
+
+      <!-- Layer 3: house + trees cut out of the same photo -->
+      <div class="stage stage--fg" aria-hidden="true">
+        <img class="stage__img" src="assets/house-fg.webp?v=evening1" width="1200" height="1000" alt="" decoding="async" fetchpriority="high">
+      </div>
+
+      <div class="hero__shade" aria-hidden="true"></div>
+
+      <!-- Layer 4: interface -->
+      <header class="nav" data-reveal>
+        <a class="brand" href="#" aria-label="Altura home">
+          <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M6 29V15.5a10 10 0 0 1 20 0V29" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+            <path d="M11.5 29v-9.2a4.5 4.5 0 0 1 9 0V29" fill="currentColor"/>
+            <path d="M3 29h26" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+          </svg>
+          <span class="brand__name">Altura</span>
+        </a>
+
+        <nav class="nav__links" aria-label="Primary" data-glass data-glass-refraction="80" data-glass-depth="20" data-glass-dispersion="50" data-glass-frost="4">
+          <a class="nav__link is-active" href="#" aria-current="page">Residences</a>
+          <a class="nav__link" href="#">Buy</a>
+          <a class="nav__link" href="#">Rent</a>
+          <a class="nav__link" href="#">Sell with us</a>
+          <a class="nav__link" href="#">Journal</a>
+        </nav>
+
+        <a class="cta" href="#">
+          <span>Book a viewing</span>
+          <span class="cta__icon" aria-hidden="true">
+            <svg viewBox="0 0 16 16"><path d="M4.5 11.5 11.5 4.5M6 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </a>
+
+        <button class="menu-btn" type="button" data-glass data-glass-refraction="80" data-glass-depth="20" data-glass-dispersion="50" data-glass-frost="4" aria-expanded="false" aria-controls="mobile-menu" aria-label="Open menu">
+          <span></span><span></span>
+        </button>
+      </header>
+
+      <div class="mobile-menu" id="mobile-menu" hidden data-glass data-glass-refraction="80" data-glass-depth="20" data-glass-dispersion="50" data-glass-frost="4">
+        <a class="is-active" href="#" aria-current="page">Residences</a>
+        <a href="#">Buy</a>
+        <a href="#">Rent</a>
+        <a href="#">Sell with us</a>
+        <a href="#">Journal</a>
+        <a class="mobile-menu__cta" href="#">Book a viewing</a>
+      </div>
+
+      <nav class="index" data-reveal aria-label="Collections">
+        <a class="index__row" href="#" data-glass data-glass-refraction="80" data-glass-depth="20" data-glass-dispersion="50" data-glass-frost="4"><span class="index__num">01</span><span class="index__label">Villas</span><span class="index__count">23 homes</span></a>
+        <a class="index__row" href="#" data-glass data-glass-refraction="80" data-glass-depth="20" data-glass-dispersion="50" data-glass-frost="4"><span class="index__num">02</span><span class="index__label">Penthouses</span><span class="index__count">9 homes</span></a>
+        <a class="index__row" href="#" data-glass data-glass-refraction="80" data-glass-depth="20" data-glass-dispersion="50" data-glass-frost="4"><span class="index__num">03</span><span class="index__label">Estates</span><span class="index__count">14 homes</span></a>
+      </nav>
+
+      <div class="foot">
+        <a class="feature" href="#tour" data-reveal data-glass data-glass-refraction="80" data-glass-depth="20" data-glass-dispersion="50" data-glass-frost="32">
+          <span class="feature__eyebrow"><span class="feature__live" aria-hidden="true"></span>Now showing</span>
+          <span class="feature__name">Casa Pietra</span>
+          <span class="feature__place">Laguna Beach, California</span>
+          <span class="feature__specs"><span>5 bed</span><span>6 bath</span><span>6,420 sq ft</span></span>
+          <span class="feature__foot">
+            <span class="feature__price">$11,850,000</span>
+            <span class="feature__go">View residence
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9.5M8.5 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+          </span>
+        </a>
+
+        <div class="lede" data-reveal>
+          <p>Architect-led homes on the California coast, shown privately with every cost on the table before you fall for the view.</p>
+          <a class="lede__link" href="#">Explore residences
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9.5M8.5 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Walkthrough: one continuous camera move through Casa Pietra, scrubbed by scroll -->
+    <section class="tour" id="tour" data-frames="421" data-version="1" aria-labelledby="tour-title">
+      <div class="tour__sticky">
+        <canvas class="tour__canvas" aria-hidden="true"></canvas>
+        <img class="tour__poster" src="assets/tour/poster.webp?v=1" width="1600" height="900" alt="" decoding="async" loading="lazy">
+        <div class="tour__shade" aria-hidden="true"></div>
+
+        <ol class="tour__beats">
+          <li class="beat beat--intro" data-at="0" id="tour-intro">
+            <p class="beat__eyebrow">Altura — Now showing</p>
+            <h2 class="beat__title beat__title--xl" id="tour-title">Casa Pietra</h2>
+            <p class="beat__sub">Laguna Beach, in one continuous take. Scroll to step inside.</p>
+            <span class="beat__cue" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M10 8.2v7.6L16 12z" fill="currentColor"/></svg>
+            </span>
+          </li>
+          <li class="beat beat--left" data-at="1" id="tour-living">
+            <p class="beat__eyebrow">01 / Living</p>
+            <h2 class="beat__title">The living<br>room</h2>
+            <p class="beat__sub">Where the pool comes indoors.</p>
+          </li>
+          <li class="beat beat--right" data-at="2">
+            <p class="beat__eyebrow">02 / Dining</p>
+            <h2 class="beat__title">The dining<br>room</h2>
+            <p class="beat__sub">Long oak table, paper lanterns overhead.</p>
+          </li>
+          <li class="beat beat--low-left" data-at="3">
+            <p class="beat__eyebrow">03 / Kitchen</p>
+            <h2 class="beat__title">The kitchen</h2>
+            <p class="beat__sub">Honed stone and oak, nothing on show.</p>
+          </li>
+          <li class="beat beat--right" data-at="4">
+            <p class="beat__eyebrow">04 / Suite</p>
+            <h2 class="beat__title">Primary<br>suite</h2>
+            <p class="beat__sub">Upstairs, above the pines.</p>
+          </li>
+          <li class="beat beat--left" data-at="5">
+            <p class="beat__eyebrow">05 / Balcony</p>
+            <h2 class="beat__title">The ocean<br>balcony</h2>
+            <p class="beat__sub">The Pacific from the pillow.</p>
+          </li>
+          <li class="beat beat--low-right" data-at="6">
+            <p class="beat__eyebrow">06 / Bath</p>
+            <h2 class="beat__title">The bath</h2>
+            <p class="beat__sub">A stone tub that faces the trees.</p>
+          </li>
+          <li class="beat beat--end" data-at="7">
+            <p class="beat__eyebrow">07 / Terrace</p>
+            <h2 class="beat__title">Where the<br>day ends</h2>
+            <p class="beat__sub">5 bed · 6 bath · 6,420 sq ft · $11,850,000</p>
+            <a class="beat__cta" href="#">Book a private viewing
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9.5M8.5 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+          </li>
+        </ol>
+
+        <div class="tour__progress" aria-hidden="true"><span></span></div>
+        <span class="tour__dot" aria-hidden="true"></span>
+      </div>
+    </section>
+  </main>
+  <script src="hero.js" defer></script>
+  <script src="glass.js?v=glass3" defer></script>
+  <script src="tour.js?v=smooth1" defer></script>
+  <script src="pager.js?v=smooth1" defer></script>
+</body>
+</html>

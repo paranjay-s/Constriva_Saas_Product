@@ -1,0 +1,686 @@
+/* Depth hero — background photo, wordmark, foreground cutout, interface. */
+
+:root {
+  --page: #0d0f12;
+  --inset: clamp(6px, 0.85vw, 14px);
+  --radius: clamp(14px, 1.25vw, 22px);
+  --ink: #ffffff;
+  --ink-dim: rgba(255, 255, 255, 0.86);
+  /* Frosted white glass with dark text: light enough to read as glass, dense
+     enough that the dark ink keeps AA contrast over sky, walls or trees. */
+  --glass: rgba(255, 255, 255, 0.24);
+  --glass-strong: rgba(255, 255, 255, 0.12);
+  --glass-line: rgba(255, 255, 255, 0.55);
+  /* The brightness lift keeps the glass see-through but light behind the dark
+     ink once the sky turns to evening blue. */
+  --glass-blur: blur(14px) saturate(130%) brightness(1.6);
+  --glass-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), 0 10px 30px rgba(8, 24, 48, 0.14);
+  --glass-ink: #0c1826;
+  --glass-ink-dim: #1c2b3d;
+  --glass-hover: rgba(255, 255, 255, 0.34);
+  /* Clear white glass for the nav and the collection tags: white text on 20%
+     white, no stroke. In Chromium glass.js adds refraction 80, depth 20,
+     dispersion 50 and frost 4; other browsers keep the light 2px frost. */
+  --clear-glass: rgba(255, 255, 255, 0.2);
+  --clear-glass-hover: rgba(255, 255, 255, 0.3);
+  --clear-glass-blur: blur(2px);
+  /* A soft dark halo keeps the white text legible where the glass passes over
+     bright sky or the white wordmark. */
+  --clear-glass-text-shadow: 0 1px 2px rgba(8, 18, 30, 0.45), 0 0 10px rgba(8, 18, 30, 0.3);
+  --pad-x: clamp(16px, 2.4vw, 40px);
+  --pad-top: clamp(14px, 1.7vw, 28px);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Poppins", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Geometry written by hero.js; these defaults match a 16:10 desktop. */
+  --sw: 100%;
+  --sh: 120%;
+  --sx: 0px;
+  --sy: -14%;
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: clip;
+}
+
+a { color: inherit; text-decoration: none; }
+ul { list-style: none; margin: 0; padding: 0; }
+p { margin: 0; }
+
+.page {
+  min-height: 100svh;
+  padding: var(--inset);
+}
+
+.hero {
+  position: relative;
+  isolation: isolate;
+  height: calc(100svh - 2 * var(--inset));
+  min-height: 520px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #0f2f6b;
+}
+
+/* ---------- Photo layers (share one box so they stay pixel-aligned) ---------- */
+
+.stage {
+  position: absolute;
+  left: var(--sx);
+  top: var(--sy);
+  width: var(--sw);
+  height: var(--sh);
+  transform-origin: 50% 46%;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.stage__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.stage--bg { z-index: 0; }
+.stage--fg { z-index: 2; }
+
+/* Pushes the blue-hour sky later into the evening: darkest at the top, gone
+   before the roofline. Lives in the back layer only, so the lit house in the
+   cutout stays untouched. */
+.stage__sky {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 56%;
+  background:
+    linear-gradient(180deg,
+      rgba(8, 22, 58, 0.24) 0%,
+      rgba(8, 22, 58, 0.14) 45%,
+      rgba(8, 22, 58, 0) 80%);
+  mix-blend-mode: multiply;
+}
+
+/* ---------- Wordmark (between the two photo layers) ---------- */
+
+.wordmark {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  top: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--wm-size, 30vw);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  white-space: nowrap;
+  transform: translate(var(--wm-x, 6vw), var(--wm-y, 10vh));
+  pointer-events: none;
+  user-select: none;
+}
+
+.wordmark__line { display: block; }
+
+.wordmark__char {
+  display: inline-block;
+  will-change: transform, opacity;
+}
+
+/* ---------- Legibility shade (above the house, under the interface) ---------- */
+
+.hero__shade {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(8, 24, 48, 0.16) 0%, rgba(8, 24, 48, 0.08) 9%, rgba(8, 24, 48, 0) 14%),
+    linear-gradient(0deg, rgba(14, 24, 36, 0.62) 0%, rgba(14, 24, 36, 0.28) 18%, rgba(14, 24, 36, 0) 36%),
+    radial-gradient(60% 38% at 100% 100%, rgba(14, 24, 36, 0.44) 0%, rgba(14, 24, 36, 0) 100%),
+    radial-gradient(45% 45% at 0% 100%, rgba(14, 24, 36, 0.4) 0%, rgba(14, 24, 36, 0) 100%);
+}
+
+/* ---------- Shared surfaces ---------- */
+
+/* Double ring: white inside, near-black outside, visible on sky, glass or white. */
+.brand:focus-visible,
+.nav__link:focus-visible,
+.cta:focus-visible,
+.menu-btn:focus-visible,
+.index__row:focus-visible,
+.feature:focus-visible,
+.lede__link:focus-visible,
+.mobile-menu a:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px #0b1622;
+}
+
+/* A box-shadow shifts Chromium's refraction off the element, so glass elements
+   that take focus themselves get a wider outline instead of the double ring. */
+:is(.menu-btn, .index__row, .feature).is-refractive:focus-visible {
+  outline-width: 3px;
+  outline-offset: 3px;
+  box-shadow: none;
+}
+
+/* ---------- Navigation ---------- */
+
+.nav {
+  position: absolute;
+  z-index: 5;
+  top: var(--pad-top);
+  left: var(--pad-x);
+  right: var(--pad-x);
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+}
+
+.brand {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(8px, 0.6vw, 11px);
+  min-height: 44px;
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(20px, 1.6vw, 28px);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  text-shadow: 0 1px 10px rgba(8, 18, 30, 0.25);
+}
+
+.brand__mark {
+  width: 1.12em;
+  height: 1.12em;
+  flex: none;
+  filter: drop-shadow(0 1px 3px rgba(8, 18, 30, 0.25));
+}
+
+.nav__links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  color: #ffffff;
+  text-shadow: var(--clear-glass-text-shadow);
+  background: var(--clear-glass);
+  border: 0;
+  -webkit-backdrop-filter: var(--clear-glass-blur);
+  backdrop-filter: var(--clear-glass-blur);
+}
+
+.nav__link {
+  display: inline-flex;
+  align-items: center;
+  height: clamp(34px, 2.5vw, 40px);
+  padding: 0 clamp(13px, 1.1vw, 19px);
+  border-radius: 999px;
+  font-size: clamp(14px, 0.95vw, 15px);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition: background-color 0.25s var(--ease-soft), color 0.25s var(--ease-soft);
+}
+
+.nav__link:hover { background: var(--clear-glass-hover); }
+
+/* The current page is a solid black pill with white text inside the clear glass. */
+.nav__link.is-active {
+  background: #000000;
+  color: #ffffff;
+  text-shadow: none;
+}
+
+.cta {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: calc(clamp(34px, 2.5vw, 40px) + 10px);
+  padding: 0 5px 0 clamp(16px, 1.3vw, 22px);
+  border-radius: 999px;
+  background: #ffffff;
+  color: #101418;
+  font-size: clamp(14px, 0.95vw, 15px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  box-shadow: 0 6px 24px rgba(8, 18, 30, 0.18);
+  transition: background-color 0.25s var(--ease-soft);
+}
+
+.cta:hover { background: #eef2f6; }
+
+.cta__icon {
+  display: grid;
+  place-items: center;
+  width: clamp(34px, 2.5vw, 40px);
+  height: clamp(34px, 2.5vw, 40px);
+  border-radius: 50%;
+  background: #101418;
+  color: #ffffff;
+  transition: transform 0.35s var(--ease-out);
+}
+
+.cta__icon svg { width: 15px; height: 15px; }
+.cta:hover .cta__icon { transform: rotate(45deg); }
+
+.menu-btn {
+  display: none;
+  justify-self: end;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 0;
+  background: var(--clear-glass);
+  -webkit-backdrop-filter: var(--clear-glass-blur);
+  backdrop-filter: var(--clear-glass-blur);
+  color: #ffffff;
+  cursor: pointer;
+  position: relative;
+}
+
+.menu-btn span {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  height: 1.6px;
+  border-radius: 2px;
+  background: currentColor;
+  transition: transform 0.3s var(--ease-out), top 0.3s var(--ease-out);
+}
+
+.menu-btn span:first-child { top: 18px; }
+.menu-btn span:last-child { top: 24px; }
+.menu-btn[aria-expanded="true"] span:first-child { top: 21px; transform: rotate(45deg); }
+.menu-btn[aria-expanded="true"] span:last-child { top: 21px; transform: rotate(-45deg); }
+
+.mobile-menu {
+  position: absolute;
+  z-index: 6;
+  top: calc(var(--pad-top) + 56px);
+  left: var(--pad-x);
+  right: var(--pad-x);
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 22px;
+  color: #ffffff;
+  text-shadow: var(--clear-glass-text-shadow);
+  background: var(--clear-glass);
+  border: 0;
+  -webkit-backdrop-filter: var(--clear-glass-blur);
+  backdrop-filter: var(--clear-glass-blur);
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.25s var(--ease-soft), transform 0.3s var(--ease-out);
+}
+
+.mobile-menu[hidden] { display: none; }
+.mobile-menu.is-open { opacity: 1; transform: none; }
+
+.mobile-menu a {
+  padding: 13px 14px;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.mobile-menu a.is-active {
+  background: #000000;
+  color: #ffffff;
+  text-shadow: none;
+}
+
+.mobile-menu__cta {
+  margin-top: 6px;
+  text-align: center;
+  background: var(--glass-ink);
+  color: #ffffff;
+  font-weight: 600;
+  text-shadow: none;
+}
+
+/* ---------- Collections index: a row of glass chips under the CTA ---------- */
+
+.index {
+  position: absolute;
+  z-index: 4;
+  right: var(--pad-x);
+  top: calc(var(--pad-top) + clamp(62px, 5.2vw, 84px));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.index__row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 10px 15px;
+  border-radius: 999px;
+  color: #ffffff;
+  text-shadow: var(--clear-glass-text-shadow);
+  background: var(--clear-glass);
+  border: 0;
+  -webkit-backdrop-filter: var(--clear-glass-blur);
+  backdrop-filter: var(--clear-glass-blur);
+  transition: background-color 0.25s var(--ease-soft);
+}
+
+.index__row:hover { background: var(--clear-glass-hover); }
+
+.index__num {
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.index__label {
+  font-size: clamp(14px, 1vw, 16px);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+.index__count {
+  font-size: 13px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Bottom row: featured residence + lede ---------- */
+
+.foot {
+  position: absolute;
+  z-index: 4;
+  left: var(--pad-x);
+  right: var(--pad-x);
+  bottom: clamp(18px, 2.2vw, 38px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.feature {
+  display: grid;
+  gap: 4px;
+  width: clamp(280px, 21vw, 340px);
+  padding: clamp(14px, 1.15vw, 20px);
+  border-radius: 20px;
+  color: #ffffff;
+  /* Borderless dark glass: black at 20% over a frosted backdrop. In Chromium,
+     glass.js adds the refraction, depth and dispersion (Figma glass 80/20/50,
+     frost 32); other browsers keep this frost-only version. */
+  background: rgba(0, 0, 0, 0.2);
+  border: 0;
+  box-shadow: 0 10px 30px rgba(8, 24, 48, 0.14);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  transition: background-color 0.3s var(--ease-soft), transform 0.35s var(--ease-out);
+}
+
+.feature:hover { background: rgba(0, 0, 0, 0.28); }
+/* Chromium measures an SVG backdrop filter from the box's visual overflow, so
+   a box-shadow shifts the refraction off the card. The glass goes shadowless. */
+.feature.is-refractive { box-shadow: none; }
+
+.feature__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff1e2;
+}
+
+.feature__live {
+  color: #ffbf7a;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 3px rgba(255, 217, 174, 0.22);
+}
+
+.feature__name {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 1.5vw, 25px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.feature__place {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.feature__specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.feature__specs span {
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+}
+
+.feature__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.24);
+}
+
+.feature__price {
+  font-size: clamp(16px, 1.15vw, 19px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.feature__go {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.feature__go svg,
+.lede__link svg {
+  width: 15px;
+  height: 15px;
+  transition: transform 0.3s var(--ease-out);
+}
+
+.feature:hover .feature__go svg,
+.lede__link:hover svg { transform: translateX(3px); }
+
+.lede {
+  display: grid;
+  justify-items: end;
+  gap: clamp(12px, 1vw, 16px);
+  max-width: 21.5em;
+  font-size: clamp(16px, 1.3vw, 22px);
+  text-align: right;
+}
+
+.lede p {
+  line-height: 1.32;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+  text-shadow: 0 1px 14px rgba(8, 18, 30, 0.35);
+}
+
+.lede__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-radius: 6px;
+  font-size: clamp(14px, 0.95vw, 16px);
+  font-weight: 600;
+  background: linear-gradient(currentColor, currentColor) 0 100% / 100% 1px no-repeat;
+  transition: background-size 0.35s var(--ease-out);
+}
+
+.lede__link:hover { background-size: 0% 1px; background-position: 100% 100%; }
+
+/* ---------- Entrance choreography (~1.6 s) ---------- */
+
+.js .stage { transform: scale(1.075); }
+.js .wordmark__char { opacity: 0; transform: translateY(0.42em); }
+.js .nav { opacity: 0; transform: translateY(-18px); }
+.js [data-reveal]:not(.nav) { opacity: 0; transform: translateY(10px); filter: blur(8px); }
+.js .lede { transform: translateY(14px); }
+
+.is-ready .stage {
+  transform: none;
+  transition: transform 1.6s var(--ease-out);
+}
+
+.is-ready .wordmark__char {
+  opacity: 1;
+  transform: none;
+  transition:
+    transform 1.15s var(--ease-out) calc(0.32s + var(--i) * 0.07s),
+    opacity 0.5s var(--ease-soft) calc(0.32s + var(--i) * 0.07s);
+}
+
+.is-ready .nav {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.7s var(--ease-soft) 0.15s, transform 0.9s var(--ease-out) 0.15s;
+}
+
+.is-ready [data-reveal]:not(.nav) {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  transition:
+    opacity 0.8s var(--ease-soft) 0.7s,
+    transform 1s var(--ease-out) 0.7s,
+    filter 0.9s var(--ease-soft) 0.7s;
+}
+
+.is-ready .feature { transition-delay: 0.8s, 0.8s, 0.8s; }
+.is-ready .lede { transition-delay: 0.9s, 0.9s, 0.9s; }
+
+/* After the entrance, hover feedback on the card uses its own short transition. */
+.is-ready .feature:hover { transition: background-color 0.3s var(--ease-soft); }
+
+/* The phone menu is see-through glass; the chips behind it fade out while it is open. */
+.hero.is-menu-open .index {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s var(--ease-soft), visibility 0s linear 0.2s;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 1180px) {
+  .nav__links .nav__link:nth-child(5) { display: none; }
+}
+
+@media (max-width: 960px) {
+  .nav { grid-template-columns: 1fr auto; }
+  .nav__links,
+  .cta { display: none; }
+  .menu-btn { display: block; }
+  .index { top: calc(var(--pad-top) + 62px); }
+}
+
+@media (max-width: 600px) {
+  .hero { min-height: 600px; }
+
+  /* The chips span the width under the nav, without the counts. */
+  .index {
+    left: var(--pad-x);
+    justify-content: flex-start;
+  }
+  .index__row { gap: 6px; padding: 9px 13px; }
+  .index__count { display: none; }
+  .index__label { font-size: 14px; }
+
+  .foot {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .feature {
+    width: auto;
+    grid-template-columns: 1fr auto;
+    column-gap: 12px;
+    padding: 14px 16px;
+  }
+  .feature__eyebrow,
+  .feature__name,
+  .feature__place,
+  .feature__specs { grid-column: 1 / -1; }
+  .feature__eyebrow { margin-bottom: 2px; }
+  .feature__name { font-size: 20px; }
+  .feature__specs { display: none; }
+  .feature__foot { grid-column: 1 / -1; margin-top: 8px; padding-top: 10px; }
+  .lede {
+    max-width: none;
+    justify-items: start;
+    text-align: left;
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js .stage,
+  .js .wordmark__char,
+  .js .nav,
+  .js [data-reveal]:not(.nav) {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none !important;
+  }
+  .mobile-menu,
+  .menu-btn span,
+  .cta__icon,
+  .feature__go svg,
+  .lede__link svg,
+  .lede__link { transition: none; }
+}

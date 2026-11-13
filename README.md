@@ -1,8 +1,27 @@
-# Arch Platform
+# Constriva SaaS Platform
 
-Floor-plan PDF to interactive 3D model, with material sheets and reports, for an architectural firm.
+Transform architectural drawings into interactive 3D walkthroughs with automated Bill of Quantities (BOQ) material sheets.
 
-Read `AGENTS.md` for architecture rules and `docs/` for code structure and design decisions.
+## Constriva Landing Page
+The marketing landing page is built with React 19, TypeScript, and Tailwind CSS v4, porting the Altura Coastal Residences design with precision while showcasing Constriva's core capabilities:
+1. **2D floor plan to live 3D walkthrough**
+2. **Material-wise BOQ sheets (PDF download & material highlight)**
+3. **Prompt to 2D floor plan generation**
+4. **Photo to materials AI inspection**
+
+### Running the Landing Page
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Open `http://localhost:5173` to view the full dusk hero with 9-letter roof-cut wordmark, refractive glass navigation, and the 8-room scroll-scrubbed walkthrough.
+
+### Editing Landing Page Copy
+All landing page text, headings, numbers, navigation links, and walkthrough captions are strictly isolated in:
+- `frontend/src/content/site.ts`
+
+To update the brand name or any copy, edit `BRAND` or the corresponding field in `siteContent`. The layout dynamically adapts to word length.
 
 ---
 

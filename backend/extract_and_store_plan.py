@@ -96,7 +96,7 @@ CRITICAL RULES:
 
 def main():
     print("=" * 70)
-    print("CONSTRUTIVA - BLUEPRINT TO PLANJSON AI PIPELINE")
+    print("CONSTRIVA - BLUEPRINT TO PLANJSON AI PIPELINE")
     print("=" * 70)
 
     # 1. Load PDF

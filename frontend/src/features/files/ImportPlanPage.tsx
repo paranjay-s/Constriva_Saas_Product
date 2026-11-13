@@ -11,7 +11,6 @@ import {
   TrashIcon,
   UploadIcon,
 } from '../../components/ui/Icons';
-import { Navbar } from '../../components/ui/Navbar';
 import { useProject } from '../../context/ProjectContext';
 import { filesApi, type ParsingProgressEvent } from './api';
 
@@ -199,8 +198,7 @@ export const ImportPlanPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#101010] flex flex-col text-[#FFFFFF]">
-      <Navbar />
+    <div className="flex-1 bg-[#101010] flex flex-col text-[#FFFFFF]">
 
       <main className="flex-1 max-w-3xl w-full mx-auto px-6 py-12">
         <button

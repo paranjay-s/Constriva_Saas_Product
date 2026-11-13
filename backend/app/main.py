@@ -60,7 +60,7 @@ def create_app() -> FastAPI:
     Factory function to construct the FastAPI application instance.
     """
     app = FastAPI(
-        title="Construtiva SaaS Platform API",
+        title="Constriva SaaS Platform API",
         version="1.0.0",
         description="Architectural 2D-to-3D Conversion, Material Estimation & Project Management API",
         lifespan=None if os.environ.get("TESTING") == "1" else lifespan,
@@ -95,7 +95,7 @@ def create_app() -> FastAPI:
     @app.get("/health", summary="Health Check")
     async def health() -> dict[str, str]:
         """Simple health check endpoint."""
-        return {"status": "ok", "app": "Construtiva SaaS API", "version": "1.0.0"}
+        return {"status": "ok", "app": "Constriva SaaS API", "version": "1.0.0"}
 
     return app
 

@@ -51,6 +51,25 @@ def clean_uuid(value: Optional[str]) -> Optional[str]:
         return None
 
 
+def resolve_project_uuid(value: Optional[str]) -> str:
+    """
+    Guarantees a 100% valid, canonical UUID string from any input:
+    - If value is already a canonical UUID, returns it.
+    - If value is a non-UUID slug (e.g. 'proj_s74wd6t' or user-generated tag),
+      generates a deterministic, reproducible UUIDv5.
+    - If value is None, empty, or placeholder ('null', 'undefined', 'string'),
+      generates a fresh UUIDv4.
+    PostgreSQL will NEVER receive 'null' or non-UUID syntax (code 22P02).
+    """
+    cleaned = clean_uuid(value)
+    if cleaned:
+        return cleaned
+    val = str(value or "").strip()
+    if val and val.lower() not in ("", "string", "null", "undefined", "none"):
+        return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"project:{val}"))
+    return str(uuid.uuid4())
+
+
 class AuthenticatedUser:
     """
     Represents an authenticated user extracted from the Supabase JWT.

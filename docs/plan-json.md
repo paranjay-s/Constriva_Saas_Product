@@ -1,6 +1,6 @@
 # Plan JSON Data Contract
 
-This document specifies the input PlanJSON format derived from architectural drawings in Construtiva and how it maps to our internal framework-free `Plan` type in `frontend/src/viewer3d/types.ts`.
+This document specifies the input PlanJSON format derived from architectural drawings in Constriva and how it maps to our internal framework-free `Plan` type in `frontend/src/viewer3d/types.ts`.
 
 ## 1. Input PlanJSON Format (Source Schema)
 

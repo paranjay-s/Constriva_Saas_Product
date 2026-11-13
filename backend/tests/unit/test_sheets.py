@@ -97,7 +97,7 @@ def test_generate_sheet_csv_output():
     csv_bytes = generate_sheet_csv(sample_sheet, project_name="Pavilion Serena")
     csv_text = csv_bytes.decode("utf-8")
 
-    assert "CONSTRUTIVA - BILL OF MATERIALS (BOQ)" in csv_text
+    assert "CONSTRIVA - BILL OF MATERIALS (BOQ)" in csv_text
     assert "Pavilion Serena" in csv_text
     assert "Brick" in csv_text
     assert "Steel/rebar rod" in csv_text

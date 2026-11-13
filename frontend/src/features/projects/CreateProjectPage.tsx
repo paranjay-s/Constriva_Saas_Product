@@ -4,7 +4,6 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { ArrowLeftIcon, ArrowRightIcon } from '../../components/ui/Icons';
 import { Input, Textarea } from '../../components/ui/Input';
-import { Navbar } from '../../components/ui/Navbar';
 import { useProject } from '../../context/ProjectContext';
 import type { ProjectType } from '../../types';
 
@@ -46,8 +45,7 @@ export const CreateProjectPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#101010] flex flex-col text-[#FFFFFF]">
-      <Navbar />
+    <div className="flex-1 bg-[#101010] flex flex-col text-[#FFFFFF]">
 
       <main className="flex-1 max-w-3xl w-full mx-auto px-6 py-12">
         <button

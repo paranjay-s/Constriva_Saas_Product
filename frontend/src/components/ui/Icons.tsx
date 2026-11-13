@@ -179,3 +179,70 @@ export const IconZoomOut = ZoomOutIcon;
 export const IconMaximize = MaximizeIcon;
 export const IconCalculator = CalculatorIcon;
 export const IconAlertCircle = AlertCircleIcon;
+
+export function BrandMark(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 32 32" aria-hidden="true" {...props}>
+      <path
+        d="M6 29V15.5a10 10 0 0 1 20 0V29"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+      />
+      <path d="M11.5 29v-9.2a4.5 4.5 0 0 1 9 0V29" fill="currentColor" />
+      <path
+        d="M3 29h26"
+        stroke="currentColor"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function CtaArrow(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 16 16" {...props}>
+      <path
+        d="M4.5 11.5 11.5 4.5M6 4.5h5.5V10"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function LinkArrow(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" {...props}>
+      <path
+        d="M3 8h9.5M8.5 4l4 4-4 4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function PlayCue(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <circle
+        cx="12"
+        cy="12"
+        r="11"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+      <path d="M10 8.2v7.6L16 12z" fill="currentColor" />
+    </svg>
+  );
+}

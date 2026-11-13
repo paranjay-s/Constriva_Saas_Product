@@ -81,7 +81,7 @@ def generate_sheet_csv(sheet: Dict[str, Any], project_name: str = "Project") -> 
     writer = csv.writer(output)
 
     # 1. Header Information
-    writer.writerow(["CONSTRUTIVA - BILL OF MATERIALS (BOQ) QUANTITY & AREA SURVEY"])
+    writer.writerow(["CONSTRIVA - BILL OF MATERIALS (BOQ) QUANTITY & AREA SURVEY"])
     writer.writerow(["Project Name:", project_name])
     writer.writerow(["Sheet Name:", sheet.get("name", "Quantity & Area Estimate")])
     writer.writerow([])
@@ -155,7 +155,7 @@ def _generate_pdf_pymupdf(sheet: Dict[str, Any], project_name: str = "Project") 
     # Title & Metadata
     page.insert_text(
         (36, 45),
-        "Construtiva - Bill of Materials (BOQ) - Quantity & Area Survey",
+        "Constriva - Bill of Materials (BOQ) - Quantity & Area Survey",
         fontsize=18,
         fontname="helv",
         color=(0.1, 0.15, 0.2),
@@ -296,7 +296,7 @@ def generate_sheet_pdf(sheet: Dict[str, Any], project_name: str = "Project") -> 
     story = []
 
     # Title & Subheader
-    story.append(Paragraph("Construtiva - Bill of Materials (BOQ) - Quantity & Area Survey", title_style))
+    story.append(Paragraph("Constriva - Bill of Materials (BOQ) - Quantity & Area Survey", title_style))
     story.append(Paragraph(
         f"<b>Project:</b> {project_name} &nbsp;|&nbsp; <b>Scope:</b> {sheet.get('name', 'Quantity & Area Survey')} &nbsp;|&nbsp; <b>Standard:</b> Calibrated Architectural QS",
         meta_style,

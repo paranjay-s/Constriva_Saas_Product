@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { ArrowLeftIcon, ArrowRightIcon, FilePdfIcon, SparklesIcon } from '../../components/ui/Icons';
-import { Navbar } from '../../components/ui/Navbar';
 import { useProject } from '../../context/ProjectContext';
 
 export const ProjectOptionsPage: React.FC = () => {
@@ -11,8 +10,7 @@ export const ProjectOptionsPage: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-[#101010] flex flex-col text-[#FFFFFF]">
-      <Navbar />
+    <div className="flex-1 bg-[#101010] flex flex-col text-[#FFFFFF]">
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-6 py-12 flex flex-col justify-center">
         <button

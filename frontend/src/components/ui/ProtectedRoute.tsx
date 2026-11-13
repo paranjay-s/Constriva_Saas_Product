@@ -11,7 +11,7 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
       <div className="min-h-screen bg-[#101010] flex items-center justify-center text-[#A6A6A6]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-6 h-6 border-2 border-[#C5A77B] border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs uppercase tracking-widest font-mono">Loading Construtiva...</span>
+          <span className="text-xs uppercase tracking-widest font-mono">Loading Constriva...</span>
         </div>
       </div>
     );

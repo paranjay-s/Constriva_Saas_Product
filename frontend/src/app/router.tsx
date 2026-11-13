@@ -3,6 +3,7 @@ import { ProtectedRoute } from '../components/ui/ProtectedRoute';
 import { AppLayout } from '../components/layout/AppLayout';
 
 import { AuthPage } from '../features/auth/AuthPage';
+import { LandingPage } from '../features/landing/LandingPage';
 import { HomePage } from '../features/home/HomePage';
 import { CreateProjectPage } from '../features/projects/CreateProjectPage';
 import { ProjectOptionsPage } from '../features/projects/ProjectOptionsPage';
@@ -62,10 +63,14 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Fallbacks
+  // Landing Page Route
   {
     path: '/',
-    element: <Navigate to="/home" replace />,
+    element: <LandingPage />,
+  },
+  {
+    path: '/landing',
+    element: <LandingPage />,
   },
   {
     path: '*',

@@ -29,7 +29,7 @@ function renderWithProviders(ui: React.ReactElement, initialRoute = '/') {
   );
 }
 
-describe('Construtiva Frontend - 9 Core Required Pages', () => {
+describe('Constriva Frontend - 9 Core Required Pages', () => {
   it('renders Route 1: /auth (Authentication Page)', () => {
     renderWithProviders(<AuthPage />);
     expect(screen.getByText(/architectural intelligence platform/i)).toBeDefined();
@@ -75,7 +75,7 @@ describe('Construtiva Frontend - 9 Core Required Pages', () => {
     renderWithProviders(<AiGeneratorPage />);
     expect(screen.getByText(/ai floor plan generator/i)).toBeDefined();
     expect(screen.getByText(/conversational cad/i)).toBeDefined();
-    expect(screen.getByText(/construtiva architect ai/i)).toBeDefined();
+    expect(screen.getByText(/constriva architect ai/i)).toBeDefined();
   });
 
   it('renders Route 8: /materials/analyse (Photo Upload & Vision AI Recognition)', () => {

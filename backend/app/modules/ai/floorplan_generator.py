@@ -38,7 +38,7 @@ def _get_font(size: int, bold: bool = False) -> ImageFont.ImageFont:
 
 # Architectural System Prompt & Knowledge Base derived from Vikas Patodi Working Drawings
 ARCHITECTURAL_KNOWLEDGE_PROMPT = """
-You are Construtiva's Principal Architectural CAD Engineer.
+You are Constriva's Principal Architectural CAD Engineer.
 You design precision 2D working floor plans modeled on professional engineering standards
 (such as the Er. Vikas Patodi working drawings for Smt. Geeta Gaud at Shalimar Greens, 36'6" x 55').
 
@@ -1290,11 +1290,11 @@ def render_floorplan_to_png(
     draw_compass_rose(draw, (col4 + col5) // 2, (c_y0 + c_y1) // 2, facing=facing, radius=24)
 
     # Block 6: Studio Credentials
-    draw.text((col5 + 14, c_y0 + 10), "CONSTRUTIVA AI CAD", fill="#1E3A8A", font=font_cartouche_title)
+    draw.text((col5 + 14, c_y0 + 10), "CONSTRIVA AI CAD", fill="#1E3A8A", font=font_cartouche_title)
     draw.text((col5 + 14, c_y0 + 28), "ARCHITECTURAL & STRUCTURAL", fill="#475569", font=font_cartouche_body)
     draw.text((col5 + 14, c_y0 + 44), "CAD WORKING DRAWINGS", fill="#475569", font=font_cartouche_body)
     draw.text((col5 + 14, c_y0 + 64), "CAD STANDARDS COMPLIANT", fill="#16A34A", font=font_meta)
-    draw.text((col5 + 14, c_y0 + 82), "Web: construtiva.ai", fill="#2563EB", font=font_cartouche_body)
+    draw.text((col5 + 14, c_y0 + 82), "Web: constriva.ai", fill="#2563EB", font=font_cartouche_body)
 
     # Export to PNG buffer
     output_buffer = io.BytesIO()

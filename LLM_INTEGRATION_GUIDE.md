@@ -1,6 +1,6 @@
-# Construtiva AI / LLM Integration Guide & Developer Handover
+# Constriva AI / LLM Integration Guide & Developer Handover
 
-Welcome to the **Construtiva AI Engineer Handover Guide**.
+Welcome to the **Constriva AI Engineer Handover Guide**.
 
 This document outlines the **exact 3 tasks** you need to implement, the **specific files you can edit**, the **API schemas**, and **how to test your work with single terminal commands** without needing to run the database, frontend, or server.
 
@@ -274,5 +274,5 @@ python app/modules/sheets/llm_mapper.py
 python app/modules/ai/material_vision.py
 ```
 
-If all 3 print `SUCCESS`, your integration is complete and 100% operational across the entire Construtiva platform!
+If all 3 print `SUCCESS`, your integration is complete and 100% operational across the entire Constriva platform!
 
