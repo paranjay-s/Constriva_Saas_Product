@@ -10,7 +10,8 @@ import { ProjectOptionsPage } from '../features/projects/ProjectOptionsPage';
 import { ImportPlanPage } from '../features/files/ImportPlanPage';
 import { WorkspacePage } from '../features/plan-viewer/WorkspacePage';
 import { AiGeneratorPage } from '../features/chat/AiGeneratorPage';
-import { AnalyseMaterialsPage } from '../features/materials/AnalyseMaterialsPage';
+import { LegacyAiGeneratorPage } from '../features/chat/LegacyAiGeneratorPage';
+import { MaterialFinderPage } from '../features/materials';
 import { LoanAnalysisPage } from '../features/loan/LoanAnalysisPage';
 
 export const router = createBrowserRouter([
@@ -53,8 +54,12 @@ export const router = createBrowserRouter([
         element: <AiGeneratorPage />,
       },
       {
+        path: '/projects/ai-generator/legacy',
+        element: <LegacyAiGeneratorPage />,
+      },
+      {
         path: '/materials/analyse',
-        element: <AnalyseMaterialsPage />,
+        element: <MaterialFinderPage />,
       },
       {
         path: '/projects/loan-analysis',

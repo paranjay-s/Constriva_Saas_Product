@@ -199,6 +199,12 @@ python app/modules/sheets/llm_mapper.py
 
 ## 6. TASK 3: Site Photo ➔ Material & Cost Vision Analysis
 
+> **Replaced (Nov 2026).** `material_vision.py` and `POST /api/v1/ai/analyze-materials` were
+> removed. The photo feature is now the Material Finder in
+> `backend/app/modules/ai/material_agent/` (`/api/v1/ai/material-analysis`): it identifies
+> materials and computes quantities from the person's own room, and gives no money figures.
+> See `docs/material-agent/PLAN.md`. The section below is kept only as history.
+
 - **File**: `backend/app/modules/ai/material_vision.py`
 - **Function**:
   ```python
@@ -270,8 +276,8 @@ python app/modules/parsing/llm_parser.py
 # 2. Test Materials Mapping (Task 2)
 python app/modules/sheets/llm_mapper.py
 
-# 3. Test Photo Material Vision (Task 3)
-python app/modules/ai/material_vision.py
+# 3. Test the Material Finder (replaces Task 3)
+uv run pytest tests/material_agent
 ```
 
 If all 3 print `SUCCESS`, your integration is complete and 100% operational across the entire Constriva platform!

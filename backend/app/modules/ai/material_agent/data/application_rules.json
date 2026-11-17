@@ -1,0 +1,16 @@
+{
+  "_status": "Default values. To be verified with the architecture firm before use on a real order.",
+  "_help": "Standard sizes used when the person or the plan does not give one. Every value used is shown to the person as an assumption.",
+  "platform_depth_ft": 2.0,
+  "backsplash_height_ft": 2.0,
+  "skirting_height_in": 4,
+  "bath_wall_tile_height_ft": 7.0,
+  "default_ceiling_height_ft": 10.0,
+  "island_length_ft": 6.0,
+  "island_width_ft": 3.0,
+  "door_width_ft": 3.0,
+  "door_height_ft": 7.0,
+  "window_width_ft": 4.0,
+  "window_height_ft": 4.0,
+  "platform_layouts": ["one_wall", "l_shape", "u_shape", "parallel", "island"]
+}

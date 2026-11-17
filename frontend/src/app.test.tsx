@@ -10,7 +10,8 @@ import { ProjectOptionsPage } from './features/projects/ProjectOptionsPage';
 import { ImportPlanPage } from './features/files/ImportPlanPage';
 import { WorkspacePage } from './features/plan-viewer/WorkspacePage';
 import { AiGeneratorPage } from './features/chat/AiGeneratorPage';
-import { AnalyseMaterialsPage } from './features/materials/AnalyseMaterialsPage';
+import { LegacyAiGeneratorPage } from './features/chat/LegacyAiGeneratorPage';
+import { MaterialFinderPage } from './features/materials';
 import { LoanAnalysisPage } from './features/loan/LoanAnalysisPage';
 
 // Mock PlanViewer 3D Canvas in jsdom test environment
@@ -71,17 +72,24 @@ describe('Constriva Frontend - 9 Core Required Pages', () => {
     expect(screen.getByTestId('mock-3d-plan-viewer')).toBeDefined();
   });
 
-  it('renders Route 7: /projects/ai-generator (Conversational CAD Floor Plan)', () => {
+  it('renders Route 7: /projects/ai-generator (AI Floor Plan Generator)', () => {
     renderWithProviders(<AiGeneratorPage />);
     expect(screen.getByText(/ai floor plan generator/i)).toBeDefined();
-    expect(screen.getByText(/conversational cad/i)).toBeDefined();
-    expect(screen.getByText(/constriva architect ai/i)).toBeDefined();
+    expect(screen.getByLabelText(/describe the house/i)).toBeDefined();
+    expect(screen.getByRole('button', { name: /check my brief/i })).toBeDefined();
   });
 
-  it('renders Route 8: /materials/analyse (Photo Upload & Vision AI Recognition)', () => {
-    renderWithProviders(<AnalyseMaterialsPage />);
-    expect(screen.getByText(/interior material photo analysis/i)).toBeDefined();
-    expect(screen.getByText(/italian travertine marble/i)).toBeDefined();
+  it('keeps the old generator at /projects/ai-generator/legacy until it is retired', () => {
+    renderWithProviders(<LegacyAiGeneratorPage />);
+    expect(screen.getByText(/conversational cad/i)).toBeDefined();
+  });
+
+  it('renders Route 8: /materials/analyse (Material Finder)', () => {
+    renderWithProviders(<MaterialFinderPage />);
+    expect(screen.getByText(/material finder/i)).toBeDefined();
+    expect(screen.getByText(/upload a photo of a room, kitchen or facade/i)).toBeDefined();
+    expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeDefined();
+    expect(screen.queryByText('What should I look at?')).toBeNull();
   });
 
   it('renders Route 9: /projects/loan-analysis (Bank Sanction vs Material BOQ)', () => {

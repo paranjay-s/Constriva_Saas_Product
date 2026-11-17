@@ -21,7 +21,7 @@ from app.modules.ai.floorplan_generator import (
 def test_create_architectural_template_rental():
     """
     Verifies that rental mode produces a dual 2-BHK apartment layout
-    with 18+ calibrated rooms matching Vikas Patodi Shalimar Greens plans.
+    with 15+ rooms.
     """
     plan = create_architectural_template(36.5, 55.0, config_type="dual_rental_2bhk", goal="rental", facing="East")
     assert plan["plot_width_ft"] == 36.5
@@ -61,7 +61,7 @@ def test_render_floorplan_to_png_output():
     with standard PNG magic bytes header.
     """
     plan = create_architectural_template(36.5, 55.0, config_type="dual_rental_2bhk", goal="rental", facing="East")
-    png_bytes = render_floorplan_to_png(plan, client_name="SMT. GEETA GAUD")
+    png_bytes = render_floorplan_to_png(plan, client_name="Test Owner")
     assert isinstance(png_bytes, bytes)
     assert len(png_bytes) > 10000  # High-resolution architectural drawing
     assert png_bytes.startswith(b"\x89PNG\r\n\x1a\n")
@@ -117,7 +117,7 @@ def test_ai_generate_and_chat_endpoints():
         "goal": "rental",
         "config_type": "dual_rental_2bhk",
         "facing": "East",
-        "client_name": "SMT. GEETA GAUD",
+        "client_name": "Test Owner",
         "user_prompt": "Dual 2-BHK apartments for rental income with front verandah and lawn",
     }
     data = generate_ai_floorplan(**req)
@@ -139,7 +139,7 @@ def test_ai_generate_and_chat_endpoints():
         config_type="dual_rental_2bhk",
         facing="East",
         user_prompt="Add an attached toilet to the child bedroom and widen the passage",
-        client_name="SMT. GEETA GAUD",
+        client_name="Test Owner",
         project_id=plan_id,
     )
     assert "plan_id" in chat_data
@@ -156,7 +156,7 @@ def test_ai_generate_and_chat_endpoints():
         config_type="3_bhk",
         facing="East",
         user_prompt="make it 2 bedrooms from 3",
-        client_name="SMT. GEETA GAUD",
+        client_name="Test Owner",
     )
     assert reconfig_data["config_type"] == "2_bhk"
     room_names = [r["name"] for r in reconfig_data["rooms"]]

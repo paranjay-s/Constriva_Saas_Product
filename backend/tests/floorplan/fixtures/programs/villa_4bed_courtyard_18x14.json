@@ -1,0 +1,28 @@
+{
+  "plot": {"width": 1800, "depth": 1400, "road_side": "south"},
+  "meta": {"project": "TEST COURTYARD VILLA", "floor_name": "GROUND FLOOR", "unit_display": "cm"},
+  "program": {
+    "rooms": [
+      {"id": "bed_1", "type": "master_bedroom", "label": "MASTER BED ROOM", "target_area_m2": 18, "zone": "private"},
+      {"id": "bath_1", "type": "bath", "label": "BATH", "target_area_m2": 5, "zone": "service", "attached_to": "bed_1"},
+      {"id": "bed_2", "type": "bedroom", "label": "BED ROOM", "target_area_m2": 16, "zone": "private"},
+      {"id": "bath_2", "type": "bath", "label": "BATH", "target_area_m2": 4.5, "zone": "service", "attached_to": "bed_2"},
+      {"id": "bed_3", "type": "bedroom", "label": "BED ROOM", "target_area_m2": 16, "zone": "private"},
+      {"id": "bath_3", "type": "bath", "label": "BATH", "target_area_m2": 4.5, "zone": "service", "attached_to": "bed_3"},
+      {"id": "bed_4", "type": "bedroom", "label": "BED ROOM", "target_area_m2": 14, "zone": "private"},
+      {"id": "bath_4", "type": "bath", "label": "BATH", "target_area_m2": 4.5, "zone": "service", "attached_to": "bed_4"},
+      {"id": "lobby_1", "type": "lobby", "label": "LOBBY", "target_area_m2": 14, "zone": "circulation"},
+      {"id": "family_1", "type": "family_hall", "label": "FAMILY HALL", "target_area_m2": 24, "zone": "public"},
+      {"id": "dining_1", "type": "dining", "label": "DINING", "target_area_m2": 14, "zone": "public"},
+      {"id": "kitchen_1", "type": "kitchen", "label": "KITCHEN", "target_area_m2": 11, "zone": "service"},
+      {"id": "maid_1", "type": "maid_room", "label": "MAID ROOM", "target_area_m2": 8, "zone": "service"},
+      {"id": "store_1", "type": "store", "label": "STORE", "target_area_m2": 3, "zone": "service"},
+      {"id": "foyer_1", "type": "foyer", "label": "FOYER", "target_area_m2": 7, "zone": "circulation"},
+      {"id": "court_1", "type": "courtyard", "label": "COURTYARD", "target_area_m2": 40, "zone": "open"}
+    ],
+    "adjacency": [
+      {"a": "kitchen_1", "b": "dining_1", "weight": 5},
+      {"a": "court_1", "b": "family_1", "weight": 4}
+    ]
+  }
+}

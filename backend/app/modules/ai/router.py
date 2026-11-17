@@ -5,8 +5,8 @@ Construtiva AI Module API Router
 File: app/modules/ai/router.py
 Purpose:
   Exposes REST endpoints for AI-driven construction vision and advisory:
-  - POST /api/v1/ai/analyze-materials: Upload photo taken on site/phone to detect
-    building materials and estimate installation cost.
+  - /api/v1/ai/material-analysis: Material Finder (photo -> materials + quantities),
+    see material_agent/router.py.
   - POST /api/v1/ai/chat: AI architectural assistant for conversational modifications.
   - GET  /api/v1/ai/ping: Health check.
 =============================================================================
@@ -14,11 +14,10 @@ Purpose:
 
 import logging
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.core.security import get_current_user, AuthenticatedUser
-from app.modules.ai.material_vision import analyze_construction_photo
 
 logger = logging.getLogger("construtiva.ai.router")
 router = APIRouter()
@@ -43,7 +42,7 @@ class GeneratePlanRequest(BaseModel):
     goal: str = Field("rental", description="Purpose: 'rental' (multi-tenant flats) or 'residence' (family home)")
     config_type: str = Field("dual_rental_2bhk", description="Room configuration ('1_bhk', '2_bhk', '3_bhk', '4_bhk', 'dual_rental_2bhk')")
     facing: str = Field("East", description="Direction facing ('East', 'North', 'West', 'South')")
-    client_name: str = Field("SMT. GEETA GAUD", description="Client or owner name for title block")
+    client_name: str = Field("", description="Client or owner name for title block (user input only)")
     user_prompt: Optional[str] = Field(None, description="Detailed layout specifications (attached toilets, lawn, puja, etc.)")
 
 
@@ -56,7 +55,7 @@ async def generate_plan_endpoint(
     current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """
-    Synthesizes a precision 2D working floor plan modeled after Vikas Patodi CAD standards:
+    Synthesizes a 2D working floor plan:
     - Renders print-ready PNG (1600x2400) with engineering title block, columns, and hatch.
     - Constructs standards-compliant PlanJSON for 3D viewer & BOQ sheets.
     - Saves the generated plan record in Supabase database.
@@ -89,52 +88,6 @@ async def generate_plan_endpoint(
 )
 async def ping() -> Dict[str, str]:
     return {"module": "ai", "status": "ok"}
-
-
-@router.post(
-    "/analyze-materials",
-    summary="Upload site/room photograph to detect materials and estimate costs"
-)
-async def analyze_materials(
-    file: UploadFile = File(..., description="Camera photo of room, wall, or site (JPG/PNG)"),
-    current_user: AuthenticatedUser = Depends(get_current_user),
-):
-    """
-    Accepts an uploaded photograph of a construction site or interior room,
-    runs multimodal Vision LLM analysis, and returns:
-    - Detected materials (e.g. brickwork, vitrified tiles, plaster coat).
-    - Estimated quantities and unit rates (INR).
-    - Total estimated construction/renovation cost.
-    - Engineering recommendations.
-    """
-    if not file.filename:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No file uploaded.")
-
-    content_type = file.content_type or "image/jpeg"
-    if not any(content_type.startswith(t) for t in ("image/jpeg", "image/png", "image/webp")):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File must be an image format (JPEG, PNG, WEBP)."
-        )
-
-    try:
-        image_bytes = await file.read()
-        if len(image_bytes) == 0:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded image is empty.")
-
-        report = analyze_construction_photo(image_bytes, mime_type=content_type)
-        return {
-            "status": "success",
-            "filename": file.filename,
-            "analysis": report
-        }
-
-    except Exception as e:
-        logger.error(f"Error during material photo analysis: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Material analysis failed: {str(e)}"
-        )
 
 
 @router.post(
@@ -171,7 +124,7 @@ async def ai_chat(
         goal=resolved_goal,
         facing=resolved_facing,
         user_prompt=payload.message,
-        client_name="SMT. GEETA GAUD",
+        client_name="",
         project_id=payload.project_id or current_user.id,
     )
 
@@ -195,3 +148,16 @@ async def get_ai_plan_png(
     """
     from app.modules.plans.router import download_plan_png
     return await download_plan_png(plan_id)
+
+
+# New 2D floor plan generator (brief -> background job -> validated plan, chat edits,
+# exports). Mounted at /api/v1/ai/floorplans; the endpoints above are left unchanged.
+from app.modules.ai.floorplan.router import router as floorplan_router  # noqa: E402
+
+router.include_router(floorplan_router, prefix="/floorplans")
+
+# Material Finder (photo -> identified materials + quantities from the person's own space).
+# Replaces the old /analyze-materials endpoint. Mounted at /api/v1/ai/material-analysis.
+from app.modules.ai.material_agent.router import router as material_router  # noqa: E402
+
+router.include_router(material_router, prefix="/material-analysis")

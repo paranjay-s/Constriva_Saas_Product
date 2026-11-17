@@ -1,0 +1,975 @@
+{
+ "_status": "General guidance. To be verified with the architecture firm.",
+ "categories": {
+  "stone": {
+   "durability": "Very durable; lasts decades. Softer stones (marble, limestone) scratch and etch with acids.",
+   "water": "Porous; needs sealing, especially in wet areas.",
+   "maintenance": "Seal every 1-2 years; wipe spills quickly; avoid acidic cleaners on marble.",
+   "install": "Laid on cement-based stone adhesive or mortar bed; polished after laying for floors.",
+   "pros": [
+    "natural, unique veining",
+    "long life",
+    "can be re-polished"
+   ],
+   "cons": [
+    "heavy",
+    "porous (needs sealing)",
+    "marble etches with acids"
+   ],
+   "good_for": [
+    "living floors",
+    "feature walls",
+    "stairs",
+    "vanities"
+   ],
+   "avoid": [
+    "unsealed wet areas"
+   ],
+   "wet_ok": true,
+   "outdoor_ok": true,
+   "heat_ok": true,
+   "traffic_ok": true,
+   "alternatives": [
+    "large_format_tile",
+    "sintered_stone",
+    "quartz",
+    "vitrified_tile"
+   ],
+   "supporting": [
+    "stone_adhesive",
+    "grout",
+    "sealer"
+   ]
+  },
+  "countertop": {
+   "durability": "Hard-wearing work surfaces; quartz and sintered stone resist stains and scratches well.",
+   "water": "Engineered surfaces are non-porous; natural stone needs sealing.",
+   "maintenance": "Mild soap and water; use trivets for very hot pans on quartz.",
+   "install": "Templated on site, cut to size, fixed on the cabinet carcass with silicone / epoxy; edges profiled.",
+   "pros": [
+    "hygienic, easy to clean",
+    "consistent colour (engineered)",
+    "many edge profiles"
+   ],
+   "cons": [
+    "joints visible on long runs",
+    "quartz can mark with direct high heat"
+   ],
+   "good_for": [
+    "kitchen platforms",
+    "islands",
+    "vanities"
+   ],
+   "avoid": [
+    "outdoor sun (quartz can fade)"
+   ],
+   "wet_ok": true,
+   "outdoor_ok": false,
+   "heat_ok": true,
+   "traffic_ok": true,
+   "alternatives": [
+    "quartz",
+    "granite",
+    "sintered_stone",
+    "solid_surface"
+   ],
+   "supporting": [
+    "countertop_sealant"
+   ]
+  },
+  "tile": {
+   "durability": "Very durable; vitrified and porcelain tiles resist scratches and stains.",
+   "water": "Low water absorption; good for wet areas (use anti-skid on wet floors).",
+   "maintenance": "Easy: mop and mild cleaner; re-grout or seal grout lines over time.",
+   "install": "Laid with tile adhesive on a level base, joints filled with grout; large formats need levelling clips.",
+   "pros": [
+    "easy to maintain",
+    "huge range of looks (stone, wood, concrete)",
+    "good in wet areas"
+   ],
+   "cons": [
+    "grout lines need cleaning",
+    "cold underfoot",
+    "chips at edges if hit"
+   ],
+   "good_for": [
+    "floors",
+    "bathrooms",
+    "kitchens",
+    "backsplashes"
+   ],
+   "avoid": [
+    "glossy tiles on wet floors (slippery)"
+   ],
+   "wet_ok": true,
+   "outdoor_ok": true,
+   "heat_ok": true,
+   "traffic_ok": true,
+   "alternatives": [
+    "vitrified_tile",
+    "large_format_tile",
+    "wood_look_tile",
+    "moroccan_tile"
+   ],
+   "supporting": [
+    "tile_adhesive",
+    "grout",
+    "spacers"
+   ]
+  },
+  "wood_floor": {
+   "durability": "Good for homes; engineered wood can be re-sanded once or twice; laminate and SPC resist scratches.",
+   "water": "Avoid standing water; SPC / vinyl is waterproof, laminate and wood are not.",
+   "maintenance": "Dry mop or damp cloth; felt pads under furniture; re-oil or re-coat wood over years.",
+   "install": "Floating click system over underlay, or glued down; leave expansion gaps at the walls.",
+   "pros": [
+    "warm and quiet underfoot",
+    "natural look"
+   ],
+   "cons": [
+    "scratches and dents",
+    "not for wet areas (except SPC)"
+   ],
+   "good_for": [
+    "bedrooms",
+    "living rooms",
+    "study"
+   ],
+   "avoid": [
+    "bathrooms",
+    "wash areas",
+    "outdoor"
+   ],
+   "wet_ok": false,
+   "outdoor_ok": false,
+   "heat_ok": false,
+   "traffic_ok": true,
+   "alternatives": [
+    "engineered_wood",
+    "laminate_floor",
+    "spc_vinyl",
+    "wood_look_tile"
+   ],
+   "supporting": [
+    "underlay"
+   ]
+  },
+  "wood_panel": {
+   "durability": "Durable indoors when finished (PU / melamine); edges can chip if knocked.",
+   "water": "Not for wet areas; keep away from direct water.",
+   "maintenance": "Dust and wipe with a dry cloth; touch up polish on veneer when needed.",
+   "install": "Fixed on a plywood or MDF backing (or a batten frame) with adhesive and pins; veneer is polished on site.",
+   "pros": [
+    "warm, premium look",
+    "hides wiring",
+    "acoustic softening"
+   ],
+   "cons": [
+    "needs a backing structure",
+    "veneer needs polishing",
+    "sensitive to moisture"
+   ],
+   "good_for": [
+    "TV walls",
+    "bed back walls",
+    "feature walls",
+    "ceilings"
+   ],
+   "avoid": [
+    "bathrooms",
+    "outdoor",
+    "behind the hob"
+   ],
+   "wet_ok": false,
+   "outdoor_ok": false,
+   "heat_ok": false,
+   "traffic_ok": true,
+   "alternatives": [
+    "fluted_veneer_panel",
+    "wood_veneer_panel",
+    "laminate_panel",
+    "wpc_louvers",
+    "charcoal_sheet"
+   ],
+   "supporting": [
+    "backing_ply",
+    "panel_adhesive",
+    "polish"
+   ]
+  },
+  "paint": {
+   "durability": "Lasts 5-8 years indoors before a repaint; washable emulsions clean better.",
+   "water": "Washable or moisture-resistant grades needed for kitchens and bathrooms.",
+   "maintenance": "Wipe with a damp cloth (washable grades); touch up as needed.",
+   "install": "Wall putty (2 coats) and primer first, then 2 coats of paint.",
+   "pros": [
+    "fast, flexible colour change",
+    "easy to touch up"
+   ],
+   "cons": [
+    "marks and scuffs on busy walls",
+    "needs repainting over time"
+   ],
+   "good_for": [
+    "all interior walls",
+    "ceilings"
+   ],
+   "avoid": [
+    "behind the hob or sink (use tile or glass)"
+   ],
+   "wet_ok": false,
+   "outdoor_ok": false,
+   "heat_ok": false,
+   "traffic_ok": true,
+   "alternatives": [
+    "emulsion_paint",
+    "texture_paint",
+    "limewash",
+    "wallpaper",
+    "venetian_plaster"
+   ],
+   "supporting": [
+    "primer",
+    "wall_putty"
+   ]
+  },
+  "plaster": {
+   "durability": "Durable seamless finish; can hairline-crack if the base moves.",
+   "water": "Microcement / tadelakt can be sealed for wet areas; lime plaster prefers dry walls.",
+   "maintenance": "Wipe gently; re-seal sealed finishes every few years.",
+   "install": "Applied by skilled applicators in thin coats on a primed base, then sealed.",
+   "pros": [
+    "seamless, handcrafted look",
+    "works on floors and walls (microcement)"
+   ],
+   "cons": [
+    "needs skilled labour",
+    "can crack"
+   ],
+   "good_for": [
+    "feature walls",
+    "bathrooms (sealed)",
+    "floors (microcement)"
+   ],
+   "avoid": [
+    "walls with active damp"
+   ],
+   "wet_ok": true,
+   "outdoor_ok": false,
+   "heat_ok": false,
+   "traffic_ok": true,
+   "alternatives": [
+    "microcement",
+    "venetian_plaster",
+    "texture_paint",
+    "large_format_tile"
+   ],
+   "supporting": [
+    "primer",
+    "sealer"
+   ]
+  },
+  "wallcovering": {
+   "durability": "Good for 7-10 years in dry rooms; vinyl types are scrubbable.",
+   "water": "Not for wet areas.",
+   "maintenance": "Dust or wipe gently (vinyl: damp cloth).",
+   "install": "Pasted on a smooth, primed wall; patterns need matching (more wastage).",
+   "pros": [
+    "patterns and textures paint cannot do",
+    "quick to install"
+   ],
+   "cons": [
+    "seams can lift in humidity",
+    "pattern matching wastage"
+   ],
+   "good_for": [
+    "bedrooms",
+    "feature walls",
+    "living rooms"
+   ],
+   "avoid": [
+    "bathrooms",
+    "kitchens near the hob"
+   ],
+   "wet_ok": false,
+   "outdoor_ok": false,
+   "heat_ok": false,
+   "traffic_ok": false,
+   "alternatives": [
+    "wallpaper",
+    "texture_paint",
+    "fabric_panel",
+    "laminate_panel"
+   ],
+   "supporting": [
+    "wallpaper_adhesive",
+    "primer"
+   ]
+  },
+  "cladding": {
+   "durability": "Very durable; brick and stone cladding last decades.",
+   "water": "Seal brick / stone if exposed to rain.",
+   "maintenance": "Brush clean; reseal every few years outdoors.",
+   "install": "Fixed with adhesive on a rough-plastered wall; joints pointed.",
+   "pros": [
+    "texture and depth",
+    "low maintenance"
+   ],
+   "cons": [
+    "heavy",
+    "dust collects in joints"
+   ],
+   "good_for": [
+    "feature walls",
+    "facades",
+    "fireplaces"
+   ],
+   "avoid": [
+    "thin dry walls without support"
+   ],
+   "wet_ok": true,
+   "outdoor_ok": true,
+   "heat_ok": true,
+   "traffic_ok": true,
+   "alternatives": [
+    "exposed_brick",
+    "stone_cladding",
+    "terracotta_cladding",
+    "texture_paint"
+   ],
+   "supporting": [
+    "stone_adhesive",
+    "sealer"
+   ]
+  },
+  "ceiling": {
+   "durability": "Long life indoors; gypsum boards can sag or stain if water leaks above.",
+   "water": "Use moisture-resistant boards in bathrooms and kitchens.",
+   "maintenance": "Repaint every few years; fix leaks above quickly.",
+   "install": "Metal framing hung from the slab, boards screwed on, joints taped, puttied and painted.",
+   "pros": [
+    "hides services and lights",
+    "coves and levels possible"
+   ],
+   "cons": [
+    "reduces room height",
+    "access panels needed for services"
+   ],
+   "good_for": [
+    "living rooms",
+    "bedrooms",
+    "commercial spaces"
+   ],
+   "avoid": [
+    "very low rooms"
+   ],
+   "wet_ok": false,
+   "outdoor_ok": false,
+   "heat_ok": false,
+   "traffic_ok": true,
+   "alternatives": [
+    "gypsum_ceiling",
+    "wooden_ceiling",
+    "metal_baffle",
+    "stretch_ceiling"
+   ],
+   "supporting": [
+    "joint_compound",
+    "primer"
+   ]
+  },
+  "cabinet": {
+   "durability": "Depends on the shutter finish; acrylic and PU are tougher on the surface, laminate on wear.",
+   "water": "Use BWP (boiling water proof) ply for sink cabinets.",
+   "maintenance": "Wipe with a soft damp cloth; avoid abrasive cleaners on gloss.",
+   "install": "Carcass built in ply, shutters fixed with soft-close hinges; edges banded.",
+   "pros": [
+    "many finishes",
+    "made to measure"
+   ],
+   "cons": [
+    "gloss shows fingerprints",
+    "edges can chip"
+   ],
+   "good_for": [
+    "kitchens",
+    "wardrobes",
+    "vanities"
+   ],
+   "avoid": [
+    "non-BWP ply under sinks"
+   ],
+   "wet_ok": false,
+   "outdoor_ok": false,
+   "heat_ok": false,
+   "traffic_ok": true,
+   "alternatives": [
+    "laminate_shutter",
+    "acrylic_shutter",
+    "pu_shutter",
+    "veneer_shutter",
+    "glass_shutter"
+   ],
+   "supporting": []
+  },
+  "facade": {
+   "durability": "Built for weather; check UV and fire ratings.",
+   "water": "Weatherproof by design; joints must be sealed.",
+   "maintenance": "Wash periodically; inspect sealant joints.",
+   "install": "Fixed on a sub-frame anchored to the structure.",
+   "pros": [
+    "modern look",
+    "low maintenance"
+   ],
+   "cons": [
+    "needs structural sub-frame",
+    "fire rating matters for tall buildings"
+   ],
+   "good_for": [
+    "building elevations"
+   ],
+   "avoid": [
+    "interiors (usually)"
+   ],
+   "wet_ok": true,
+   "outdoor_ok": true,
+   "heat_ok": true,
+   "traffic_ok": false,
+   "alternatives": [
+    "acp",
+    "hpl_cladding",
+    "stone_cladding",
+    "exterior_paint",
+    "wood_cladding_ext"
+   ],
+   "supporting": [
+    "sealer"
+   ]
+  },
+  "glass": {
+   "durability": "Toughened glass is strong; scratches show on mirrors and lacquered glass.",
+   "water": "Waterproof; great for backsplashes and shower areas.",
+   "maintenance": "Glass cleaner; wipe splashes quickly.",
+   "install": "Cut to size and fixed with structural silicone or clips; toughened glass cannot be cut on site.",
+   "pros": [
+    "reflects light",
+    "seamless and hygienic"
+   ],
+   "cons": [
+    "shows smudges",
+    "must be measured exactly"
+   ],
+   "good_for": [
+    "backsplashes",
+    "partitions",
+    "feature walls"
+   ],
+   "avoid": [
+    "areas where it can be hit hard (unless toughened)"
+   ],
+   "wet_ok": true,
+   "outdoor_ok": true,
+   "heat_ok": true,
+   "traffic_ok": false,
+   "alternatives": [
+    "lacquered_glass",
+    "mirror_panel",
+    "glass_partition",
+    "large_format_tile"
+   ],
+   "supporting": [
+    "silicone"
+   ]
+  },
+  "metal": {
+   "durability": "Very durable; brick and stone cladding last decades.",
+   "water": "Seal brick / stone if exposed to rain.",
+   "maintenance": "Brush clean; reseal every few years outdoors.",
+   "install": "Fixed with adhesive on a rough-plastered wall; joints pointed.",
+   "pros": [
+    "texture and depth",
+    "low maintenance"
+   ],
+   "cons": [
+    "heavy",
+    "dust collects in joints"
+   ],
+   "good_for": [
+    "feature walls",
+    "facades",
+    "fireplaces"
+   ],
+   "avoid": [
+    "thin dry walls without support"
+   ],
+   "wet_ok": true,
+   "outdoor_ok": true,
+   "heat_ok": true,
+   "traffic_ok": true,
+   "alternatives": [
+    "exposed_brick",
+    "stone_cladding",
+    "terracotta_cladding",
+    "texture_paint"
+   ],
+   "supporting": [
+    "stone_adhesive",
+    "sealer"
+   ]
+  },
+  "railing": {
+   "durability": "Toughened glass is strong; scratches show on mirrors and lacquered glass.",
+   "water": "Waterproof; great for backsplashes and shower areas.",
+   "maintenance": "Glass cleaner; wipe splashes quickly.",
+   "install": "Cut to size and fixed with structural silicone or clips; toughened glass cannot be cut on site.",
+   "pros": [
+    "reflects light",
+    "seamless and hygienic"
+   ],
+   "cons": [
+    "shows smudges",
+    "must be measured exactly"
+   ],
+   "good_for": [
+    "backsplashes",
+    "partitions",
+    "feature walls"
+   ],
+   "avoid": [
+    "areas where it can be hit hard (unless toughened)"
+   ],
+   "wet_ok": true,
+   "outdoor_ok": true,
+   "heat_ok": true,
+   "traffic_ok": false,
+   "alternatives": [
+    "lacquered_glass",
+    "mirror_panel",
+    "glass_partition",
+    "large_format_tile"
+   ],
+   "supporting": [
+    "silicone"
+   ]
+  },
+  "coating": {
+   "durability": "Very durable; vitrified and porcelain tiles resist scratches and stains.",
+   "water": "Low water absorption; good for wet areas (use anti-skid on wet floors).",
+   "maintenance": "Easy: mop and mild cleaner; re-grout or seal grout lines over time.",
+   "install": "Laid with tile adhesive on a level base, joints filled with grout; large formats need levelling clips.",
+   "pros": [
+    "easy to maintain",
+    "huge range of looks (stone, wood, concrete)",
+    "good in wet areas"
+   ],
+   "cons": [
+    "grout lines need cleaning",
+    "cold underfoot",
+    "chips at edges if hit"
+   ],
+   "good_for": [
+    "floors",
+    "bathrooms",
+    "kitchens",
+    "backsplashes"
+   ],
+   "avoid": [
+    "glossy tiles on wet floors (slippery)"
+   ],
+   "wet_ok": true,
+   "outdoor_ok": true,
+   "heat_ok": true,
+   "traffic_ok": true,
+   "alternatives": [
+    "vitrified_tile",
+    "large_format_tile",
+    "wood_look_tile",
+    "moroccan_tile"
+   ],
+   "supporting": [
+    "tile_adhesive",
+    "grout",
+    "spacers"
+   ]
+  },
+  "soft_floor": {
+   "durability": "Very durable; vitrified and porcelain tiles resist scratches and stains.",
+   "water": "Low water absorption; good for wet areas (use anti-skid on wet floors).",
+   "maintenance": "Easy: mop and mild cleaner; re-grout or seal grout lines over time.",
+   "install": "Laid with tile adhesive on a level base, joints filled with grout; large formats need levelling clips.",
+   "pros": [
+    "easy to maintain",
+    "huge range of looks (stone, wood, concrete)",
+    "good in wet areas"
+   ],
+   "cons": [
+    "grout lines need cleaning",
+    "cold underfoot",
+    "chips at edges if hit"
+   ],
+   "good_for": [
+    "floors",
+    "bathrooms",
+    "kitchens",
+    "backsplashes"
+   ],
+   "avoid": [
+    "glossy tiles on wet floors (slippery)"
+   ],
+   "wet_ok": true,
+   "outdoor_ok": true,
+   "heat_ok": true,
+   "traffic_ok": true,
+   "alternatives": [
+    "vitrified_tile",
+    "large_format_tile",
+    "wood_look_tile",
+    "moroccan_tile"
+   ],
+   "supporting": [
+    "tile_adhesive",
+    "grout",
+    "spacers"
+   ]
+  },
+  "soft_panel": {
+   "durability": "Durable indoors when finished (PU / melamine); edges can chip if knocked.",
+   "water": "Not for wet areas; keep away from direct water.",
+   "maintenance": "Dust and wipe with a dry cloth; touch up polish on veneer when needed.",
+   "install": "Fixed on a plywood or MDF backing (or a batten frame) with adhesive and pins; veneer is polished on site.",
+   "pros": [
+    "warm, premium look",
+    "hides wiring",
+    "acoustic softening"
+   ],
+   "cons": [
+    "needs a backing structure",
+    "veneer needs polishing",
+    "sensitive to moisture"
+   ],
+   "good_for": [
+    "TV walls",
+    "bed back walls",
+    "feature walls",
+    "ceilings"
+   ],
+   "avoid": [
+    "bathrooms",
+    "outdoor",
+    "behind the hob"
+   ],
+   "wet_ok": false,
+   "outdoor_ok": false,
+   "heat_ok": false,
+   "traffic_ok": true,
+   "alternatives": [
+    "fluted_veneer_panel",
+    "wood_veneer_panel",
+    "laminate_panel",
+    "wpc_louvers",
+    "charcoal_sheet"
+   ],
+   "supporting": [
+    "backing_ply",
+    "panel_adhesive",
+    "polish"
+   ]
+  },
+  "door": {
+   "durability": "Durable indoors when finished (PU / melamine); edges can chip if knocked.",
+   "water": "Not for wet areas; keep away from direct water.",
+   "maintenance": "Dust and wipe with a dry cloth; touch up polish on veneer when needed.",
+   "install": "Fixed on a plywood or MDF backing (or a batten frame) with adhesive and pins; veneer is polished on site.",
+   "pros": [
+    "warm, premium look",
+    "hides wiring",
+    "acoustic softening"
+   ],
+   "cons": [
+    "needs a backing structure",
+    "veneer needs polishing",
+    "sensitive to moisture"
+   ],
+   "good_for": [
+    "TV walls",
+    "bed back walls",
+    "feature walls",
+    "ceilings"
+   ],
+   "avoid": [
+    "bathrooms",
+    "outdoor",
+    "behind the hob"
+   ],
+   "wet_ok": false,
+   "outdoor_ok": false,
+   "heat_ok": false,
+   "traffic_ok": true,
+   "alternatives": [
+    "fluted_veneer_panel",
+    "wood_veneer_panel",
+    "laminate_panel",
+    "wpc_louvers",
+    "charcoal_sheet"
+   ],
+   "supporting": [
+    "backing_ply",
+    "panel_adhesive",
+    "polish"
+   ]
+  },
+  "window": {
+   "durability": "Toughened glass is strong; scratches show on mirrors and lacquered glass.",
+   "water": "Waterproof; great for backsplashes and shower areas.",
+   "maintenance": "Glass cleaner; wipe splashes quickly.",
+   "install": "Cut to size and fixed with structural silicone or clips; toughened glass cannot be cut on site.",
+   "pros": [
+    "reflects light",
+    "seamless and hygienic"
+   ],
+   "cons": [
+    "shows smudges",
+    "must be measured exactly"
+   ],
+   "good_for": [
+    "backsplashes",
+    "partitions",
+    "feature walls"
+   ],
+   "avoid": [
+    "areas where it can be hit hard (unless toughened)"
+   ],
+   "wet_ok": true,
+   "outdoor_ok": true,
+   "heat_ok": true,
+   "traffic_ok": false,
+   "alternatives": [
+    "lacquered_glass",
+    "mirror_panel",
+    "glass_partition",
+    "large_format_tile"
+   ],
+   "supporting": [
+    "silicone"
+   ]
+  }
+ },
+ "materials": {
+  "italian_marble": {
+   "durability": "Hard but softer than granite; etches with lemon, vinegar and some cleaners.",
+   "cons": [
+    "etches with acids",
+    "needs sealing",
+    "veining varies slab to slab"
+   ],
+   "alternatives": [
+    "indian_marble",
+    "sintered_stone",
+    "large_format_tile",
+    "quartz"
+   ]
+  },
+  "indian_marble": {
+   "alternatives": [
+    "italian_marble",
+    "kota_stone",
+    "vitrified_tile",
+    "large_format_tile"
+   ]
+  },
+  "granite": {
+   "durability": "One of the hardest natural stones; very resistant to heat and scratches.",
+   "alternatives": [
+    "quartz",
+    "sintered_stone",
+    "italian_marble"
+   ]
+  },
+  "quartz": {
+   "durability": "Very hard, non-porous engineered stone; resists stains; can discolour with direct high heat or sun.",
+   "alternatives": [
+    "granite",
+    "sintered_stone",
+    "solid_surface",
+    "italian_marble"
+   ]
+  },
+  "sintered_stone": {
+   "durability": "Extremely hard and heat resistant; very thin slabs need careful handling.",
+   "alternatives": [
+    "quartz",
+    "granite",
+    "large_format_tile"
+   ]
+  },
+  "solid_surface": {
+   "durability": "Softer; scratches can be sanded out; seamless joints and integrated sinks.",
+   "alternatives": [
+    "quartz",
+    "granite"
+   ]
+  },
+  "kota_stone": {
+   "alternatives": [
+    "vitrified_tile",
+    "indian_marble",
+    "outdoor_tile"
+   ]
+  },
+  "fluted_veneer_panel": {
+   "alternatives": [
+    "wood_veneer_panel",
+    "wpc_louvers",
+    "charcoal_sheet",
+    "laminate_panel"
+   ]
+  },
+  "wood_veneer_panel": {
+   "alternatives": [
+    "laminate_panel",
+    "fluted_veneer_panel",
+    "charcoal_sheet"
+   ]
+  },
+  "laminate_panel": {
+   "durability": "Tough, scratch-resistant surface; edges are the weak point.",
+   "alternatives": [
+    "wood_veneer_panel",
+    "pu_acrylic_panel",
+    "charcoal_sheet"
+   ]
+  },
+  "wpc_louvers": {
+   "water": "WPC is moisture resistant; suits semi-wet and covered outdoor spots.",
+   "wet_ok": true,
+   "alternatives": [
+    "fluted_veneer_panel",
+    "wood_slats",
+    "charcoal_sheet"
+   ]
+  },
+  "charcoal_sheet": {
+   "water": "PVC based; moisture resistant.",
+   "wet_ok": true,
+   "alternatives": [
+    "laminate_panel",
+    "wpc_louvers",
+    "wood_veneer_panel"
+   ]
+  },
+  "engineered_wood": {
+   "alternatives": [
+    "laminate_floor",
+    "spc_vinyl",
+    "wood_look_tile"
+   ]
+  },
+  "laminate_floor": {
+   "alternatives": [
+    "engineered_wood",
+    "spc_vinyl",
+    "wood_look_tile"
+   ]
+  },
+  "spc_vinyl": {
+   "water": "Waterproof core; fine for kitchens and bathrooms (not showers).",
+   "wet_ok": true,
+   "alternatives": [
+    "laminate_floor",
+    "wood_look_tile",
+    "engineered_wood"
+   ]
+  },
+  "wood_look_tile": {
+   "alternatives": [
+    "engineered_wood",
+    "spc_vinyl",
+    "laminate_floor"
+   ]
+  },
+  "vitrified_tile": {
+   "alternatives": [
+    "large_format_tile",
+    "indian_marble",
+    "kota_stone",
+    "wood_look_tile"
+   ]
+  },
+  "large_format_tile": {
+   "alternatives": [
+    "italian_marble",
+    "sintered_stone",
+    "vitrified_tile"
+   ]
+  },
+  "emulsion_paint": {
+   "alternatives": [
+    "texture_paint",
+    "limewash",
+    "wallpaper"
+   ]
+  },
+  "microcement": {
+   "alternatives": [
+    "large_format_tile",
+    "venetian_plaster",
+    "texture_paint"
+   ]
+  },
+  "wallpaper": {
+   "alternatives": [
+    "texture_paint",
+    "fabric_panel",
+    "emulsion_paint"
+   ]
+  },
+  "gypsum_ceiling": {
+   "alternatives": [
+    "wooden_ceiling",
+    "metal_baffle",
+    "stretch_ceiling"
+   ]
+  },
+  "exposed_brick": {
+   "alternatives": [
+    "stone_cladding",
+    "terracotta_cladding",
+    "texture_paint"
+   ]
+  }
+ },
+ "room_needs": {
+  "_help": "What a room needs from its finishes. wet: water-resistant; outdoor: weather-resistant; heat: near a hob; traffic: heavy foot traffic.",
+  "bathroom": [
+   "wet"
+  ],
+  "utility": [
+   "wet"
+  ],
+  "kitchen": [
+   "wet"
+  ],
+  "balcony": [
+   "outdoor",
+   "wet"
+  ],
+  "parking": [
+   "outdoor",
+   "traffic"
+  ],
+  "foyer": [
+   "traffic"
+  ],
+  "staircase": [
+   "traffic"
+  ],
+  "living": [],
+  "bedroom": [],
+  "master_bedroom": [],
+  "study": [],
+  "dining": [],
+  "pooja": [],
+  "store": [],
+  "dress": []
+ }
+}

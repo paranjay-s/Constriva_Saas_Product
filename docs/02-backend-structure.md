@@ -55,7 +55,7 @@ One folder per feature. Every module uses the same file names, so you always kno
 | `parsing` | Turns an uploaded PDF into a plan JSON. See [04-parsing-module.md](04-parsing-module.md). |
 | `sheets` | Computes material quantities from a plan version (`calculator.py`) and exports them (`export.py`: PDF report, xlsx). Marks sheets stale when the plan changes. |
 | `materials` | Material catalogue and prices (prices have history, so old reports stay correct). |
-| `ai` | Chat, conversations and messages. `chat.py` turns a request into structured edit operations; `edit_ops.py` defines them; `material_vision.py` estimates materials from a photo; `llm_client.py` is the provider-neutral LLM wrapper; `prompts/` holds prompt files. |
+| `ai` | Chat, conversations and messages. `chat.py` turns a request into structured edit operations; `edit_ops.py` defines them; `material_agent/` is the Material Finder (photo -> identified materials, quantities computed in Python from the person's own space; no money anywhere, see `docs/material-agent/PLAN.md`); `llm_client.py` is the provider-neutral LLM wrapper; `prompts/` holds prompt files. |
 | `loan` | Placeholder for the bank-loan document extraction (design pending). |
 | `jobs` | Reads job status (queued, running, done, failed, progress) for the UI. |
 
