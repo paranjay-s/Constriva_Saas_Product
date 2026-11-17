@@ -1,0 +1,17 @@
+{
+  "plot": {"width": 914, "depth": 1219, "road_side": "east"},
+  "meta": {"project": "TEST HOUSE 2B", "floor_name": "GROUND FLOOR", "unit_display": "ft"},
+  "program": {
+    "rooms": [
+      {"id": "bed_1", "type": "master_bedroom", "label": "MASTER BED ROOM", "target_area_m2": 14, "zone": "private"},
+      {"id": "bath_1", "type": "bath", "label": "BATH", "target_area_m2": 4, "zone": "service", "attached_to": "bed_1"},
+      {"id": "bed_2", "type": "bedroom", "label": "BED ROOM", "target_area_m2": 12, "zone": "private"},
+      {"id": "bath_2", "type": "bath", "label": "BATH", "target_area_m2": 3.5, "zone": "service"},
+      {"id": "living_1", "type": "living", "label": "LIVING", "target_area_m2": 20, "zone": "public"},
+      {"id": "dining_1", "type": "dining", "label": "DINING", "target_area_m2": 10, "zone": "public"},
+      {"id": "kitchen_1", "type": "kitchen", "label": "KITCHEN", "target_area_m2": 9, "zone": "service"},
+      {"id": "foyer_1", "type": "foyer", "label": "FOYER", "target_area_m2": 5, "zone": "circulation"},
+      {"id": "parking_1", "type": "parking", "label": "PARKING", "target_area_m2": 15, "zone": "open"}
+    ]
+  }
+}

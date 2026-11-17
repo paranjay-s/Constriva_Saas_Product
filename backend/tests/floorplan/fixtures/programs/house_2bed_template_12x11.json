@@ -1,0 +1,17 @@
+{
+  "plot": {"width": 1200, "depth": 1100, "road_side": "south"},
+  "meta": {"project": "TEST HOUSE 2B COMPACT", "floor_name": "GROUND FLOOR", "unit_display": "cm"},
+  "program": {
+    "rooms": [
+      {"id": "bed_1", "type": "master_bedroom", "label": "MASTER BED ROOM", "target_area_m2": 15, "zone": "private"},
+      {"id": "bath_1", "type": "bath", "label": "BATH", "target_area_m2": 4.5, "zone": "service", "attached_to": "bed_1"},
+      {"id": "bed_2", "type": "bedroom", "label": "BED ROOM", "target_area_m2": 13, "zone": "private"},
+      {"id": "bath_2", "type": "bath", "label": "BATH", "target_area_m2": 4, "zone": "service"},
+      {"id": "living_1", "type": "living", "label": "LIVING", "target_area_m2": 22, "zone": "public"},
+      {"id": "dining_1", "type": "dining", "label": "DINING", "target_area_m2": 12, "zone": "public"},
+      {"id": "kitchen_1", "type": "kitchen", "label": "KITCHEN", "target_area_m2": 9, "zone": "service"},
+      {"id": "foyer_1", "type": "foyer", "label": "FOYER", "target_area_m2": 6, "zone": "circulation"},
+      {"id": "garden_1", "type": "garden", "label": "GARDEN", "target_area_m2": 20, "zone": "open"}
+    ]
+  }
+}

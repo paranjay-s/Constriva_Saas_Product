@@ -1,0 +1,120 @@
+{
+  "_status": "Default values. To be verified with the architecture firm before use on a real order.",
+  "_help": "wastage_pct: extra share added to the net quantity for cutting, breakage and pattern matching, by wastage group. Edit the numbers; no code change is needed.",
+  "wastage_pct": {
+    "default": 10,
+    "stone": 10,
+    "stone_pattern": 15,
+    "tile": 10,
+    "tile_large": 12,
+    "tile_diagonal": 15,
+    "mosaic": 10,
+    "wood_floor": 8,
+    "laminate_floor": 8,
+    "panel": 10,
+    "sheet": 10,
+    "veneer": 10,
+    "paint": 5,
+    "plaster": 5,
+    "wallpaper": 10,
+    "ceiling_board": 10,
+    "cladding": 10,
+    "countertop": 10,
+    "glass": 5,
+    "metal": 5
+  },
+  "pattern_wastage_pct": {
+    "_help": "Used instead of the group value when the photo shows this laying pattern.",
+    "herringbone": 15,
+    "chevron": 15,
+    "diagonal": 15,
+    "bookmatch": 15,
+    "book-match": 15
+  },
+  "paint": {
+    "coats": 2,
+    "sqft_per_litre_per_coat": 100
+  },
+  "rounding": {
+    "area_decimals": 1,
+    "buy_units": "up"
+  },
+  "supporting": {
+    "_help": "Supporting items worked out from the net area of each material: quantity = net sq ft / sqft_per_unit, rounded up. To be verified with the architecture firm.",
+    "tile_adhesive": {
+      "name": "Tile adhesive",
+      "sqft_per_unit": 40,
+      "unit": "bags (20 kg)"
+    },
+    "stone_adhesive": {
+      "name": "Stone adhesive",
+      "sqft_per_unit": 30,
+      "unit": "bags (20 kg)"
+    },
+    "grout": {
+      "name": "Grout",
+      "sqft_per_unit": 50,
+      "unit": "kg"
+    },
+    "spacers": {
+      "name": "Tile spacers",
+      "sqft_per_unit": 100,
+      "unit": "packs of 100"
+    },
+    "sealer": {
+      "name": "Stone / surface sealer",
+      "sqft_per_unit": 100,
+      "unit": "litres"
+    },
+    "countertop_sealant": {
+      "name": "Silicone / epoxy for fixing",
+      "sqft_per_unit": 25,
+      "unit": "tubes"
+    },
+    "underlay": {
+      "name": "Underlay",
+      "sqft_per_unit": 100,
+      "unit": "rolls (100 sq ft)"
+    },
+    "backing_ply": {
+      "name": "Backing plywood (8 x 4 ft)",
+      "sqft_per_unit": 32,
+      "unit": "sheets"
+    },
+    "panel_adhesive": {
+      "name": "Panel adhesive",
+      "sqft_per_unit": 30,
+      "unit": "litres"
+    },
+    "polish": {
+      "name": "PU polish",
+      "sqft_per_unit": 40,
+      "unit": "litres"
+    },
+    "primer": {
+      "name": "Primer (1 coat)",
+      "sqft_per_unit": 120,
+      "unit": "litres"
+    },
+    "wall_putty": {
+      "name": "Wall putty (2 coats)",
+      "sqft_per_unit": 15,
+      "unit": "kg"
+    },
+    "wallpaper_adhesive": {
+      "name": "Wallpaper adhesive",
+      "sqft_per_unit": 100,
+      "unit": "kg"
+    },
+    "joint_compound": {
+      "name": "Jointing compound",
+      "sqft_per_unit": 50,
+      "unit": "kg"
+    },
+    "silicone": {
+      "name": "Structural silicone",
+      "sqft_per_unit": 25,
+      "unit": "tubes"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "_status": "Room names people use, mapped to one room kind. Edit freely.",
+  "kitchen": ["kitchen", "modular kitchen", "kitchenette", "pantry", "cook", "kit"],
+  "living": ["living", "living room", "hall", "drawing", "drawing room", "lounge", "family", "family room", "sitting", "great room"],
+  "dining": ["dining", "dining room", "dinning", "dining hall"],
+  "master_bedroom": ["master bedroom", "master bed", "master", "mbr", "m bed", "main bedroom", "owner bedroom", "parents bedroom"],
+  "bedroom": ["bedroom", "bed room", "bed", "br", "guest bedroom", "kids bedroom", "kid's room", "children bedroom", "room"],
+  "bathroom": ["bathroom", "bath", "washroom", "toilet", "wc", "w.c.", "restroom", "powder room", "attached bath", "common bath", "lavatory"],
+  "pooja": ["pooja", "puja", "pooja room", "puja room", "prayer", "prayer room", "mandir", "temple"],
+  "study": ["study", "office", "home office", "library", "work room"],
+  "utility": ["utility", "wash area", "laundry", "wash", "service"],
+  "store": ["store", "storage", "store room", "lumber"],
+  "balcony": ["balcony", "sit out", "sit-out", "verandah", "veranda", "terrace", "deck"],
+  "foyer": ["foyer", "entrance", "entry", "lobby", "passage", "corridor"],
+  "staircase": ["staircase", "stairs", "stair"],
+  "parking": ["parking", "car parking", "porch", "garage", "car porch"],
+  "dress": ["dress", "dressing", "walk-in", "walk in closet", "wardrobe room"]
+}

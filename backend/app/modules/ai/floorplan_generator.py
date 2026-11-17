@@ -7,7 +7,7 @@ Purpose:
   Synthesizes professional architectural 2D floor plans from user parameters
   (plot dimensions, room count, goal [rental vs residence], facing, chat instructions)
   and renders high-resolution, print-ready CAD PNG blueprints matching the visual
-  standards of professional engineering working drawings (Vikas Patodi style).
+  standards of professional engineering working drawings.
 =============================================================================
 """
 
@@ -34,39 +34,6 @@ def _get_font(size: int, bold: bool = False) -> ImageFont.ImageFont:
             except Exception:
                 pass
     return ImageFont.load_default()
-
-
-# Architectural System Prompt & Knowledge Base derived from Vikas Patodi Working Drawings
-ARCHITECTURAL_KNOWLEDGE_PROMPT = """
-You are Constriva's Principal Architectural CAD Engineer.
-You design precision 2D working floor plans modeled on professional engineering standards
-(such as the Er. Vikas Patodi working drawings for Smt. Geeta Gaud at Shalimar Greens, 36'6" x 55').
-
-Key Architectural Design Guidelines:
-1. SPATIAL ZONING BASED ON GOAL:
-   - RENTAL GOAL:
-     * Divide each floor into independent, fully self-contained rental units (e.g. Dual 2-BHK apartments or 1-BHK + 2-BHK).
-     * Provide an independent external staircase (with clear UP/DN flight markers) and central/side circulation passages (3'4" to 4'6" width) so each tenant flat has total privacy.
-     * Each rental unit must have its own Living/Drawing zone, compact Kitchen (e.g. 7'x10' or 9'8"x8'), dedicated Wash/Utility balcony, and attached + common toilets.
-   - RESIDENCE GOAL (Family Living):
-     * Integrated cohesive home layout with front Verandah/Porch, spacious Living & Dining zone (14'x20'+), dedicated Puja room, large modular Kitchen with adjoining Wash/Utility, Master Suite with attached Dress & Toilet, Kids Bedroom, Guest Bedroom, and Front Lawn/Garden.
-
-2. ACCURATE VASTU & ORIENTATION:
-   - In architectural working drawings, the front entrance road is located at the bottom (+Y facade).
-   - When facing is East: Front is East, Top is West, Right is North, Left is South.
-   - Southeast (Agni) is Front-Left.
-   - Southwest (Nairutya) is Rear-Left.
-   - Northeast (Ishanya) is Front-Right.
-   - Northwest (Vayu) is Rear-Right.
-
-3. VENTILATION & SHAFTS:
-   - Include open-to-sky cutouts (e.g. OPEN 4'X6', OPEN 5'X9') to ensure internal toilets, kitchens, and central passages have abundant natural light and cross-ventilation.
-
-4. STRUCTURAL COLUMNS & WALLS:
-   - Main external structural walls: 9" (230mm) double-line thickness.
-   - Internal partition walls: 4.5" (115mm) double-line thickness.
-   - RCC Columns: 9"x12" or 9"x15" solid royal blue columns located at wall junctions every 10' to 15'.
-"""
 
 
 def feet_inches_to_meters(feet: float, inches: float = 0.0) -> float:
@@ -177,7 +144,7 @@ def create_architectural_template(
         effective_config = "4_bhk"
 
     if is_rental or "dual" in req_lower or "two flat" in req_lower:
-        layout_name = "Dual Independent 2-BHK Rental Units (Vikas Patodi Blueprint Standard)"
+        layout_name = "Dual Independent 2-BHK Rental Units"
         raw_rooms = [
             # --- ZONE 1: REAR / NORTH-WEST ZONE (Y: 0.0 to 14.5 ft) ---
             {
@@ -440,7 +407,7 @@ def create_architectural_template(
         ]
     elif effective_config == "2_bhk" or "2" in effective_config:
         # Executive 2-BHK Modern Residence (with Family Lounge / Study converted from 3rd Bed)
-        layout_name = "Executive 2-BHK Modern Residence (Vikas Patodi Standard)"
+        layout_name = "2-BHK Residence"
         raw_rooms = [
             # --- ZONE 1: REAR / TOP ZONE (Y: 0.0 to 13.0 ft) ---
             {
@@ -650,7 +617,7 @@ def create_architectural_template(
         ]
     else:
         # Luxury Family Residence Layout (Ground/First Floor Cohesive Home, 3-BHK or default)
-        layout_name = f"Executive {effective_config.upper().replace('_', '-')} Luxury Residence (Vikas Patodi Standard)"
+        layout_name = f"{effective_config.upper().replace('_', '-')} Residence"
         raw_rooms = [
             # --- ZONE 1: REAR / TOP ZONE (Y: 0.0 to 13.0 ft) ---
             {
@@ -959,7 +926,7 @@ def draw_compass_rose(draw: ImageDraw.ImageDraw, cx: int, cy: int, facing: str =
 
 def render_floorplan_to_png(
     plan_data: Dict[str, Any],
-    client_name: str = "SMT. GEETA GAUD",
+    client_name: str = "",
     project_title: Optional[str] = None,
     output_width: int = 1600,
     output_height: int = 2400,
@@ -1024,7 +991,7 @@ def render_floorplan_to_png(
     draw.line([left_dim_x - 6, plan_y1, left_dim_x + 6, plan_y1], fill=dim_color, width=2)
     draw.text((left_dim_x - 45, plan_y0 + ph / 2 - 10), f"{plot_l_ft}'", fill=dim_color, font=font_header)
 
-    # 2. Color Palette matching Vikas Patodi Working Drawings
+    # 2. Color Palette
     COLOR_MAP = {
         "living": ("#F9F6F0", "#E8E1D3"),      # Warm ivory tile
         "bedroom": ("#F5F0E8", "#E2D9C8"),     # Beige tile grid
@@ -1605,7 +1572,7 @@ def build_plan_json_from_template(plan_data: Dict[str, Any]) -> Dict[str, Any]:
         "scale_source": "dimension_label",
         "project_title": plan_data.get("layout_name", "2D Architectural Working Plan"),
         "subject": "ARCHITECTURAL CAD WORKING DRAWING",
-        "client": "SMT. GEETA GAUD",
+        "client": "",
         "architect": "AI CAD ARCHITECT",
         "levels": [
             {
@@ -1631,7 +1598,7 @@ def generate_ai_floorplan(
     goal: str = "rental",
     facing: str = "East",
     user_prompt: str = "",
-    client_name: str = "SMT. GEETA GAUD",
+    client_name: str = "",
     project_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
@@ -1672,64 +1639,17 @@ def generate_ai_floorplan(
         custom_requests=user_prompt,
     )
 
-    ai_commentary = ""
-
-    # Attempt to enhance with live Gemini reasoning if key is available
-    from app.modules.ai.llm_client import get_gemini_api_key, call_gemini_text
-    if get_gemini_api_key() and os.environ.get("TESTING") != "1":
-        try:
-            gemini_prompt = f"""
-            Analyze the following architectural request:
-            - Plot Dimensions: {plot_width_ft} ft wide x {plot_length_ft} ft deep ({facing} Facing)
-            - Goal: {goal} ({'Multi-Unit Rental Investment' if 'rent' in goal.lower() else 'Personal Family Home'})
-            - Configuration: {config_type}
-            - Custom User Instructions: {user_prompt or 'Standard optimized architectural layout with attached toilets, modular kitchen, ventilation shafts and lawn'}
-
-            Provide an architectural engineering review in JSON format matching this schema:
-            {{
-                "design_title": "string (e.g. SMT. GEETA GAUD 36'6\" X 55' DUAL 2-BHK RENTAL WORKING PLAN)",
-                "ai_commentary": "string (3-4 sentences truthfully detailing room placements, facing, circulation corridors, and structural columns matching the drawing exactly)",
-                "key_features": ["list of 4-5 bullet points highlighting design advantages"]
-            }}
-            """
-            gemini_res = call_gemini_text(gemini_prompt, system_instruction=ARCHITECTURAL_KNOWLEDGE_PROMPT, json_mode=True)
-            if gemini_res and isinstance(gemini_res, dict):
-                ai_commentary = gemini_res.get("ai_commentary", "")
-                if gemini_res.get("design_title"):
-                    plan_data["layout_name"] = gemini_res["design_title"]
-        except Exception as e:
-            logger.warning(f"Gemini enhancement skipped ({e}), continuing with calibrated template.")
-
-    if not ai_commentary:
-        if "rent" in goal.lower():
-            ai_commentary = (
-                f"Precision Dual 2-BHK rental working plan designed for a {plot_width_ft}' x {plot_length_ft}' ({facing}-facing) plot "
-                f"({plot_width_ft * plot_length_ft:,.0f} sq.ft). "
-                f"Independent vertical circulation is established via the front external staircase (UP/DN). "
-                f"Entrance leads from the 23' x 4'4\" Verandah and 4' wide front lawn into a continuous 4'6\" side passage and 3'6\" central corridor. "
-                f"Flat 1 (Front Unit): 12'4\" x 14' Drawing/Dining, Master Bedroom (13'4\" x 9'6\") with attached Toilet (4'6\" x 10'0\"), "
-                f"Bedroom 2 (13'4\" x 9'4\") with attached Toilet (4'6\" x 5'8\"), modular Kitchen (10'0\" x 7'0\") with Wash area (8'4\" x 4'8\"), and Common Toilet (6'0\" x 4'4\"). "
-                f"Flat 2 (Rear Unit): 11'9\" x 16'6\" Living/Dining, core 5'0\" x 9'0\" Open-to-sky ventilation shaft, 3'4\" wide private passage, "
-                f"Master Bedroom (11'0\" x 11'0\") with attached Toilet (4'0\" x 7'6\"), Kitchen (9'8\" x 8'0\") adjacent to Dining, Bedroom 2 (9'6\" x 10'6\"), and utility Wash balcony (13'8\" x 4'0\")."
-            )
-        elif "2" in config_type:
-            ai_commentary = (
-                f"Successfully updated architectural plan to Executive 2-BHK Modern Residence on a {plot_width_ft}' x {plot_length_ft}' ({facing}-facing) plot. "
-                f"The layout features 2 expansive bedrooms (Rear Bedroom 14'x12' and Master Bedroom 14'x12'8\" with ensuite bath). "
-                f"The 3rd bedroom space has been transformed into a dedicated 10'2\"x12' Family Lounge & Study, providing generous living space while preserving structural column alignments. "
-                f"Also features a Vastu Ishanya Puja room, grand Living and Dining zones, modular Kitchen with Wash utility, and a spacious dual-car parking porch with front garden."
-            )
-        elif "1" in config_type:
-            ai_commentary = (
-                f"Successfully updated layout to Executive 1-BHK Residence on a {plot_width_ft}' x {plot_length_ft}' ({facing}-facing) plot. "
-                f"Features a grand Master Suite with ensuite dressing and bath, generous open-plan living and dining hall, dedicated study, modular kitchen, and parking."
-            )
-        else:
-            ai_commentary = (
-                f"Engineered an executive {config_type.upper().replace('_', '-')} family residence on a {plot_width_ft}' x {plot_length_ft}' ({facing}-facing) plot. "
-                f"Includes a grand 14'x16' car parking porch, front lawn, spacious living-dining zone, northeast Puja room, "
-                f"modular kitchen with wash area, and luxury master suite with private dressing room and ensuite bathroom."
-            )
+    # Factual summary computed from the rooms actually drawn (no LLM, no canned text)
+    room_lines = [
+        f"{r['name']} {r['w_ft']:.1f}' x {r['h_ft']:.1f}'"
+        for r in plan_data["rooms"]
+        if r.get("tag") not in ("open", "lawn")
+    ]
+    ai_commentary = (
+        f"{plan_data['layout_name']} on a {plot_width_ft}' x {plot_length_ft}' "
+        f"({facing}-facing) plot, {plot_width_ft * plot_length_ft:,.0f} sq.ft. "
+        f"Rooms: " + "; ".join(room_lines) + "."
+    )
 
     # 2. Render High-Resolution CAD Working Blueprint PNG
     proj_title = f"{plot_width_ft}' X {plot_length_ft}' ({facing[:1]}) WORKING PLAN"

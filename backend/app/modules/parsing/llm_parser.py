@@ -443,11 +443,14 @@ def sanitize_and_normalize_plan(raw_plan: Dict[str, Any]) -> Dict[str, Any]:
     return validated.model_dump()
 
 
-def parse_blueprint_image_with_llm(png_bytes: bytes) -> Dict[str, Any]:
+def parse_blueprint_image_with_llm(png_bytes: bytes, min_rooms: int = 6) -> Dict[str, Any]:
     """
     Main function for Task 1:
     Calls the Vision LLM with the blueprint image to extract PlanJSON.
     Never falls back to a different building on failure; raises an error.
+
+    min_rooms: fewest rooms accepted as a complete plan (default 6, unchanged for the
+    PDF import). The material finder passes 1 so small 1-2 BHK plans are accepted.
     """
     api_key = get_gemini_api_key()
     if not api_key:
@@ -467,11 +470,11 @@ def parse_blueprint_image_with_llm(png_bytes: bytes) -> Dict[str, Any]:
     # Sanitize, dedupe, validate, and compute objective confidence
     sanitized = sanitize_and_normalize_plan(plan_json)
 
-    # Check completeness: A complete multi-room architectural blueprint must have at least 6 rooms
+    # Check completeness: by default a complete multi-room blueprint must have at least 6 rooms
     rooms = sanitized.get("levels", [{}])[0].get("rooms", [])
-    if len(rooms) < 6:
+    if len(rooms) < max(min_rooms, 1):
         raise ValueError(
-            f"Vision LLM returned incomplete blueprint extraction with only {len(rooms)} room(s). Minimum 6 rooms required for a valid floor plan."
+            f"Vision LLM returned incomplete blueprint extraction with only {len(rooms)} room(s). Minimum {max(min_rooms, 1)} rooms required for a valid floor plan."
         )
 
     # Reject if placeholder snippet was echoed

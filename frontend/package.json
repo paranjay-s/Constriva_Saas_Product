@@ -11,6 +11,7 @@
     "gen:types": "json2ts -i ../shared/plan-schema/plan.schema.json -o src/types/plan.ts"
   },
   "dependencies": {
+    "@hookform/resolvers": "^7.0.6",
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
     "@tanstack/react-query": "^5.105.3",
@@ -18,6 +19,7 @@
     "pdfjs-dist": "^6.5.438",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-hook-form": "^7.92.0",
     "react-konva": "^19.3.2",
     "react-router-dom": "^7.18.5",
     "three": "^0.187.0",

@@ -49,7 +49,7 @@ describe('AI 2D Floor Plan API Service', () => {
       goal: 'residence',
       config_type: '3_bhk',
       facing: 'East',
-      client_name: 'SMT. GEETA GAUD',
+      client_name: 'Test Owner',
       user_prompt: 'Front parking for 2 cars, puja room in northeast',
     };
 

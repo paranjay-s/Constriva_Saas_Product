@@ -1,0 +1,1608 @@
+{
+ "_status": "Starting catalog. To be verified with the architecture firm. Add or edit entries freely; no code change is needed.",
+ "_help": "surfaces: where the material is normally used. aliases: words the photo analysis may use. buy.kind: area (sq ft), sheet (width_ft x length_ft), box (sqft_per_box), paint (litres, see material_rules.json), roll (sqft_per_roll), rft (running feet), count. wastage_group: key in material_rules.json.",
+ "materials": [
+  {
+   "id": "italian_marble",
+   "name": "Italian marble",
+   "category": "stone",
+   "surfaces": [
+    "floor",
+    "wall",
+    "countertop",
+    "backsplash"
+   ],
+   "aliases": [
+    "italian marble",
+    "statuario",
+    "calacatta",
+    "carrara",
+    "botticino",
+    "marble",
+    "white marble",
+    "veined marble"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "stone"
+  },
+  {
+   "id": "indian_marble",
+   "name": "Indian marble",
+   "category": "stone",
+   "surfaces": [
+    "floor",
+    "wall",
+    "countertop"
+   ],
+   "aliases": [
+    "indian marble",
+    "makrana",
+    "ambaji",
+    "rajnagar",
+    "katni",
+    "udaipur green"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "stone"
+  },
+  {
+   "id": "travertine",
+   "name": "Travertine",
+   "category": "stone",
+   "surfaces": [
+    "floor",
+    "wall"
+   ],
+   "aliases": [
+    "travertine",
+    "roman travertine",
+    "silver travertine"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "stone"
+  },
+  {
+   "id": "onyx",
+   "name": "Onyx (backlit or plain)",
+   "category": "stone",
+   "surfaces": [
+    "wall",
+    "countertop"
+   ],
+   "aliases": [
+    "onyx",
+    "backlit onyx",
+    "translucent stone"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "stone_pattern"
+  },
+  {
+   "id": "granite",
+   "name": "Granite",
+   "category": "stone",
+   "surfaces": [
+    "floor",
+    "countertop",
+    "backsplash",
+    "facade"
+   ],
+   "aliases": [
+    "granite",
+    "black galaxy",
+    "absolute black",
+    "tan brown",
+    "steel grey",
+    "jet black"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "stone"
+  },
+  {
+   "id": "kota_stone",
+   "name": "Kota stone",
+   "category": "stone",
+   "surfaces": [
+    "floor"
+   ],
+   "aliases": [
+    "kota",
+    "kota stone",
+    "kotah"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "stone"
+  },
+  {
+   "id": "sandstone",
+   "name": "Sandstone",
+   "category": "stone",
+   "surfaces": [
+    "floor",
+    "wall",
+    "facade"
+   ],
+   "aliases": [
+    "sandstone",
+    "dholpur",
+    "jaisalmer stone",
+    "yellow sandstone"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "stone"
+  },
+  {
+   "id": "slate",
+   "name": "Slate",
+   "category": "stone",
+   "surfaces": [
+    "floor",
+    "wall",
+    "facade"
+   ],
+   "aliases": [
+    "slate",
+    "slate cladding"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "stone"
+  },
+  {
+   "id": "limestone",
+   "name": "Limestone",
+   "category": "stone",
+   "surfaces": [
+    "floor",
+    "wall",
+    "facade"
+   ],
+   "aliases": [
+    "limestone",
+    "tandur",
+    "shahabad"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "stone"
+  },
+  {
+   "id": "stone_cladding",
+   "name": "Natural stone cladding (split face)",
+   "category": "cladding",
+   "surfaces": [
+    "wall",
+    "facade"
+   ],
+   "aliases": [
+    "stone cladding",
+    "split face",
+    "ledge stone",
+    "stacked stone"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "cladding"
+  },
+  {
+   "id": "quartz",
+   "name": "Quartz (engineered stone)",
+   "category": "countertop",
+   "surfaces": [
+    "countertop",
+    "backsplash",
+    "wall"
+   ],
+   "aliases": [
+    "quartz",
+    "engineered stone",
+    "quartz countertop"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "countertop"
+  },
+  {
+   "id": "sintered_stone",
+   "name": "Sintered stone / large porcelain slab",
+   "category": "countertop",
+   "surfaces": [
+    "countertop",
+    "backsplash",
+    "wall",
+    "floor"
+   ],
+   "aliases": [
+    "sintered",
+    "sintered stone",
+    "dekton",
+    "neolith",
+    "porcelain slab",
+    "large slab"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "countertop"
+  },
+  {
+   "id": "solid_surface",
+   "name": "Solid surface (acrylic)",
+   "category": "countertop",
+   "surfaces": [
+    "countertop",
+    "backsplash"
+   ],
+   "aliases": [
+    "solid surface",
+    "corian",
+    "acrylic solid surface"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "countertop"
+  },
+  {
+   "id": "butcher_block",
+   "name": "Butcher block (solid wood top)",
+   "category": "countertop",
+   "surfaces": [
+    "countertop"
+   ],
+   "aliases": [
+    "butcher block",
+    "wooden countertop",
+    "wood top"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "countertop"
+  },
+  {
+   "id": "vitrified_tile",
+   "name": "Vitrified tile",
+   "category": "tile",
+   "surfaces": [
+    "floor",
+    "wall"
+   ],
+   "aliases": [
+    "vitrified",
+    "vitrified tile",
+    "gvt",
+    "pgvt",
+    "glazed vitrified",
+    "double charge"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "box",
+    "sqft_per_box": 15.5,
+    "label": "box of 4 tiles 2 x 2 ft (15.5 sq ft)"
+   },
+   "wastage_group": "tile"
+  },
+  {
+   "id": "large_format_tile",
+   "name": "Large-format porcelain tile",
+   "category": "tile",
+   "surfaces": [
+    "floor",
+    "wall"
+   ],
+   "aliases": [
+    "large format",
+    "800x1600",
+    "1200x2400",
+    "600x1200",
+    "porcelain tile",
+    "big tile"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "box",
+    "sqft_per_box": 15.5,
+    "label": "box of 2 tiles 2 x 4 ft (15.5 sq ft)"
+   },
+   "wastage_group": "tile_large"
+  },
+  {
+   "id": "ceramic_wall_tile",
+   "name": "Ceramic wall tile",
+   "category": "tile",
+   "surfaces": [
+    "wall",
+    "backsplash"
+   ],
+   "aliases": [
+    "ceramic",
+    "ceramic tile",
+    "wall tile",
+    "glazed tile"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "box",
+    "sqft_per_box": 10.76,
+    "label": "box (10.76 sq ft)"
+   },
+   "wastage_group": "tile"
+  },
+  {
+   "id": "subway_tile",
+   "name": "Subway tile",
+   "category": "tile",
+   "surfaces": [
+    "wall",
+    "backsplash"
+   ],
+   "aliases": [
+    "subway",
+    "subway tile",
+    "metro tile",
+    "brick pattern tile"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "box",
+    "sqft_per_box": 10.76,
+    "label": "box (10.76 sq ft)"
+   },
+   "wastage_group": "tile"
+  },
+  {
+   "id": "mosaic_tile",
+   "name": "Mosaic tile",
+   "category": "tile",
+   "surfaces": [
+    "wall",
+    "floor",
+    "backsplash"
+   ],
+   "aliases": [
+    "mosaic",
+    "glass mosaic",
+    "penny tile",
+    "hexagon mosaic",
+    "chip mosaic"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "box",
+    "sqft_per_box": 10.76,
+    "label": "box of sheets (10.76 sq ft)"
+   },
+   "wastage_group": "mosaic"
+  },
+  {
+   "id": "moroccan_tile",
+   "name": "Moroccan / encaustic cement tile",
+   "category": "tile",
+   "surfaces": [
+    "floor",
+    "wall",
+    "backsplash"
+   ],
+   "aliases": [
+    "moroccan",
+    "encaustic",
+    "cement tile",
+    "patterned tile",
+    "athangudi"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "box",
+    "sqft_per_box": 10.76,
+    "label": "box (10.76 sq ft)"
+   },
+   "wastage_group": "tile"
+  },
+  {
+   "id": "terrazzo",
+   "name": "Terrazzo",
+   "category": "tile",
+   "surfaces": [
+    "floor",
+    "wall",
+    "countertop"
+   ],
+   "aliases": [
+    "terrazzo",
+    "terrazo",
+    "chips flooring"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "tile"
+  },
+  {
+   "id": "wood_look_tile",
+   "name": "Wood-look plank tile",
+   "category": "tile",
+   "surfaces": [
+    "floor",
+    "wall"
+   ],
+   "aliases": [
+    "wood look tile",
+    "wooden tile",
+    "plank tile",
+    "wood finish tile"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "box",
+    "sqft_per_box": 14.5,
+    "label": "box (14.5 sq ft)"
+   },
+   "wastage_group": "tile"
+  },
+  {
+   "id": "anti_skid_tile",
+   "name": "Anti-skid tile",
+   "category": "tile",
+   "surfaces": [
+    "floor"
+   ],
+   "aliases": [
+    "anti skid",
+    "anti-skid",
+    "matt floor tile",
+    "bathroom floor tile"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "box",
+    "sqft_per_box": 10.76,
+    "label": "box (10.76 sq ft)"
+   },
+   "wastage_group": "tile"
+  },
+  {
+   "id": "outdoor_tile",
+   "name": "Outdoor / parking tile",
+   "category": "tile",
+   "surfaces": [
+    "floor"
+   ],
+   "aliases": [
+    "parking tile",
+    "outdoor tile",
+    "paver",
+    "cobble",
+    "checker tile"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "box",
+    "sqft_per_box": 10.76,
+    "label": "box (10.76 sq ft)"
+   },
+   "wastage_group": "tile"
+  },
+  {
+   "id": "zellige",
+   "name": "Zellige tile",
+   "category": "tile",
+   "surfaces": [
+    "wall",
+    "backsplash"
+   ],
+   "aliases": [
+    "zellige",
+    "handmade tile",
+    "glossy handmade"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "box",
+    "sqft_per_box": 10.76,
+    "label": "box (10.76 sq ft)"
+   },
+   "wastage_group": "tile"
+  },
+  {
+   "id": "engineered_wood",
+   "name": "Engineered wood flooring",
+   "category": "wood_floor",
+   "surfaces": [
+    "floor"
+   ],
+   "aliases": [
+    "engineered wood",
+    "engineered oak",
+    "wooden flooring",
+    "hardwood",
+    "oak floor",
+    "walnut floor"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "box",
+    "sqft_per_box": 21.5,
+    "label": "box (21.5 sq ft)"
+   },
+   "wastage_group": "wood_floor"
+  },
+  {
+   "id": "laminate_floor",
+   "name": "Laminate flooring",
+   "category": "wood_floor",
+   "surfaces": [
+    "floor"
+   ],
+   "aliases": [
+    "laminate floor",
+    "laminate flooring",
+    "laminated wooden flooring"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "box",
+    "sqft_per_box": 21.5,
+    "label": "box (21.5 sq ft)"
+   },
+   "wastage_group": "laminate_floor"
+  },
+  {
+   "id": "solid_wood_floor",
+   "name": "Solid wood flooring",
+   "category": "wood_floor",
+   "surfaces": [
+    "floor"
+   ],
+   "aliases": [
+    "solid wood",
+    "teak floor",
+    "solid hardwood"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "wood_floor"
+  },
+  {
+   "id": "spc_vinyl",
+   "name": "SPC / LVT vinyl flooring",
+   "category": "wood_floor",
+   "surfaces": [
+    "floor"
+   ],
+   "aliases": [
+    "spc",
+    "lvt",
+    "vinyl",
+    "vinyl plank",
+    "luxury vinyl"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "box",
+    "sqft_per_box": 23,
+    "label": "box (23 sq ft)"
+   },
+   "wastage_group": "laminate_floor"
+  },
+  {
+   "id": "herringbone_wood",
+   "name": "Herringbone wood flooring",
+   "category": "wood_floor",
+   "surfaces": [
+    "floor"
+   ],
+   "aliases": [
+    "herringbone",
+    "chevron",
+    "parquet"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "box",
+    "sqft_per_box": 21.5,
+    "label": "box (21.5 sq ft)"
+   },
+   "wastage_group": "wood_floor"
+  },
+  {
+   "id": "epoxy_floor",
+   "name": "Epoxy / PU floor coating",
+   "category": "coating",
+   "surfaces": [
+    "floor"
+   ],
+   "aliases": [
+    "epoxy",
+    "pu floor",
+    "self levelling"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "paint"
+  },
+  {
+   "id": "carpet",
+   "name": "Carpet / carpet tiles",
+   "category": "soft_floor",
+   "surfaces": [
+    "floor"
+   ],
+   "aliases": [
+    "carpet",
+    "carpet tile",
+    "wall to wall carpet"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "tile"
+  },
+  {
+   "id": "fluted_veneer_panel",
+   "name": "Fluted wood veneer panel",
+   "category": "wood_panel",
+   "surfaces": [
+    "wall",
+    "ceiling"
+   ],
+   "aliases": [
+    "fluted panel",
+    "fluted veneer",
+    "fluted walnut",
+    "fluted oak",
+    "fluted wood",
+    "fluted",
+    "ribbed wood",
+    "grooved panel"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 4,
+    "length_ft": 8
+   },
+   "wastage_group": "panel"
+  },
+  {
+   "id": "wood_veneer_panel",
+   "name": "Wood veneer panelling",
+   "category": "wood_panel",
+   "surfaces": [
+    "wall",
+    "ceiling"
+   ],
+   "aliases": [
+    "veneer",
+    "wood veneer",
+    "walnut veneer",
+    "oak veneer",
+    "teak veneer",
+    "natural veneer",
+    "wooden panelling",
+    "wood paneling"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 4,
+    "length_ft": 8
+   },
+   "wastage_group": "veneer"
+  },
+  {
+   "id": "laminate_panel",
+   "name": "Laminate (HPL) on ply",
+   "category": "wood_panel",
+   "surfaces": [
+    "wall",
+    "cabinet"
+   ],
+   "aliases": [
+    "laminate",
+    "hpl",
+    "sunmica",
+    "merino",
+    "decorative laminate"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 4,
+    "length_ft": 8
+   },
+   "wastage_group": "sheet"
+  },
+  {
+   "id": "wpc_louvers",
+   "name": "WPC / charcoal louver panel",
+   "category": "wood_panel",
+   "surfaces": [
+    "wall",
+    "ceiling"
+   ],
+   "aliases": [
+    "wpc",
+    "louver",
+    "louvers",
+    "charcoal panel",
+    "wpc louver",
+    "slat panel"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 0.5,
+    "length_ft": 9.5
+   },
+   "wastage_group": "panel"
+  },
+  {
+   "id": "wood_slats",
+   "name": "Wooden slats / battens",
+   "category": "wood_panel",
+   "surfaces": [
+    "wall",
+    "ceiling"
+   ],
+   "aliases": [
+    "slats",
+    "battens",
+    "wooden slats",
+    "wood battens",
+    "rafters"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "panel"
+  },
+  {
+   "id": "mdf_panel",
+   "name": "Painted MDF / moulding panel",
+   "category": "wood_panel",
+   "surfaces": [
+    "wall"
+   ],
+   "aliases": [
+    "mdf",
+    "moulding",
+    "molding",
+    "wainscoting",
+    "beading",
+    "panel moulding",
+    "boiserie"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 4,
+    "length_ft": 8
+   },
+   "wastage_group": "sheet"
+  },
+  {
+   "id": "pu_acrylic_panel",
+   "name": "PU / acrylic high-gloss panel",
+   "category": "wood_panel",
+   "surfaces": [
+    "wall",
+    "cabinet"
+   ],
+   "aliases": [
+    "pu finish",
+    "acrylic",
+    "high gloss",
+    "lacquer",
+    "duco"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 4,
+    "length_ft": 8
+   },
+   "wastage_group": "sheet"
+  },
+  {
+   "id": "fabric_panel",
+   "name": "Upholstered fabric / leather panel",
+   "category": "soft_panel",
+   "surfaces": [
+    "wall"
+   ],
+   "aliases": [
+    "fabric panel",
+    "upholstered",
+    "leather panel",
+    "headboard panel",
+    "acoustic panel",
+    "felt"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "panel"
+  },
+  {
+   "id": "mirror_panel",
+   "name": "Mirror panel",
+   "category": "glass",
+   "surfaces": [
+    "wall",
+    "ceiling"
+   ],
+   "aliases": [
+    "mirror",
+    "tinted mirror",
+    "bronze mirror",
+    "antique mirror"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "glass"
+  },
+  {
+   "id": "lacquered_glass",
+   "name": "Back-painted (lacquered) glass",
+   "category": "glass",
+   "surfaces": [
+    "wall",
+    "backsplash",
+    "cabinet"
+   ],
+   "aliases": [
+    "back painted",
+    "lacquered glass",
+    "colour glass",
+    "painted glass"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "glass"
+  },
+  {
+   "id": "metal_profile",
+   "name": "Metal inlay / profile (brass, SS, aluminium)",
+   "category": "metal",
+   "surfaces": [
+    "wall",
+    "floor",
+    "ceiling"
+   ],
+   "aliases": [
+    "brass inlay",
+    "brass strip",
+    "metal profile",
+    "ss profile",
+    "gold trim",
+    "t-profile",
+    "inlay"
+   ],
+   "basis": "length",
+   "buy": {
+    "kind": "rft"
+   },
+   "wastage_group": "metal"
+  },
+  {
+   "id": "charcoal_sheet",
+   "name": "Charcoal / PVC wall sheet",
+   "category": "wood_panel",
+   "surfaces": [
+    "wall"
+   ],
+   "aliases": [
+    "pvc panel",
+    "charcoal sheet",
+    "uv marble sheet",
+    "pvc marble"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 4,
+    "length_ft": 8
+   },
+   "wastage_group": "sheet"
+  },
+  {
+   "id": "emulsion_paint",
+   "name": "Emulsion paint",
+   "category": "paint",
+   "surfaces": [
+    "wall",
+    "ceiling"
+   ],
+   "aliases": [
+    "paint",
+    "emulsion",
+    "plain paint",
+    "painted wall",
+    "matt paint",
+    "satin paint"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "paint"
+   },
+   "wastage_group": "paint"
+  },
+  {
+   "id": "texture_paint",
+   "name": "Texture paint",
+   "category": "paint",
+   "surfaces": [
+    "wall",
+    "facade"
+   ],
+   "aliases": [
+    "texture",
+    "texture paint",
+    "royale play",
+    "textured wall"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "paint"
+   },
+   "wastage_group": "paint"
+  },
+  {
+   "id": "limewash",
+   "name": "Limewash / mineral paint",
+   "category": "paint",
+   "surfaces": [
+    "wall"
+   ],
+   "aliases": [
+    "limewash",
+    "lime wash",
+    "mineral paint",
+    "chalk paint"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "paint"
+   },
+   "wastage_group": "paint"
+  },
+  {
+   "id": "microcement",
+   "name": "Microcement",
+   "category": "plaster",
+   "surfaces": [
+    "floor",
+    "wall",
+    "countertop"
+   ],
+   "aliases": [
+    "microcement",
+    "micro cement",
+    "microtopping",
+    "concrete look"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "plaster"
+  },
+  {
+   "id": "venetian_plaster",
+   "name": "Venetian / lime plaster",
+   "category": "plaster",
+   "surfaces": [
+    "wall",
+    "ceiling"
+   ],
+   "aliases": [
+    "venetian",
+    "stucco",
+    "tadelakt",
+    "lime plaster",
+    "polished plaster"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "plaster"
+  },
+  {
+   "id": "exposed_concrete",
+   "name": "Exposed / board-formed concrete finish",
+   "category": "plaster",
+   "surfaces": [
+    "wall",
+    "ceiling",
+    "facade"
+   ],
+   "aliases": [
+    "exposed concrete",
+    "board formed",
+    "fair face",
+    "raw concrete",
+    "concrete finish"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "plaster"
+  },
+  {
+   "id": "wallpaper",
+   "name": "Wallpaper",
+   "category": "wallcovering",
+   "surfaces": [
+    "wall",
+    "ceiling"
+   ],
+   "aliases": [
+    "wallpaper",
+    "wall paper",
+    "mural",
+    "wall covering"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "roll",
+    "sqft_per_roll": 57
+   },
+   "wastage_group": "wallpaper"
+  },
+  {
+   "id": "exposed_brick",
+   "name": "Exposed brick / brick cladding",
+   "category": "cladding",
+   "surfaces": [
+    "wall",
+    "facade"
+   ],
+   "aliases": [
+    "exposed brick",
+    "brick",
+    "brick cladding",
+    "brick tile",
+    "brick veneer",
+    "wire cut brick"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "cladding"
+  },
+  {
+   "id": "terracotta_cladding",
+   "name": "Terracotta cladding / jaali",
+   "category": "cladding",
+   "surfaces": [
+    "wall",
+    "facade"
+   ],
+   "aliases": [
+    "terracotta",
+    "terracotta tile",
+    "jaali",
+    "terracotta louvers"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "cladding"
+  },
+  {
+   "id": "gypsum_ceiling",
+   "name": "Gypsum board false ceiling",
+   "category": "ceiling",
+   "surfaces": [
+    "ceiling"
+   ],
+   "aliases": [
+    "gypsum",
+    "false ceiling",
+    "drop ceiling",
+    "gypsum board",
+    "cove ceiling",
+    "pop ceiling",
+    "pop"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 4,
+    "length_ft": 6
+   },
+   "wastage_group": "ceiling_board"
+  },
+  {
+   "id": "wooden_ceiling",
+   "name": "Wooden ceiling (veneer / slats)",
+   "category": "ceiling",
+   "surfaces": [
+    "ceiling"
+   ],
+   "aliases": [
+    "wooden ceiling",
+    "wood ceiling",
+    "ceiling slats",
+    "veneer ceiling"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 4,
+    "length_ft": 8
+   },
+   "wastage_group": "panel"
+  },
+  {
+   "id": "metal_baffle",
+   "name": "Metal baffle / grid ceiling",
+   "category": "ceiling",
+   "surfaces": [
+    "ceiling"
+   ],
+   "aliases": [
+    "baffle",
+    "metal ceiling",
+    "grid ceiling",
+    "tile ceiling"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "ceiling_board"
+  },
+  {
+   "id": "stretch_ceiling",
+   "name": "Stretch ceiling",
+   "category": "ceiling",
+   "surfaces": [
+    "ceiling"
+   ],
+   "aliases": [
+    "stretch ceiling",
+    "backlit ceiling"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "ceiling_board"
+  },
+  {
+   "id": "laminate_shutter",
+   "name": "Laminate kitchen shutters",
+   "category": "cabinet",
+   "surfaces": [
+    "cabinet"
+   ],
+   "aliases": [
+    "laminate shutter",
+    "kitchen laminate",
+    "matte laminate"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 4,
+    "length_ft": 8
+   },
+   "wastage_group": "sheet"
+  },
+  {
+   "id": "acrylic_shutter",
+   "name": "Acrylic kitchen shutters",
+   "category": "cabinet",
+   "surfaces": [
+    "cabinet"
+   ],
+   "aliases": [
+    "acrylic shutter",
+    "acrylic kitchen",
+    "glossy shutter"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 4,
+    "length_ft": 8
+   },
+   "wastage_group": "sheet"
+  },
+  {
+   "id": "pu_shutter",
+   "name": "PU painted shutters",
+   "category": "cabinet",
+   "surfaces": [
+    "cabinet"
+   ],
+   "aliases": [
+    "pu shutter",
+    "pu kitchen",
+    "painted shutter"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 4,
+    "length_ft": 8
+   },
+   "wastage_group": "sheet"
+  },
+  {
+   "id": "glass_shutter",
+   "name": "Glass / profile shutters",
+   "category": "cabinet",
+   "surfaces": [
+    "cabinet"
+   ],
+   "aliases": [
+    "glass shutter",
+    "fluted glass shutter",
+    "profile shutter",
+    "aluminium profile"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "glass"
+  },
+  {
+   "id": "veneer_shutter",
+   "name": "Veneer shutters",
+   "category": "cabinet",
+   "surfaces": [
+    "cabinet"
+   ],
+   "aliases": [
+    "veneer shutter",
+    "wooden shutter"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 4,
+    "length_ft": 8
+   },
+   "wastage_group": "veneer"
+  },
+  {
+   "id": "acp",
+   "name": "Aluminium composite panel (ACP)",
+   "category": "facade",
+   "surfaces": [
+    "facade"
+   ],
+   "aliases": [
+    "acp",
+    "aluminium composite",
+    "composite panel"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 4,
+    "length_ft": 8
+   },
+   "wastage_group": "sheet"
+  },
+  {
+   "id": "hpl_cladding",
+   "name": "Exterior HPL cladding",
+   "category": "facade",
+   "surfaces": [
+    "facade"
+   ],
+   "aliases": [
+    "exterior hpl",
+    "compact laminate",
+    "exterior laminate"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "sheet",
+    "width_ft": 4,
+    "length_ft": 8
+   },
+   "wastage_group": "sheet"
+  },
+  {
+   "id": "glass_facade",
+   "name": "Glass facade / glazing",
+   "category": "glass",
+   "surfaces": [
+    "facade",
+    "window"
+   ],
+   "aliases": [
+    "glazing",
+    "curtain wall",
+    "glass facade",
+    "structural glazing",
+    "floor to ceiling glass",
+    "double glazing"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "glass"
+  },
+  {
+   "id": "exterior_paint",
+   "name": "Exterior paint",
+   "category": "paint",
+   "surfaces": [
+    "facade"
+   ],
+   "aliases": [
+    "exterior paint",
+    "weatherproof paint"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "paint"
+   },
+   "wastage_group": "paint"
+  },
+  {
+   "id": "metal_louvers",
+   "name": "Aluminium / metal louvers",
+   "category": "facade",
+   "surfaces": [
+    "facade"
+   ],
+   "aliases": [
+    "aluminium louvers",
+    "metal louvers",
+    "fins",
+    "sun breakers"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "metal"
+  },
+  {
+   "id": "perforated_metal",
+   "name": "Perforated / CNC metal screen",
+   "category": "facade",
+   "surfaces": [
+    "facade",
+    "wall"
+   ],
+   "aliases": [
+    "perforated",
+    "cnc screen",
+    "metal jali",
+    "laser cut"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "metal"
+  },
+  {
+   "id": "corten",
+   "name": "Corten steel cladding",
+   "category": "facade",
+   "surfaces": [
+    "facade",
+    "wall"
+   ],
+   "aliases": [
+    "corten",
+    "weathering steel",
+    "rusted steel"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "metal"
+  },
+  {
+   "id": "wood_cladding_ext",
+   "name": "Exterior wood cladding",
+   "category": "facade",
+   "surfaces": [
+    "facade"
+   ],
+   "aliases": [
+    "cedar",
+    "exterior wood",
+    "timber cladding",
+    "wood cladding"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "cladding"
+  },
+  {
+   "id": "glass_partition",
+   "name": "Glass partition",
+   "category": "glass",
+   "surfaces": [
+    "wall"
+   ],
+   "aliases": [
+    "glass partition",
+    "fluted glass",
+    "frosted glass",
+    "reeded glass"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "glass"
+  },
+  {
+   "id": "glass_railing",
+   "name": "Glass railing",
+   "category": "railing",
+   "surfaces": [
+    "railing"
+   ],
+   "aliases": [
+    "glass railing",
+    "frameless railing"
+   ],
+   "basis": "length",
+   "buy": {
+    "kind": "rft"
+   },
+   "wastage_group": "glass"
+  },
+  {
+   "id": "ss_railing",
+   "name": "Stainless steel / MS railing",
+   "category": "railing",
+   "surfaces": [
+    "railing"
+   ],
+   "aliases": [
+    "ss railing",
+    "ms railing",
+    "metal railing",
+    "steel railing"
+   ],
+   "basis": "length",
+   "buy": {
+    "kind": "rft"
+   },
+   "wastage_group": "metal"
+  },
+  {
+   "id": "wood_handrail",
+   "name": "Wooden handrail",
+   "category": "railing",
+   "surfaces": [
+    "railing"
+   ],
+   "aliases": [
+    "wooden handrail",
+    "handrail",
+    "teak handrail"
+   ],
+   "basis": "length",
+   "buy": {
+    "kind": "rft"
+   },
+   "wastage_group": "metal"
+  },
+  {
+   "id": "stair_stone",
+   "name": "Stone stair cladding",
+   "category": "stone",
+   "surfaces": [
+    "stair"
+   ],
+   "aliases": [
+    "stair marble",
+    "stair granite",
+    "treads",
+    "risers"
+   ],
+   "basis": "area",
+   "buy": {
+    "kind": "area"
+   },
+   "wastage_group": "stone"
+  },
+  {
+   "id": "veneer_door",
+   "name": "Veneer flush door",
+   "category": "door",
+   "surfaces": [
+    "door"
+   ],
+   "aliases": [
+    "flush door",
+    "veneer door",
+    "main door",
+    "wooden door"
+   ],
+   "basis": "count",
+   "buy": {
+    "kind": "count"
+   },
+   "wastage_group": "default"
+  },
+  {
+   "id": "upvc_window",
+   "name": "uPVC / aluminium window",
+   "category": "window",
+   "surfaces": [
+    "window"
+   ],
+   "aliases": [
+    "upvc",
+    "aluminium window",
+    "sliding window",
+    "casement"
+   ],
+   "basis": "count",
+   "buy": {
+    "kind": "count"
+   },
+   "wastage_group": "default"
+  }
+ ]
+}

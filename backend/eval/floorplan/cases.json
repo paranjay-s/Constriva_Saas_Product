@@ -1,0 +1,831 @@
+{
+ "about": "Floor plan eval set. Each case is what a person would type (form + description) and what the result must have. Run: uv run python eval/floorplan/run_eval.py",
+ "cases": [
+  {
+   "id": "f01_2bhk_form_only",
+   "llm": false,
+   "form": {
+    "plot_width": 30,
+    "plot_depth": 40,
+    "unit": "ft",
+    "bedrooms": 2
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 2,
+    "has": [
+     "living",
+     "kitchen"
+    ],
+    "road_side": "south"
+   }
+  },
+  {
+   "id": "f02_3bhk_form_only",
+   "llm": false,
+   "form": {
+    "plot_width": 40,
+    "plot_depth": 50,
+    "unit": "ft",
+    "bedrooms": 3,
+    "bathrooms": 2
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 3,
+    "baths_min": 2
+   }
+  },
+  {
+   "id": "f03_1bhk_small",
+   "llm": false,
+   "form": {
+    "plot_width": 20,
+    "plot_depth": 30,
+    "unit": "ft",
+    "bedrooms": 1
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 1,
+    "has": [
+     "kitchen"
+    ]
+   }
+  },
+  {
+   "id": "f04_metric_plot",
+   "llm": false,
+   "form": {
+    "plot_width": 12,
+    "plot_depth": 15,
+    "unit": "m",
+    "bedrooms": 3
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 3
+   }
+  },
+  {
+   "id": "f05_area_only",
+   "llm": false,
+   "form": {
+    "plot_area": 1500,
+    "unit": "ft",
+    "bedrooms": 2
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 2
+   }
+  },
+  {
+   "id": "f06_road_east",
+   "llm": false,
+   "form": {
+    "plot_width": 35,
+    "plot_depth": 50,
+    "unit": "ft",
+    "bedrooms": 2,
+    "road_side": "east"
+   },
+   "expect": {
+    "status": "ok",
+    "road_side": "east"
+   }
+  },
+  {
+   "id": "f07_extras_dining_parking",
+   "llm": false,
+   "form": {
+    "plot_width": 40,
+    "plot_depth": 60,
+    "unit": "ft",
+    "bedrooms": 3,
+    "extras": [
+     "dining",
+     "parking"
+    ]
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "dining",
+     "parking"
+    ]
+   }
+  },
+  {
+   "id": "f08_too_small",
+   "llm": false,
+   "form": {
+    "plot_width": 15,
+    "plot_depth": 20,
+    "unit": "ft",
+    "bedrooms": 4
+   },
+   "expect": {
+    "status": "infeasible"
+   }
+  },
+  {
+   "id": "f09_4bhk_large",
+   "llm": false,
+   "form": {
+    "plot_width": 50,
+    "plot_depth": 60,
+    "unit": "ft",
+    "bedrooms": 4,
+    "bathrooms": 3
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 4,
+    "baths_min": 3
+   }
+  },
+  {
+   "id": "f10_courtyard_extra",
+   "llm": false,
+   "form": {
+    "plot_width": 45,
+    "plot_depth": 60,
+    "unit": "ft",
+    "bedrooms": 3,
+    "extras": [
+     "courtyard"
+    ]
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "courtyard"
+    ]
+   }
+  },
+  {
+   "id": "t01_3bhk_text",
+   "llm": true,
+   "form": {
+    "prompt": "3 BHK house on a 30x45 ft plot, road on the east"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 3,
+    "road_side": "east"
+   }
+  },
+  {
+   "id": "t02_attached_master",
+   "llm": true,
+   "form": {
+    "plot_width": 40,
+    "plot_depth": 50,
+    "unit": "ft",
+    "prompt": "3 bedrooms, master bedroom with attached bath"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 3,
+    "attached_min": 1,
+    "has": [
+     "master_bedroom"
+    ]
+   }
+  },
+  {
+   "id": "t03_all_attached",
+   "llm": true,
+   "form": {
+    "plot_width": 45,
+    "plot_depth": 55,
+    "unit": "ft",
+    "prompt": "4 bedrooms, every bedroom with attached toilet"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 4,
+    "attached_min": 4
+   }
+  },
+  {
+   "id": "t04_kitchen_next_dining",
+   "llm": true,
+   "form": {
+    "plot_width": 40,
+    "plot_depth": 50,
+    "unit": "ft",
+    "bedrooms": 2,
+    "prompt": "kitchen next to dining"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "kitchen",
+     "dining"
+    ],
+    "adjacent": [
+     [
+      "kitchen",
+      "dining"
+     ]
+    ]
+   }
+  },
+  {
+   "id": "t05_prompt_beats_form",
+   "llm": true,
+   "form": {
+    "plot_width": 50,
+    "plot_depth": 50,
+    "unit": "ft",
+    "bedrooms": 4,
+    "prompt": "5 bedrooms please"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 5,
+    "conflict": "bedrooms"
+   }
+  },
+  {
+   "id": "t06_study",
+   "llm": true,
+   "form": {
+    "plot_width": 40,
+    "plot_depth": 55,
+    "unit": "ft",
+    "bedrooms": 2,
+    "prompt": "add a study room for work from home"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "study"
+    ]
+   }
+  },
+  {
+   "id": "t07_pooja_store",
+   "llm": true,
+   "form": {
+    "plot_width": 40,
+    "plot_depth": 50,
+    "unit": "ft",
+    "bedrooms": 3,
+    "prompt": "with a store room"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "store"
+    ]
+   }
+  },
+  {
+   "id": "t08_parking_front",
+   "llm": true,
+   "form": {
+    "plot_width": 35,
+    "plot_depth": 60,
+    "unit": "ft",
+    "bedrooms": 2,
+    "prompt": "car parking in front, road on the south"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "parking"
+    ],
+    "road_side": "south"
+   }
+  },
+  {
+   "id": "t09_courtyard_villa",
+   "llm": true,
+   "form": {
+    "plot_width": 50,
+    "plot_depth": 60,
+    "unit": "ft",
+    "prompt": "4 bedroom villa with a central courtyard"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 4,
+    "has": [
+     "courtyard"
+    ]
+   }
+  },
+  {
+   "id": "t10_pool",
+   "llm": true,
+   "form": {
+    "plot_width": 50,
+    "plot_depth": 60,
+    "unit": "ft",
+    "bedrooms": 3,
+    "prompt": "with a swimming pool"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "pool"
+    ]
+   }
+  },
+  {
+   "id": "t11_pool_garden",
+   "llm": true,
+   "form": {
+    "plot_width": 50,
+    "plot_depth": 70,
+    "unit": "ft",
+    "bedrooms": 3,
+    "prompt": "swimming pool in the garden"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "pool",
+     "garden"
+    ]
+   }
+  },
+  {
+   "id": "t12_sitout",
+   "llm": true,
+   "form": {
+    "plot_width": 40,
+    "plot_depth": 50,
+    "unit": "ft",
+    "bedrooms": 2,
+    "prompt": "a sit-out in front"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "deck"
+    ]
+   }
+  },
+  {
+   "id": "t13_metres_text",
+   "llm": true,
+   "form": {
+    "prompt": "2 bedroom house on a 10 x 15 m plot"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 2
+   }
+  },
+  {
+   "id": "t14_area_text",
+   "llm": true,
+   "form": {
+    "prompt": "1200 sq ft plot, 2BHK"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 2
+   }
+  },
+  {
+   "id": "t15_balcony",
+   "llm": true,
+   "form": {
+    "plot_width": 40,
+    "plot_depth": 50,
+    "unit": "ft",
+    "bedrooms": 3,
+    "prompt": "with a balcony"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "balcony"
+    ]
+   }
+  },
+  {
+   "id": "t16_utility",
+   "llm": true,
+   "form": {
+    "plot_width": 40,
+    "plot_depth": 55,
+    "unit": "ft",
+    "bedrooms": 3,
+    "prompt": "utility area next to the kitchen"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "utility",
+     "kitchen"
+    ]
+   }
+  },
+  {
+   "id": "t17_dress",
+   "llm": true,
+   "form": {
+    "plot_width": 45,
+    "plot_depth": 55,
+    "unit": "ft",
+    "bedrooms": 3,
+    "prompt": "master bedroom with dressing room and attached bath"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "dress",
+     "master_bedroom"
+    ],
+    "attached_min": 1
+   }
+  },
+  {
+   "id": "t18_hindi_mix",
+   "llm": true,
+   "form": {
+    "plot_width": 30,
+    "plot_depth": 50,
+    "unit": "ft",
+    "prompt": "3 BHK chahiye, kitchen bada ho, dining bhi"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 3,
+    "has": [
+     "dining"
+    ]
+   }
+  },
+  {
+   "id": "t19_unsupported_floor",
+   "llm": true,
+   "form": {
+    "plot_width": 30,
+    "plot_depth": 40,
+    "unit": "ft",
+    "bedrooms": 2,
+    "prompt": "2 bedrooms, and a second floor with 2 more"
+   },
+   "expect": {
+    "status": "ok",
+    "warning_contains": "floor"
+   }
+  },
+  {
+   "id": "t20_family_hall",
+   "llm": true,
+   "form": {
+    "plot_width": 50,
+    "plot_depth": 60,
+    "unit": "ft",
+    "bedrooms": 4,
+    "prompt": "separate family hall upstairs feel, plus living"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "living"
+    ]
+   }
+  },
+  {
+   "id": "t21_maid",
+   "llm": true,
+   "form": {
+    "plot_width": 50,
+    "plot_depth": 60,
+    "unit": "ft",
+    "bedrooms": 3,
+    "prompt": "maid room near the kitchen"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "maid_room"
+    ]
+   }
+  },
+  {
+   "id": "t22_rental_two_units",
+   "llm": true,
+   "form": {
+    "plot_width": 30,
+    "plot_depth": 50,
+    "unit": "ft",
+    "prompt": "1 BHK for rent, compact"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 1
+   }
+  },
+  {
+   "id": "t23_too_many_rooms",
+   "llm": true,
+   "form": {
+    "plot_width": 20,
+    "plot_depth": 25,
+    "unit": "ft",
+    "prompt": "5 bedroom house with attached baths"
+   },
+   "expect": {
+    "status": "infeasible"
+   }
+  },
+  {
+   "id": "t24_bath_count",
+   "llm": true,
+   "form": {
+    "plot_width": 40,
+    "plot_depth": 50,
+    "unit": "ft",
+    "prompt": "3 bedrooms and 3 bathrooms"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 3,
+    "baths_min": 3
+   }
+  },
+  {
+   "id": "t25_north_road",
+   "llm": true,
+   "form": {
+    "plot_width": 40,
+    "plot_depth": 60,
+    "unit": "ft",
+    "bedrooms": 3,
+    "prompt": "north facing plot, road on north side"
+   },
+   "expect": {
+    "status": "ok",
+    "road_side": "north"
+   }
+  },
+  {
+   "id": "t26_west_road",
+   "llm": true,
+   "form": {
+    "plot_width": 40,
+    "plot_depth": 60,
+    "unit": "ft",
+    "bedrooms": 2,
+    "prompt": "road is on the west"
+   },
+   "expect": {
+    "status": "ok",
+    "road_side": "west"
+   }
+  },
+  {
+   "id": "t27_names",
+   "llm": true,
+   "form": {
+    "plot_width": 30,
+    "plot_depth": 45,
+    "unit": "ft",
+    "bedrooms": 2,
+    "prompt": "project name Green Villa, owner A. Kumar"
+   },
+   "expect": {
+    "status": "ok",
+    "project_name": "Green Villa"
+   }
+  },
+  {
+   "id": "t28_garden_front",
+   "llm": true,
+   "form": {
+    "plot_width": 40,
+    "plot_depth": 70,
+    "unit": "ft",
+    "bedrooms": 2,
+    "prompt": "front lawn garden"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "garden"
+    ]
+   }
+  },
+  {
+   "id": "t29_5bhk_pool",
+   "llm": true,
+   "form": {
+    "plot_width": 50,
+    "plot_depth": 50,
+    "unit": "ft",
+    "bedrooms": 4,
+    "prompt": "5 bedrooms with attached toilet and a swimming pool in the courtyard"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 5,
+    "attached_min": 5,
+    "has": [
+     "pool"
+    ]
+   }
+  },
+  {
+   "id": "t30_toilet_powder",
+   "llm": true,
+   "form": {
+    "plot_width": 40,
+    "plot_depth": 50,
+    "unit": "ft",
+    "bedrooms": 2,
+    "prompt": "a guest toilet near the living room"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "toilet"
+    ]
+   }
+  },
+  {
+   "id": "t31_foyer",
+   "llm": true,
+   "form": {
+    "plot_width": 45,
+    "plot_depth": 60,
+    "unit": "ft",
+    "bedrooms": 3,
+    "prompt": "entrance foyer"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "foyer"
+    ]
+   }
+  },
+  {
+   "id": "t32_big_plot_6bhk",
+   "llm": true,
+   "form": {
+    "plot_width": 60,
+    "plot_depth": 80,
+    "unit": "ft",
+    "prompt": "6 bedroom house, all with attached bath, dining, parking for 2 cars"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 6,
+    "attached_min": 6,
+    "has": [
+     "dining",
+     "parking"
+    ]
+   }
+  },
+  {
+   "id": "p01_courtyard_pool_centre",
+   "llm": true,
+   "form": {
+    "plot_width": 50,
+    "plot_depth": 50,
+    "unit": "ft",
+    "bedrooms": 4,
+    "prompt": "5 bedrooms with attached toilet and a swimming pool in the courtyard"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 5,
+    "has": [
+     "pool"
+    ],
+    "pool_layout": "centre"
+   }
+  },
+  {
+   "id": "p02_u_shape",
+   "llm": true,
+   "form": {
+    "plot_width": 50,
+    "plot_depth": 60,
+    "unit": "ft",
+    "prompt": "4 BHK, U-shaped house built around a swimming pool"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 4,
+    "has": [
+     "pool"
+    ],
+    "pool_layout": "u_shape"
+   }
+  },
+  {
+   "id": "p03_party_villa_two_blocks",
+   "llm": true,
+   "form": {
+    "plot_width": 50,
+    "plot_depth": 70,
+    "unit": "ft",
+    "prompt": "party villa with 4 bedrooms, pool between the main house and a guest block"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 4,
+    "has": [
+     "pool",
+     "family_hall"
+    ],
+    "pool_layout": "two_block"
+   }
+  },
+  {
+   "id": "p04_middle_pool_too_small",
+   "llm": true,
+   "form": {
+    "plot_width": 30,
+    "plot_depth": 40,
+    "unit": "ft",
+    "prompt": "3 bedroom house with a pool in the middle of the house"
+   },
+   "expect": {
+    "status": "ok",
+    "has": [
+     "pool"
+    ],
+    "pool_layout": "side",
+    "warning_contains": "not possible"
+   }
+  },
+  {
+   "id": "p05_wide_two_blocks",
+   "llm": true,
+   "form": {
+    "plot_width": 80,
+    "plot_depth": 40,
+    "unit": "ft",
+    "prompt": "two separate blocks with a swimming pool between them, 3 bedrooms"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 3,
+    "pool_layout": "two_block"
+   }
+  },
+  {
+   "id": "p06_u_shape_east_road",
+   "llm": true,
+   "form": {
+    "plot_width": 60,
+    "plot_depth": 50,
+    "unit": "ft",
+    "prompt": "house around the pool on three sides, road on the east, 3 bedrooms"
+   },
+   "expect": {
+    "status": "ok",
+    "road_side": "east",
+    "pool_layout": "u_shape"
+   }
+  },
+  {
+   "id": "p07_two_blocks_covered_walkway",
+   "llm": true,
+   "form": {
+    "plot_width": 60,
+    "plot_depth": 60,
+    "unit": "ft",
+    "prompt": "4 bedrooms, pool between two blocks with a covered walkway connecting them"
+   },
+   "expect": {
+    "status": "ok",
+    "pool_layout": "u_shape",
+    "warning_contains": "covered walkway"
+   }
+  },
+  {
+   "id": "p08_guest_house_across_pool",
+   "llm": true,
+   "form": {
+    "plot_width": 50,
+    "plot_depth": 70,
+    "unit": "ft",
+    "bedrooms": 3,
+    "prompt": "main house with master bedroom and living, guest house with 2 bedrooms across the swimming pool"
+   },
+   "expect": {
+    "status": "ok",
+    "bedrooms": 3,
+    "has": [
+     "pool",
+     "master_bedroom"
+    ],
+    "pool_layout": "two_block"
+   }
+  }
+ ]
+}

@@ -54,13 +54,3 @@ export interface ChatMessage {
   updatedPlanSummary?: string;
 }
 
-export interface PhotoMaterialResult {
-  id: string;
-  material: string;
-  category: string;
-  estimatedArea: string;
-  indicativeRate: string;
-  description: string;
-  confidence: 'High' | 'Moderate' | 'Indicative';
-}
-
