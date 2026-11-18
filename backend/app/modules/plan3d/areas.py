@@ -105,3 +105,70 @@ def classify_labels(
         elif typ in types:
             out[label] = {"type": typ, "confidence": float(conf)}
     return out
+
+
+CONFIDENT = 0.6
+_typed: set[str] = set()
+_tasks: set = set()
+
+
+async def type_unknown_rooms(job_id: str, client: Any, classify: Any = None) -> int:
+    """Rooms of a plan whose label no rule knows: one classification for all of them. A known type
+    the model is sure of (>= 0.6) is applied; a new area type is added to PlanTo3D's library and
+    the room is built from it (type "custom"); the rest stay "multipurpose" (Needs checking).
+    -> number of rooms changed. Runs once per job in this process."""
+    from fastapi.concurrency import run_in_threadpool
+
+    if job_id in _typed:
+        return 0
+    _typed.add(job_id)
+    plan = await client.plan(job_id)
+    rooms = [r for f in plan.get("floors", []) for r in f.get("rooms", [])]
+    unknown = [
+        r for r in rooms if r.get("type") == "multipurpose" and (r.get("label") or "").strip()
+    ]
+    if not unknown:
+        return 0
+    types = await client.room_types() if hasattr(client, "room_types") else []
+    answers = await run_in_threadpool(
+        classify or classify_labels, [r["label"] for r in unknown], types
+    )
+    changed = 0
+    for r in unknown:
+        a = answers.get(r["label"].strip())
+        if not a or a["confidence"] < CONFIDENT:
+            continue
+        if a["type"] == "new":
+            try:
+                r["area"] = await client.save_area(a["spec"])
+            except Exception as e:  # noqa: BLE001 - a refused spec leaves the room flagged
+                logger.info("area spec for %r refused: %s", r["label"], e)
+                continue
+            r["type"] = "custom"
+        else:
+            r["type"] = a["type"]
+        r["src"], r["confidence"] = "ai", round(a["confidence"], 2)
+        changed += 1
+    if changed:
+        await client.save_plan(job_id, plan)
+    return changed
+
+
+def start(job_id: str, client: Any) -> None:
+    """type the job's unknown rooms in the background (once)"""
+    import asyncio
+
+    if job_id in _typed:
+        return
+
+    async def run() -> None:
+        try:
+            await type_unknown_rooms(job_id, client)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "could not classify the unknown rooms of %s: %s", job_id, type(e).__name__
+            )
+
+    task = asyncio.get_running_loop().create_task(run())
+    _tasks.add(task)
+    task.add_done_callback(_tasks.discard)

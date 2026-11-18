@@ -49,3 +49,47 @@ def test_one_call_classifies_every_label_and_is_cached(cache):
 def test_no_labels_no_call(cache):
     client = FakeClient()
     assert areas.classify_labels(["", "  "], TYPES, client) == {} and client.calls == 0
+
+
+class FakeService:
+    """PlanTo3D as type_unknown_rooms sees it: a plan, its room types, the area library."""
+
+    def __init__(self, plan) -> None:
+        self._plan, self.saved, self.areas = plan, None, []
+
+    async def plan(self, job_id):
+        return self._plan
+
+    async def room_types(self):
+        return TYPES
+
+    async def save_area(self, spec):
+        if spec.get("surface") not in ("concrete",):
+            raise ValueError("refused")
+        self.areas.append(spec)
+        return spec["type"]
+
+    async def save_plan(self, job_id, plan):
+        self.saved = plan
+
+
+async def test_unknown_rooms_get_a_type_or_a_new_area_once():
+    plan = {"floors": [{"rooms": [
+        {"type": "multipurpose", "label": "HELIPAD"},
+        {"type": "multipurpose", "label": "BOX ROOM"},
+        {"type": "multipurpose", "label": "ODD"},
+        {"type": "bedroom", "label": "BEDROOM"}]}]}  # fmt: skip
+    answers = {"HELIPAD": {"type": "new", "confidence": 0.9, "spec": HELIPAD},
+               "BOX ROOM": {"type": "store", "confidence": 0.7},
+               "ODD": {"type": "store", "confidence": 0.3}}  # fmt: skip
+    svc = FakeService(plan)
+    areas._typed.discard("j1")
+    n = await areas.type_unknown_rooms("j1", svc, classify=lambda labels, types: answers)
+    rooms = svc.saved["floors"][0]["rooms"]
+    assert n == 2
+    assert rooms[0]["type"] == "custom" and rooms[0]["area"] == "helipad"
+    assert rooms[0]["src"] == "ai"
+    assert rooms[1]["type"] == "store"
+    assert rooms[2]["type"] == "multipurpose"  # too unsure: stays flagged
+    again = await areas.type_unknown_rooms("j1", svc, classify=lambda labels, types: answers)
+    assert again == 0

@@ -84,6 +84,24 @@ class Plan3dClient:
             json={"plan": plan, "reader": reader, "notice": notice[:300]},
         )
 
+    async def plan(self, job_id: str) -> dict[str, Any]:
+        return await self._json("GET", f"/jobs/{job_id}/plan.json")
+
+    async def save_plan(self, job_id: str, plan: dict[str, Any]) -> None:
+        await self._json("POST", f"/api/jobs/{job_id}/plan", json=plan)
+
+    async def room_types(self) -> list[str]:
+        """PlanTo3D's room types (web/rooms.json)"""
+        body = await self._json("GET", "/web/rooms.json")
+        return [t for t in body.get("types", {}) if t != "multipurpose"]
+
+    async def save_area(self, spec: dict[str, Any]) -> str:
+        """add an area spec to PlanTo3D's library (validated there); -> its type name"""
+        body = await self._json(
+            "POST", "/api/areas", json={"spec": spec, "source": "ai", "reviewed": False}
+        )
+        return str(body["type"])
+
     async def source_pdf(self, job_id: str) -> bytes:
         """The PDF the job was made from."""
         try:
