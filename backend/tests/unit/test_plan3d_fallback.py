@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from app.core.security import get_current_user
 from app.main import app
 from app.modules.ai.floorplan.store import MemoryPlanStore, StoredPlan, set_store
-from app.modules.parsing.errors import NoFloorPlanError
+from app.modules.parsing.errors import NoFloorPlanError, ParserNotConfiguredError
 from app.modules.plan3d import fallback
 from tests.unit.test_plan3d import API, OWNER, planto3d, small_pdf  # noqa: F401 (fixture)
 from tests.unit.test_plan3d_convert import generator_plan, house
@@ -114,6 +114,23 @@ def test_when_the_ai_reader_fails_too_the_plan_is_opened_for_tracing(client, pla
     body = wait_for_review(client, job_id)
     assert body["stage"] == "detected" and body["reader"] == "trace"
     assert "No floor plan was found" in body["notice"] and "Neither reader" in body["notice"]
+    assert planto3d.imports[0]["plan"] is None
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ParserNotConfiguredError("No AI model is configured."),  # the AI is off
+        RuntimeError("a bug in the reader"),  # anything unexpected
+    ],
+)
+def test_the_review_page_opens_when_the_ai_is_off_or_breaks(client, planto3d, ai_reads, error):
+    outcome, _ = ai_reads
+    outcome["error"] = error
+    planto3d.detector_fails = True
+    job_id = new_job(client)
+    body = wait_for_review(client, job_id)
+    assert body["stage"] == "detected" and body["reader"] == "trace"
     assert planto3d.imports[0]["plan"] is None
 
 
