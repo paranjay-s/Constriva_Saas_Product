@@ -217,6 +217,27 @@ def test_fixture_breakdowns_match_the_spec():
     assert "35% lighting, 40% sockets, 20% AC and heaters, 5% cooker" in items[32].note
 
 
+def test_a_row_that_is_zero_because_the_plan_shows_nothing_says_why():
+    facts = fixture_facts()
+    items = compute_items(derive_primitives(facts), facts)
+    assert items[22].note == items[23].note == "0 because the plan shows no paved outdoor area."
+    assert items[28].note == items[29].note == "0 because the plan gives no opening widths."
+    assert items[30].note == "0 because no room is named pergola or gazebo."
+
+    sized = fixture_facts(openings=(OpeningFact("window", 2.1, 1.2), OpeningFact("door", 1.0, 2.1)))
+    items = compute_items(derive_primitives(sized), sized)
+    assert (items[28].quantity, items[28].note) == (
+        0,
+        "0 because no window is 2.20 m wide or more.",
+    )
+    assert (items[29].quantity, items[29].note) == (0, "0 because no door is 1.40 m wide or more.")
+
+    wide = fixture_facts(openings=(OpeningFact("window", 2.4, 2.0), OpeningFact("door", 1.6, 2.1)))
+    items = compute_items(derive_primitives(wide), wide)
+    assert items[28].note == "Windows 2.20 m wide or more."
+    assert items[29].note == "Doors 1.40 m wide or more."
+
+
 def test_fixture_warnings():
     facts = fixture_facts()
     assert calculation_warnings(derive_primitives(facts), facts) == [

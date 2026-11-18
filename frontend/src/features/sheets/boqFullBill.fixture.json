@@ -478,7 +478,7 @@
       "components": [],
       "calc_type": "geometry",
       "quote_status": "EXCLUDED_FROM_QUOTE",
-      "note": ""
+      "note": "0 because the plan shows no paved outdoor area."
     },
     {
       "serial_no": 23,
@@ -493,7 +493,7 @@
       "components": [],
       "calc_type": "geometry",
       "quote_status": "EXCLUDED_FROM_QUOTE",
-      "note": ""
+      "note": "0 because the plan shows no paved outdoor area."
     },
     {
       "serial_no": 24,
@@ -598,7 +598,7 @@
       "components": [],
       "calc_type": "geometry",
       "quote_status": "EXCLUDED_FROM_QUOTE",
-      "note": ""
+      "note": "0 because no room is named pergola or gazebo."
     },
     {
       "serial_no": 31,

@@ -256,13 +256,16 @@ def compute_items(p: Primitives, facts: PlanFacts) -> dict[Serial, ItemValue]:
         ceil(p.e_net * c.PAINT_COATS / c.EXTERIOR_PAINT_M2_PER_L * c.PAINT_WASTE),
         note="Two coats.",
     )
-    items[22] = ItemValue(p.a_pave * c.PAVING_WASTE)
+    # A row that is 0 because the plan does not show the thing says so in its note.
+    no_paving = "" if p.a_pave > 0 else "0 because the plan shows no paved outdoor area."
+    items[22] = ItemValue(p.a_pave * c.PAVING_WASTE, note=no_paving)
     kerb_lm = c.KERB_SHARE_OF_PERIMETER * p.p_pave * c.KERB_WASTE
     items[23] = ItemValue(
         kerb_lm,
         (Part("Kerb pieces 915 mm", ceil(kerb_lm / c.KERB_PIECE_LENGTH_M), "Nos"),)
         if kerb_lm > 0
         else (),
+        no_paving,
     )
 
     # ----------------------------------------------------------- Group C (24-31)
@@ -272,20 +275,35 @@ def compute_items(p: Primitives, facts: PlanFacts) -> dict[Serial, ItemValue]:
     items[27] = ItemValue(p.n_bath + p.n_lau)
 
     no_widths = "" if p.widths_present else "0 because the plan gives no opening widths."
-    items[28] = ItemValue(
-        sum(
-            o.width * (o.height if o.height else c.CURTAIN_WALL_DEFAULT_HEIGHT_M)
-            for o in windows
-            if o.width and o.width >= c.CURTAIN_WALL_MIN_WIDTH_M
-        ),
-        note=no_widths or "Windows 2.20 m wide or more.",
+    curtain_wall_m2 = sum(
+        o.width * (o.height if o.height else c.CURTAIN_WALL_DEFAULT_HEIGHT_M)
+        for o in windows
+        if o.width and o.width >= c.CURTAIN_WALL_MIN_WIDTH_M
     )
+    items[28] = ItemValue(
+        curtain_wall_m2,
+        note=no_widths
+        or (
+            "Windows 2.20 m wide or more."
+            if curtain_wall_m2 > 0
+            else "0 because no window is 2.20 m wide or more."
+        ),
+    )
+    glass_doors = sum(1 for o in doors if o.width and o.width >= c.GLASS_DOOR_MIN_WIDTH_M)
     items[29] = ItemValue(
-        sum(1 for o in doors if o.width and o.width >= c.GLASS_DOOR_MIN_WIDTH_M),
-        note=no_widths or "Doors 1.40 m wide or more.",
+        glass_doors,
+        note=no_widths
+        or (
+            "Doors 1.40 m wide or more."
+            if glass_doors > 0
+            else "0 because no door is 1.40 m wide or more."
+        ),
+    )
+    pergola_m2 = sum(
+        r.area for r in facts.rooms if any(word in r.name.lower() for word in PERGOLA_WORDS)
     )
     items[30] = ItemValue(
-        sum(r.area for r in facts.rooms if any(w in r.name.lower() for w in PERGOLA_WORDS))
+        pergola_m2, note="" if pergola_m2 > 0 else "0 because no room is named pergola or gazebo."
     )
     items[31] = ItemValue(c.GATE_SETS * p.has_building)
 
