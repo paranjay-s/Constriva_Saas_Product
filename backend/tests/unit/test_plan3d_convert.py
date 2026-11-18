@@ -132,7 +132,7 @@ def test_house_becomes_exactly_these_rectangles() -> None:
     assert floor["size"] == [30.75, 20.75]
     assert floor["level"] == 0 and floor["name"] == "Ground Floor"
     assert floor["title"] == "GROUND FLOOR PLAN"
-    assert floor["stairs"] == [] and floor["page"] == 1 and floor["origin_pt"] == [0.0, 0.0]
+    assert floor["stairs"] == [] and floor["page"] == 1 and "origin_pt" not in floor
 
 
 def test_openings_land_on_their_walls() -> None:
@@ -495,7 +495,7 @@ def assert_buildable(plan: dict) -> None:
     assert plan["floors"] and plan["scale_pt_per_ft"] > 0 and 8 <= plan["floor_height"] <= 14
     for floor in plan["floors"]:
         assert floor["walls"], "gen.py takes the bounding box of the walls"
-        assert len(floor["size"]) == 2 and len(floor["origin_pt"]) == 2 and floor["name"]
+        assert len(floor["size"]) == 2 and "origin_pt" not in floor and floor["name"]
         assert isinstance(floor["stairs"], list), "gen.py reads f['stairs'] without a default"
         for w in floor["walls"]:
             assert len(w) == 5 and w[4] in (0, 1)

@@ -35,11 +35,11 @@ READING_MESSAGE = (
     "The drawing could not be read directly, so the AI plan reader is reading it. "
     "This can take a minute."
 )
-AI_NOTICE = "Read by the AI plan reader: check the walls, doors and sizes before you build."
-TRACE_NOTICE = (
-    "Neither reader could read this drawing{why}. Trace the walls over the page, "
-    "then set the scale from a known length."
-)
+# The review pages say which reader made the plan and what to check; the notice adds what
+# this reader itself has to say (what it dropped or changed, why nothing could be read).
+AI_NOTICE = "What the AI plan reader changed:"
+TRACE_NOTICE = "Neither reader could read this drawing{why}."
+
 STORED_NOTICE = (
     'From your floor plan "{name}" (version {version}): it was not read from the drawing.'
 )
@@ -110,7 +110,9 @@ async def _read_elsewhere(
             logger.exception("The AI plan reader failed on 3D job %s", job_id)
         if result is not None and result.plausible:
             notes = " ".join(result.notes[:3])
-            await client.import_plan(job_id, result.plan, "ai", f"{AI_NOTICE} {notes}".strip())
+            await client.import_plan(
+                job_id, result.plan, "ai", f"{AI_NOTICE} {notes}" if notes else ""
+            )
             return
         if result is not None and result.usable:
             why = "; ".join(result.problems[:2])

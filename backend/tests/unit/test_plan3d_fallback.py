@@ -87,7 +87,7 @@ def test_when_the_detector_fails_the_ai_reader_reads_the_plan(client, planto3d, 
     assert first["stage"] in ("detecting", "detected")  # never the detector's "failed"
     body = wait_for_review(client, job_id)
     assert body["stage"] == "detected" and body["reader"] == "ai"
-    assert body["notice"].startswith(fallback.AI_NOTICE)
+    assert body["notice"] == "" or body["notice"].startswith(fallback.AI_NOTICE)
     (imported,) = planto3d.imports
     assert imported["reader"] == "ai" and imported["job"] == job_id
     plan = imported["plan"]
@@ -113,7 +113,7 @@ def test_when_the_ai_reader_fails_too_the_plan_is_opened_for_tracing(client, pla
     job_id = new_job(client)
     body = wait_for_review(client, job_id)
     assert body["stage"] == "detected" and body["reader"] == "trace"
-    assert "No floor plan was found" in body["notice"] and "Trace the walls" in body["notice"]
+    assert "No floor plan was found" in body["notice"] and "Neither reader" in body["notice"]
     assert planto3d.imports[0]["plan"] is None
 
 

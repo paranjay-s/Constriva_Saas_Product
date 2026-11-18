@@ -281,8 +281,8 @@ def planjson_to_planto3d(
     this function does not know the page. It is {"plan": {...}, "floors": [{...}, ...]}:
     the first dict is merged into the plan, the n-th of the list into the n-th floor
     (`page`, `origin_pt`, `scale_pt_per_ft`, or whatever the review page comes to need).
-    Without it every floor says page 1 with its origin at the page's top-left corner, so
-    the page image is not lined up with the plan.
+    Without it every floor says page 1 and has no `origin_pt`: the review page then lays the
+    page image under the plan by their sizes, and the person lines it up with two points.
     """
     try:
         result = _convert(
@@ -651,7 +651,8 @@ def _floor(
     title = _text(level.get("name")).upper()[:80]
     return {
         "title": title or None,
-        "origin_pt": [0.0, 0.0],
+        # no origin_pt: the plan is not in the PDF page's coordinates, so the review page fits
+        # the page image under it (and the person lines it up) unless `registration` places it
         "size": size,
         "walls": [[*r, low] for r, low in zip(out_walls, lows, strict=True)],
         "openings": openings,
