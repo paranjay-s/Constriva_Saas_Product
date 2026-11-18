@@ -225,7 +225,7 @@ def build_boq_xlsx(
         ("Source file", metadata.get("source_file_name") or "-"),
         ("Date", (generated_on or date.today()).isoformat()),
         ("Client", metadata.get("client") or "-"),
-        ("Building type", metadata.get("building_type") or "-"),
+        ("Building type on the plan", metadata.get("building_type") or "-"),
         ("Scale source", metadata.get("scale_source") or "-"),
         ("Items", len(items)),
     ]
