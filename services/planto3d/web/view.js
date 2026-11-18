@@ -83,10 +83,7 @@ scene.add(gltf.scene);
 // ---- plan (x, y metres, z up) -> three (x, z, -y)
 const W = (x, y, z) => new THREE.Vector3(x, z, -y);
 const floors = meta.floors;
-function roomAt(lv, x, y) {
-  for (const r of floors[lv]?.rooms || []) for (const q of r.rects) if (walk.inRect(q, x, y)) return r.label;
-  return '';
-}
+const roomAt = (lv, x, y) => walk.roomAt(meta, lv, x, y);
 
 // ---- player
 const p = { ...walk.entrance(meta), z: floors[0].z, yaw: 0, pitch: 0 };
@@ -208,10 +205,14 @@ function drawMap(lv) {
   const X = (x) => (w - (x1 - x0) * k) / 2 + (x - x0) * k, Y = (y) => (h + (y1 - y0) * k) / 2 - (y - y0) * k;   // plan +y is up
   const box = (r) => mg.fillRect(X(r[0]), Y(r[3]), (r[1] - r[0]) * k, (r[3] - r[2]) * k);
   const here = f.rooms.find((r) => r.rects.some((q) => walk.inRect(q, p.x, p.y)));
+  // an upper storey is drawn only where it has a floor: a void or a yard open to the storey below stays dark
+  mg.save();
+  if (f.floor) { mg.beginPath(); [...f.floor, ...(f.stairs || []).map((s) => s.rect)].forEach((r) => mg.rect(X(r[0]), Y(r[3]), (r[1] - r[0]) * k, (r[3] - r[2]) * k)); mg.clip(); }
   for (const r of f.rooms) {
     mg.fillStyle = r === here ? 'rgba(224, 122, 72, .5)' : OUTSIDE.has(r.type) ? 'rgba(120, 170, 110, .22)' : 'rgba(255, 255, 255, .13)';
     r.rects.forEach(box);
   }
+  mg.restore();
   mg.fillStyle = 'rgba(196, 154, 108, .85)';
   (f.stairs || []).forEach((s) => box(s.rect));
   mg.fillStyle = 'rgba(255, 255, 255, .85)';

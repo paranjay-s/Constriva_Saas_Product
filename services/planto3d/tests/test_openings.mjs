@@ -33,6 +33,13 @@ function crosses(k, r, axis) {
   return false;
 }
 
+/** is there floor at this storey's height 0.5 m before and 0.5 m past the opening? */
+function sides(k, r, axis) {
+  const z = meta.floors[k].z, cx = (r[0] + r[1]) / 2, cy = (r[2] + r[3]) / 2;
+  const ends = axis === 'x' ? [[cx, r[2] - 0.5], [cx, r[3] + 0.5]] : [[r[0] - 0.5, cy], [r[1] + 0.5, cy]];
+  return ends.every(([x, y]) => walk.groundNear(meta, x, y, z) !== null);
+}
+
 plan.floors.forEach((f, k) => {
   const built = meta.floors[k]?.openings;
   if (!built) return check(false, `${f.name}: meta.json has no record of the openings that were built`);
@@ -47,7 +54,8 @@ plan.floors.forEach((f, k) => {
       check(!crosses(k, r, o.axis), `${tag}: the walker climbs through the window`);
     } else {
       check(b.built === 'doorway' && b.sill === 0 && b.head >= 2.0, `${tag}: built as a ${b.built}, sill ${b.sill} m, head ${b.head} m`);
-      check(crosses(k, r, o.axis), `${tag}: the walker cannot go through`);
+      // (an opening in an upper storey's outer wall that has no floor beyond it leads nowhere: it stays shut)
+      if (sides(k, r, o.axis)) check(crosses(k, r, o.axis), `${tag}: the walker cannot go through`);
     }
   });
 });

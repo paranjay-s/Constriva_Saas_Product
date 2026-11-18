@@ -46,6 +46,7 @@ FLOOR_MAT = dict(dress="wood", bedroom="wood", toilet="bathtile", kitchen="marbl
                  garden="turf", open="pebbles", parking="pavers", yard="pavers", stair="stair", room="tile",
                  duct="concrete")
 OPEN_SKY = {"open", "garden", "yard"}      # no slab above these
+VOID = {"open"}       # OPEN, SHAFT, DUCT, CUTOUT, VOID: open down to the storey below, on any storey
 INDOOR = {"bedroom", "toilet", "kitchen", "living", "dining", "puja", "study", "store", "passage", "room", "wash", "dress"}
 
 
@@ -88,6 +89,63 @@ def bbox_of(rs):
 
 def boxes_minus(base, holes):
     return disjoint(subtract_all([base], holes))
+
+
+def zone_boxes(f, keep):
+    return [(*r, -9, 99) for zn in f["rooms"] if keep(zn["type"]) for r in zn["rects"]]
+
+
+def meet(a, b):
+    """the overlaps of two lists of boxes (they may overlap one another: fine for cutting)"""
+    return [tuple(v for i in range(3) for v in (max(p[2 * i], q[2 * i]), min(p[2 * i + 1], q[2 * i + 1])))
+            for p in a for q in b if overlap(p, q)]
+
+
+def upper_slab(k, well):
+    """the slab under storey k >= 1 -> (slab boxes, void boxes), plan feet.
+    It is this storey's floor and the roof of the storey below, so it spans both outlines. It is left open only
+    where nothing stands on it: an OPEN / SHAFT / CUTOUT of this storey; a yard or garden of this storey over a part
+    of the storey below that is open to the sky too, or over no storey at all (over a roofed room it is a terrace on
+    that room's roof); an open area below with no room of this storey over it; and the stairwell."""
+    f, below = floors[k], floors[k - 1]
+    open_below = zone_boxes(below, lambda t: t in OPEN_SKY) + \
+        subtract_all([(*bboxes[k], -9, 99)], [(*bboxes[k - 1], -9, 99)])
+    voids = zone_boxes(f, lambda t: t in VOID)
+    voids += meet(zone_boxes(f, lambda t: t in OPEN_SKY and t not in VOID), open_below)
+    voids += subtract_all(zone_boxes(below, lambda t: t in OPEN_SKY), zone_boxes(f, lambda t: t not in OPEN_SKY))
+    # a room's cells stop at the inner face of the outer wall: a void that close to the outline is open to it,
+    # or a sliver of slab is left standing along the edge
+    ux0, ux1 = min(bboxes[k][0], bboxes[k - 1][0]), max(bboxes[k][1], bboxes[k - 1][1])
+    uy0, uy1 = min(bboxes[k][2], bboxes[k - 1][2]), max(bboxes[k][3], bboxes[k - 1][3])
+    voids = [(v[0] - 1 if v[0] - ux0 < 0.6 else v[0], v[1] + 1 if ux1 - v[1] < 0.6 else v[1],
+              v[2] - 1 if v[2] - uy0 < 0.6 else v[2], v[3] + 1 if uy1 - v[3] < 0.6 else v[3], -9, 99) for v in voids]
+    base = disjoint([(*bboxes[k], -SLAB, -0.02), (*bboxes[k - 1], -SLAB, -0.02)])
+    slab = [b for b in disjoint(subtract_all(base, voids + well)) if b[1] - b[0] > 0.01 and b[3] - b[2] > 0.01]
+    return slab, voids
+
+
+GUARD_T, GUARD_H = 0.33, 3.5      # as thick as a wall, as high as an upper storey's low walls
+
+
+def edge_guards(f, slab, well):
+    """a parapet along each edge of an upper slab that drops to the storey below or to the ground and has no wall or
+    opening on it: terraces and balconies are closed like the roof, and the walker cannot step off them.
+    None along the stairwell: the flights arrive across its edge."""
+    t = GUARD_T
+    solid = [(*b[:4], -9, 99) for b in slab] + [(w[0] - 0.5, w[1] + 0.5, w[2] - 0.5, w[3] + 0.5, -9, 99) for w in well]
+    built = [(w[0] - t, w[1] + t, w[2] - t, w[3] + t, -9, 99) for w in f["walls"]] + \
+            [(r[0] - t, r[1] + t, r[2] - t, r[3] + t, -9, 99) for r in (o["rect"] for o in f["openings"])]
+    out = []
+    for x0, x1, y0, y1, *_ in slab:
+        ty, tx = min(t, y1 - y0), min(t, x1 - x0)          # (a slab piece thinner than a wall: the guard fills it)
+        for probe, along_x, band in (((x0, x1, y0 - 0.05, y0), True, (y0, y0 + ty)), ((x0, x1, y1, y1 + 0.05), True, (y1 - ty, y1)),
+                                     ((x0 - 0.05, x0, y0, y1), False, (x0, x0 + tx)), ((x1, x1 + 0.05, y0, y1), False, (x1 - tx, x1))):
+            for p in subtract_all([(*probe, -9, 99)], solid):
+                if (p[3] - p[2] if along_x else p[1] - p[0]) < 0.04:
+                    continue                        # a rounding sliver between two slab pieces, not an open edge
+                g = (p[0], p[1], *band) if along_x else (*band, p[2], p[3])
+                out += subtract_all([(*g, 0, GUARD_H)], built)
+    return [b for b in disjoint(out) if max(b[1] - b[0], b[3] - b[2]) >= 0.5 and min(b[1] - b[0], b[3] - b[2]) >= 0.2]
 
 
 VENT_MAX = 2.6
@@ -484,12 +542,13 @@ for k, f in enumerate(floors):
         else:
             frames += [(x0, x1, y0, y0 + t, 0, 7, "teak"), (x0, x1, y1 - t, y1, 0, 7, "teak"), (x0, x1, y0, y1, 7 - t, 7, "teak")]
     mesh_from_boxes(f"door_frames_{k}", frames, bevel=0.004)
-    # floors per zone (none over the stairwell coming up from below)
+    # floors per zone (none over the stairwell coming up from below, nor over a void of an upper storey)
     fl = {}
     well = [(*r, -9, 99) for r in well_prev]
+    slab, voids = upper_slab(k, well) if k else ([], [])
     for zn in f["rooms"]:
         m = FLOOR_MAT.get(zn["type"], "tile")
-        fl.setdefault(m, []).extend((*b[:4], -0.02, 0.0, m) for r in zn["rects"] for b in subtract_all([(*r, -0.02, 0.0)], well))
+        fl.setdefault(m, []).extend((*b[:4], -0.02, 0.0, m) for r in zn["rects"] for b in subtract_all([(*r, -0.02, 0.0)], well + voids))
     for m, bs in fl.items():
         mesh_from_boxes(f"floor_{k}_{m}", bs)
     # wall tiles to 7 ft in toilets
@@ -509,16 +568,16 @@ for k, f in enumerate(floors):
                                    (x0, x0 + tt, y0, y1, 0, 7), (x1 - tt, x1, y0, y1, 0, 7)], own)
     if tiles:
         mesh_from_boxes(f"toilet_tiles_{k}", [(*b, "walltile") for b in disjoint(subtract_all(tiles, door_holes))])
-    # slab under this storey (k >= 1): the plan outline minus open-to-sky zones and the stairwell below
+    # slab under this storey (k >= 1, see upper_slab), with parapets where its edge drops away
     bb = bboxes[k]
-    holes = [(*r, -9, 99) for zn in f["rooms"] if zn["type"] in OPEN_SKY for r in zn["rects"]]
+    guards = []
     if k == 0:
         mesh_from_boxes("plinth", [(bb[0] - 0.2, bb[1] + 0.2, bb[2] - 0.2, bb[3] + 0.2, -0.6, -0.02, "concrete")])
     else:
-        prev = floors[k - 1]
-        holes += [(*r, -9, 99) for zn in prev["rooms"] if zn["type"] in OPEN_SKY for r in zn["rects"]]
-        holes += [(*r, -9, 99) for r in well_prev]
-        mesh_from_boxes(f"slab_{k}", [(*b[:4], -SLAB, -0.02, "ceiling") for b in boxes_minus((*bb, -SLAB, -0.02), holes)])
+        mesh_from_boxes(f"slab_{k}", [(*b[:4], -SLAB, -0.02, "ceiling") for b in slab])
+        guards = edge_guards(f, slab, well)
+        if guards:
+            mesh_from_boxes(f"guards_{k}", [(*b, "exterior") for b in guards])
     # stairs rising from this storey
     sboxes, smeta = stair_parts(f, FFH)
     if sboxes:
@@ -555,7 +614,9 @@ for k, f in enumerate(floors):
     META_FLOORS.append(dict(
         name=f.get("name", f"Floor {k}"), z=round(z * F_, 3), height=round(H * F_, 3),
         colliders=[m(b) for b in subtract_all([(*w[:4], 0, 1) for w in f["walls"]] + sills,
-                                              [(c[0], c[1], c[2], c[3], 0, 1) for c in cuts if c[4] < 1])],
+                                              [(c[0], c[1], c[2], c[3], 0, 1) for c in cuts if c[4] < 1])] + [m(b) for b in guards],
+        # an upper storey can be walked on only where its slab is; the ground storey everywhere
+        **({"floor": [m(b) for b in slab]} if k else {}),
         # what was built at each opening of the plan, in plan order: glazed with a sill (window), or cut to the
         # floor with a door frame (door / plain opening). tests/test_openings.mjs holds it against plan.json.
         openings=[dict(type=o["type"], built="window" if c[4] > 0 else "doorway", rect=m(o["rect"]),

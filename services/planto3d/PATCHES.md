@@ -95,3 +95,20 @@ floor and slab above a stair are cut only over landings and steps that come with
 in `gen.py` (`well_prev`, `HEADROOM`) and in `walk.js` (`heights`, `HEADROOM`, `stepHeight`), and the roof slab is cut
 over the top storey's stair (its parapet stays whole). `tests/test_walk.mjs` also walks back down every stair and
 checks that each climb starts on the flight and at the end where the plan writes UP.
+
+## 9. Upper storeys end at their slab edge (blender/gen.py, web/walk.js, web/view.js, tests/test_storeys.mjs)
+
+Why: on an upper storey the walker could walk out of a balcony, yard or open shaft and on into the air, at that
+storey's height, well past the building: the walker gave every storey a floor everywhere. The slab under an upper
+storey was its own outline minus the open-to-sky zones of both storeys, so a yard of the storey above had a hole
+where it stood on the roof of a room below, and nothing guarded an edge that dropped to the storey below.
+
+What: `upper_slab` builds the slab under storey k from both outlines, open only where nothing stands on it (a
+shaft / cutout of this storey, a yard over an open area below or over no storey, an open area below with no room of
+this storey over it, the stairwell). `edge_guards` puts a parapet (wall thickness, 3.5 ft) along every slab edge that
+drops away and has no wall or opening on it, and ignores rounding slivers between slab pieces. `meta.json` gets
+`floors[k].floor` (the slab, metres) for k >= 1 and the parapets as colliders; `walk.js` (`onFloor`) gives an upper
+storey a floor only there (houses built earlier keep the old rule); the map in `view.js` draws an upper storey only
+where it has a floor, and `walk.roomAt` names the room. `tests/test_storeys.mjs` walks from every outdoor room of
+every upper storey in four directions and fails if the walker leaves that storey's height or its rooms; it is in
+`tests/run_all.sh`. `tests/test_openings.mjs` asks an opening to be passable only where there is floor on both sides.

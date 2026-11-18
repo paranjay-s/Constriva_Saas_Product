@@ -17,6 +17,19 @@ export function entrance(meta) {
   return { x: (q[0] + q[1]) / 2, y: (q[2] + q[3]) / 2 };
 }
 
+/** storey k has a floor at (x, y): the ground storey everywhere (it stands on the site), an upper storey only on its
+ *  slab. A house built before the slab outline was written (no `floor`) keeps the old rule: everywhere. */
+export function onFloor(meta, k, x, y) {
+  const f = meta.floors[k];
+  return k === 0 || !f.floor || f.floor.some((r) => inRect(r, x, y, 0.01));
+}
+
+/** what the page names as where you are: the room of storey lv under (x, y), or '' */
+export function roomAt(meta, lv, x, y) {
+  for (const r of meta.floors[lv]?.rooms || []) for (const q of r.rects) if (inRect(q, x, y)) return r.label;
+  return '';
+}
+
 export function levelOf(meta, z) {
   let lv = 0;
   meta.floors.forEach((f, i) => { if (z >= f.z - 0.3) lv = i; });
@@ -50,7 +63,8 @@ function stepHeight(s, x, y) {
 
 export function heights(meta, x, y) {
   const levels = [...meta.floors.map((f) => f.z), meta.roof_z];
-  const planes = [...levels];
+  // (an upper storey's terrace ends at its edge: past it there is no floor at that height, so the walker stops)
+  const planes = levels.map((z, k) => (k < meta.floors.length && !onFloor(meta, k, x, y) ? null : z));
   const out = [];
   const shut = closed(meta);
   meta.floors.forEach((f, k) => {

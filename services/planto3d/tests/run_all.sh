@@ -14,5 +14,6 @@ for p in /tmp/planto3d_sample.json jobs/*/plan.json; do
   echo "$out" | grep -q CLASH && { echo "$p"; echo "$out"; exit 1; } || echo "no furniture clashes: $p"
 done
 for m in jobs/*/meta.json; do [ -f "$m" ] && node tests/test_walk.mjs "$m"; done
+for m in jobs/*/meta.json; do [ -f "$m" ] && node tests/test_storeys.mjs "$m"; done
 for m in jobs/*/meta.json; do [ -f "$m" ] && node tests/test_openings.mjs "$(dirname "$m")"; done
 echo ALL PASS
