@@ -60,6 +60,89 @@ mat("deck", tex="laminate_floor_02", tile=1.2, tint=(0.62, 0.45, 0.3))
 mat("coping", (0.88, 0.85, 0.8), 0.6)
 
 
+mat("court_green", (0.16, 0.42, 0.3), 0.75)
+mat("court_blue", (0.12, 0.3, 0.55), 0.75)
+mat("court_wood", tex="laminate_floor_02", tile=2.0, tint=(0.85, 0.6, 0.38))
+mat("line_paint", (0.95, 0.95, 0.93), 0.6)
+mat("fence", (0.15, 0.17, 0.16), 0.5, alpha=0.35)
+mat("lamp_glow", (1.0, 0.85, 0.6), 0.5, emit=6.0)
+
+# official court sizes (feet, length x width) and markings in fractions of them: a drawn court is marked to its own
+# size, as the proportions of the real one
+COURTS = {"tennis": (78.0, 36.0), "padel": (65.6, 32.8), "basketball": (91.9, 49.2)}
+
+
+def sport(label):
+    t = (label or "").upper()
+    return next((k for k in COURTS if k.upper() in t), "tennis")
+
+
+def court_parts(zn):
+    """a court: playing surface, the sport's markings scaled to the drawn rectangle, net or hoops, a fence"""
+    out = []
+    x0, x1, y0, y1 = max(zn["rects"], key=lambda r: (r[1] - r[0]) * (r[3] - r[2]))
+    sp = sport(zn.get("label"))
+    long_x = x1 - x0 >= y1 - y0
+    L, Wd = (x1 - x0, y1 - y0) if long_x else (y1 - y0, x1 - x0)
+    surf = {"tennis": "court_green", "padel": "court_blue", "basketball": "court_wood"}[sp]
+    out.append((x0, x1, y0, y1, -0.02, 0.02, surf))
+    m = 0.06 * min(L, Wd)                    # run-off margin inside the drawn area
+    def line(a0, a1, b0, b1):                 # along-length a, across b, as fractions of the playing area
+        la, lb = L - 2 * m, Wd - 2 * m
+        A0, A1, B0, B1 = m + a0 * la, m + a1 * la, m + b0 * lb, m + b1 * lb
+        r = (x0 + A0, x0 + A1, y0 + B0, y0 + B1) if long_x else (x0 + B0, x0 + B1, y0 + A0, y0 + A1)
+        out.append((*r, 0.02, 0.04, "line_paint"))
+    t = 0.008
+    for a in (0, 1):                          # base lines and side lines
+        line(a - t / 2 if a else 0, a + t / 2 if not a else a, 0, 1)
+        line(0, 1, a - t / 2 if a else 0, a + t / 2 if not a else a)
+    if sp == "tennis":
+        for b in (0.125, 0.875):              # singles lines
+            line(0, 1, b - t / 2, b + t / 2)
+        for a in (0.27, 0.73):                # service lines
+            line(a - t / 2, a + t / 2, 0.125, 0.875)
+        line(0.27, 0.73, 0.5 - t / 2, 0.5 + t / 2)       # centre service line
+    elif sp == "padel":
+        for a in (0.15, 0.85):
+            line(a - t / 2, a + t / 2, 0, 1)
+        line(0.15, 0.85, 0.5 - t / 2, 0.5 + t / 2)
+    else:
+        line(0.5 - t / 2, 0.5 + t / 2, 0, 1)                 # half-court line
+        for a0, a1 in ((0, 0.19), (0.81, 1)):                 # keys
+            line(a0, a1, 0.34, 0.34 + t)
+            line(a0, a1, 0.66 - t, 0.66)
+    mid = (x0 + x1) / 2 if long_x else (y0 + y1) / 2
+    if sp in ("tennis", "padel"):             # the net across the middle
+        net = (mid - 0.1, mid + 0.1, y0 + m * 0.5, y1 - m * 0.5) if long_x else (x0 + m * 0.5, x1 - m * 0.5, mid - 0.1, mid + 0.1)
+        out.append((*net, 0.0, 3.0, "fence"))
+    else:                                     # two hoops on posts at the ends
+        c = (y0 + y1) / 2 if long_x else (x0 + x1) / 2
+        for e in ((x0 + m * 0.6, x1 - m * 0.6) if long_x else (y0 + m * 0.6, y1 - m * 0.6)):
+            post = (e - 0.25, e + 0.25, c - 0.25, c + 0.25) if long_x else (c - 0.25, c + 0.25, e - 0.25, e + 0.25)
+            board = (e - 0.1, e + 0.1, c - 3, c + 3) if long_x else (c - 3, c + 3, e - 0.1, e + 0.1)
+            out += [(*post, 0, 10.0, "steel"), (*board, 8.5, 12.0, "line_paint")]
+    f = 0.15                                  # chain-link fence round the court (posts and a see-through panel)
+    out += [(x0, x1, y0, y0 + f, 0, 10, "fence"), (x0, x1, y1 - f, y1, 0, 10, "fence"),
+            (x0, x0 + f, y0, y1, 0, 10, "fence"), (x1 - f, x1, y0, y1, 0, 10, "fence")]
+    return out
+
+
+def parking_parts(zn):
+    """painted bays (9 ft wide) across the paving, and for a CARPORT a canopy on four posts"""
+    out = []
+    for x0, x1, y0, y1 in zn["rects"]:
+        along_x = x1 - x0 >= y1 - y0
+        n = int((x1 - x0 if along_x else y1 - y0) // 9)
+        for i in range(1, n):
+            a = (x0 if along_x else y0) + i * 9
+            out.append((a - 0.1, a + 0.1, y0 + 1, y1 - 1, 0.0, 0.03, "line_paint") if along_x else (x0 + 1, x1 - 1, a - 0.1, a + 0.1, 0.0, 0.03, "line_paint"))
+        if "CARPORT" in (zn.get("label") or "").upper().replace(" ", "") or "CAR PORCH" in (zn.get("label") or "").upper():
+            for px, py in ((x0 + 0.5, y0 + 0.5), (x1 - 0.5, y0 + 0.5), (x0 + 0.5, y1 - 0.5), (x1 - 0.5, y1 - 0.5)):
+                out.append((px - 0.25, px + 0.25, py - 0.25, py + 0.25, 0, 8.5, "steel"))
+            out.append((x0, x1, y0, y1, 8.5, 8.9, "steel"))
+    return out
+
+
 def water_parts(zn, k):
     """a pool: a basin sunk 4.5 ft (raised 1.5 ft on an upper storey) lined with tile, coping round it, three steps
     at one short end and a water plane; a water body or fountain: a shallow basin; a dock: water with a walkable plank
@@ -76,10 +159,13 @@ def water_parts(zn, k):
                 out.append((*q, -0.25, 0.0, "deck"))
                 walk.append(q)
                 n = max(2, int(max(q[1] - q[0], q[3] - q[2]) / 6) + 1)
-                for i in range(n):          # posts down into the water
+                for i in range(n):          # posts down into the water, a cleat and an edge light at each
                     t = i / (n - 1)
                     px, py = (q[0] + (q[1] - q[0]) * t, (q[2] + q[3]) / 2) if long_x else ((q[0] + q[1]) / 2, q[2] + (q[3] - q[2]) * t)
                     out.append((px - 0.3, px + 0.3, py - 0.3, py + 0.3, -3.5, 0.2, "deck"))
+                    ex, ey = (px, q[3] - 0.3 if q[2] < (y0 + y1) / 2 else q[2] + 0.3) if long_x else (q[1] - 0.3 if q[0] < (x0 + x1) / 2 else q[0] + 0.3, py)
+                    out.append((ex - 0.4, ex + 0.4, ey - 0.12, ey + 0.12, 0.0, 0.35, "steel"))
+                    out.append((ex - 0.15, ex + 0.15, ey - 0.15, ey + 0.15, 0.0, 0.12, "lamp_glow"))
             continue
         pool = zn["type"] == "pool"
         deep = (4.5 if k == 0 else -1.5) if pool else (1.0 if k == 0 else -0.8)
@@ -100,6 +186,9 @@ def water_parts(zn, k):
                         (b[0] + t, b[1] - t, b[2] + t + i * 1.2, b[2] + t + (i + 1) * 1.2)
                     out.append((*q, -deep, top, "pooltile"))
             out.append((*b, -0.5, -0.45, "water"))
+            if "FOUNTAIN" in (zn.get("label") or "").upper():      # a central jet
+                cx, cy = (b[0] + b[1]) / 2, (b[2] + b[3]) / 2
+                out += [(cx - 0.6, cx + 0.6, cy - 0.6, cy + 0.6, -0.5, 0.6, "coping"), (cx - 0.12, cx + 0.12, cy - 0.12, cy + 0.12, 0.6, 4.0, "water")]
         else:                                         # on a slab: a raised basin
             h = -deep
             t = 0.4
@@ -614,15 +703,23 @@ for k, f in enumerate(floors):
             water += parts
             wet_walk += deck
             continue
+        if zn["type"] == "court":          # its own surface and markings (court_parts)
+            water += court_parts(zn)
+            continue
+        if zn["type"] == "parking":
+            water += parking_parts(zn)
         m = FLOOR_MAT.get(zn["type"], "tile")
         fl.setdefault(m, []).extend((*b[:4], -0.02, 0.0, m) for r in zn["rects"] for b in subtract_all([(*r, -0.02, 0.0)], well + voids))
     for m, bs in fl.items():
         mesh_from_boxes(f"floor_{k}_{m}", bs)
     if water:     # the water planes apart: a transparent object is not baked, so the basin and decks must not share it
-        solid_w = [b for b in water if b[6] != "water"]
+        clear = ("water", "fence")             # see-through: kept out of the bake, so in objects of their own
+        solid_w = [b for b in water if b[6] not in clear]
         if solid_w:
             mesh_from_boxes(f"pool_{k}", solid_w)
-        mesh_from_boxes(f"water_{k}", [b for b in water if b[6] == "water"])
+        for m in clear:
+            if any(b[6] == m for b in water):
+                mesh_from_boxes(f"{m}_{k}", [b for b in water if b[6] == m])
     # the walker cannot enter water (except a dock's deck) or a lift / duct shaft
     closed = subtract_all([(*r, 0, 1) for zn in f["rooms"] if zn["type"] in WATER | SHAFT for r in zn["rects"]],
                           [(*q, 0, 1) for q in wet_walk])
