@@ -141,3 +141,21 @@ thickness), Add door / window / stairs, Set scale (two points and a typed distan
 rooms that follow the walls. A notice says which reader made the plan; in embed mode the 'ready' message carries
 `reader`, `notice`, `buildable` and `problem`, a new 'buildable' message follows edits, and the page's own notice bar
 is hidden. The detector flow, patch 2's messages and patch 6 are unchanged.
+
+## 12. Walls drawn as solid bands (detect.py, vector.py)
+
+Why: presentation drawings, including the PDFs of our own floor plan generator, draw each wall as a solid dark
+filled band with no outline pen, colour the room floors, draw door swings as coloured arcs (flattened into many short
+lines) and windows as striped bands. The detector looks for walls as pairs of parallel stroked lines, found none, and
+the upload ended with "This drawing could not be read".
+
+What: `band_segs` turns the outlines of the dark fills that carry a good share of the dark area into line segments,
+which pair up like double-line walls; they are used when they give clearly more wall than the strokes do (1.5 times),
+so a CAD drawing is read as before. Solid walls are cut at every door and window, so `opening_links` ties the pieces
+of one house together across gaps that hold a door swing or window glass. `close_corners` reaches across a thicker
+perpendicular wall; `scale_from_labels` also measures between wall centre lines (generated plans write sizes that
+way) and keeps the reading more labels agree on, the clear size on a tie; a door leaf drawn from the hinge of the
+neighbouring wall is recognised; an open passage parts the rooms either side of it. `vector.polyline_arc` turns an
+arc flattened into a polyline back into a curve. The sample is read exactly as before; OPT 5 and the SF plan keep
+their openings and rooms (the SF plan's outer corners now close; four 4-inch stubs on OPT 5's first floor are full
+height instead of parapet height). `paranjay-villa.pdf` (generator style): 53 walls, 10 doors, 12 windows, 12 rooms.

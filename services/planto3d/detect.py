@@ -318,7 +318,7 @@ def horiz(r):
     return (r[1] - r[0]) >= (r[3] - r[2])
 
 
-def close_corners(walls, T):
+def close_corners(walls, T0):
     """extend wall ends into a perpendicular wall that stops just short of them (L / T corners)."""
     out = []
     for r in walls:
@@ -326,6 +326,8 @@ def close_corners(walls, T):
         for q in walls:
             if q is r or horiz(q) == horiz(r):
                 continue
+            # (reach across the perpendicular wall's own thickness: outer walls can be twice the main one)
+            T = max(T0, min(q[1] - q[0], q[3] - q[2]))
             if horiz(r):
                 if q[2] - 1.2 * T <= y1 and y0 <= q[3] + 1.2 * T:      # q spans our band (or nearly)
                     if -0.2 <= q[1] - x0 and x0 - q[0] <= 1.6 * T + 0.2 and q[0] < x0:   # left end
@@ -386,6 +388,8 @@ def wall_pens(segs):
             ink[col, round(w, 2)] += abs(x1 - x0) + abs(y1 - y0)
     total = sum(ink.values()) or 1
     big = {k: v for k, v in ink.items() if v >= 0.05 * total}
+    if not big:
+        return set()        # nothing stroked along the axes (walls may be solid bands: band_segs)
     wmax = max(k[1] for k in big)
     pens = {k for k in ink if k[1] >= 0.6 * wmax}
     # walls are plotted in black / grey; coloured wide pens are window frames, columns, beams
@@ -393,6 +397,19 @@ def wall_pens(segs):
     if sum(ink[k] for k in grey) >= 0.5 * sum(ink[k] for k in pens):
         pens = grey
     return pens
+
+
+def band_segs(fills):
+    """the outlines of solid dark fills as line segments. Some exporters (presentation sheets, our own plan
+    generator) draw a wall as a filled band with no outline pen: the band's two faces are then the edges of the
+    fill, and they pair up like double-line walls. Only colours darker than mid grey that carry a good share of
+    the dark area: pale fills are rooms and paper, a little dark ink is furniture detail or arrow heads."""
+    area = defaultdict(float)
+    for pts, col in fills:
+        if isinstance(col, tuple) and 0.3 * col[0] + 0.59 * col[1] + 0.11 * col[2] < 128:
+            area[col] += abs(sum(pts[i][0] * pts[i - 1][1] - pts[i - 1][0] * pts[i][1] for i in range(len(pts)))) / 2
+    cols = {c for c, a in area.items() if a >= 0.25 * max(area.values())}
+    return [(*p, *q, col, 0.0) for pts, col in fills if col in cols for p, q in zip(pts, pts[1:] + pts[:1])]
 
 
 # ------------------------------------------------------------------ text
@@ -458,6 +475,25 @@ def plan_groups(walls, T):
     return [g[1] for g in groups]
 
 
+def opening_links(walls, lines, arcs_, T):
+    """the gap between two pieces of one wall band that holds a door swing or window glass. Drawings that cut
+    their walls at every door and window (solid wall bands) leave the pieces of one house touching only across
+    its openings: these gaps tie the pieces to one plan."""
+    out = []
+    for a in walls:
+        o = "h" if horiz(a) else "v"
+        lo, hi, b0, b1 = (a[0], a[1], a[2], a[3]) if o == "h" else (a[2], a[3], a[0], a[1])
+        nxt = min((c[0] if o == "h" else c[2] for c in walls if c is not a and horiz(c) == horiz(a)
+                   and abs((c[2] if o == "h" else c[0]) - b0) < 0.2 * T and abs((c[3] if o == "h" else c[1]) - b1) < 0.2 * T
+                   and (c[0] if o == "h" else c[2]) > hi + 0.3), default=None)
+        if nxt is None or nxt - hi > 40 * T:
+            continue
+        r = (hi, nxt, b0, b1) if o == "h" else (b0, b1, hi, nxt)
+        if classify(r, o, lines, arcs_, T, None)[0] != "opening":
+            out.append(r)
+    return out
+
+
 def overlap_rect(a, b, m=0.0):
     return a[0] < b[1] + m and b[0] < a[1] + m and a[2] < b[3] + m and b[2] < a[3] + m
 
@@ -472,31 +508,38 @@ def inside(p, b, m=0.0):
 
 # ------------------------------------------------------------------ scale
 def scale_from_labels(walls, phr):
-    """points per foot: distance between the walls around a room label vs the size written in it."""
-    est = []
-    for p in phr:
-        if not p["dims"]:
-            continue
-        cx, cy = p["cx"], p["cy"]
-        L = max((w[1] for w in walls if w[2] <= cy <= w[3] and w[1] <= cx), default=None)
-        R = min((w[0] for w in walls if w[2] <= cy <= w[3] and w[0] >= cx), default=None)
-        U = max((w[3] for w in walls if w[0] <= cx <= w[1] and w[3] <= cy), default=None)
-        D = min((w[2] for w in walls if w[0] <= cx <= w[1] and w[2] >= cy), default=None)
-        if None in (L, R, U, D):
-            continue
-        w, h = R - L, D - U
-        a, b = p["dims"]
-        for r1, r2 in ((w / a, h / b), (w / b, h / a)):
-            if abs(r1 - r2) < 0.03 * max(r1, r2):
-                est.append((r1 + r2) / 2)
-    if len(est) < 2:
-        return None, est
-    # mode: the estimate with the most others within 2% (rays leaking through openings give scattered values)
-    best = max(est, key=lambda e: (sum(abs(f - e) < 0.02 * e for f in est), -e))
-    good = [e for e in est if abs(e - best) < 0.02 * best]
-    if len(good) < 2:
-        return None, est
-    return sum(good) / len(good), est
+    """points per foot: distance between the walls around a room label vs the size written in it.
+    CAD drawings write the clear size (between the wall faces); generated plans write the size between the wall
+    centre lines. Both are measured; the reading more labels agree on wins (the clear size on a tie)."""
+    reads = []
+    for centre in (False, True):
+        est = []
+        for p in phr:
+            if not p["dims"]:
+                continue
+            cx, cy = p["cx"], p["cy"]
+            L = max((w for w in walls if w[2] <= cy <= w[3] and w[1] <= cx), key=lambda w: w[1], default=None)
+            R = min((w for w in walls if w[2] <= cy <= w[3] and w[0] >= cx), key=lambda w: w[0], default=None)
+            U = max((w for w in walls if w[0] <= cx <= w[1] and w[3] <= cy), key=lambda w: w[3], default=None)
+            D = min((w for w in walls if w[0] <= cx <= w[1] and w[2] >= cy), key=lambda w: w[2], default=None)
+            if None in (L, R, U, D):
+                continue
+            if centre:
+                w, h = (R[0] + R[1] - L[0] - L[1]) / 2, (D[2] + D[3] - U[2] - U[3]) / 2
+            else:
+                w, h = R[0] - L[1], D[2] - U[3]
+            a, b = p["dims"]
+            for r1, r2 in ((w / a, h / b), (w / b, h / a)):
+                if abs(r1 - r2) < 0.03 * max(r1, r2):
+                    est.append((r1 + r2) / 2)
+        good = []
+        if len(est) >= 2:
+            # mode: the estimate with the most others within 2% (rays leaking through openings give scattered values)
+            best = max(est, key=lambda e: (sum(abs(f - e) < 0.02 * e for f in est), -e))
+            good = [e for e in est if abs(e - best) < 0.02 * best]
+        reads.append((len(good) if len(good) >= 2 else 0, good, est))
+    n, good, est = max(reads, key=lambda r: r[0])       # (max keeps the first, the clear size, on a tie)
+    return (sum(good) / n, est) if n else (None, reads[0][2])
 
 
 # ------------------------------------------------------------------ openings
@@ -580,6 +623,13 @@ def classify(r, o, lines, arcs_, T, s):
             continue
         for end in (lo, hi):
             if abs(along - end) < 1.2 * T and (0.7 * g <= rad <= 1.2 * g or 0.38 * g <= rad <= 0.62 * g):
+                # a leaf line from the hinge along this gap that stops short of the far jamb (or at its middle)
+                # is the open leaf of a door in the wall meeting this one at the hinge: same corner, same arc
+                tip, far = along + (rad if end == lo else -rad), (hi if end == lo else lo)
+                if (rad < 0.62 * g or abs(tip - far) > 0.6 * T) and any(
+                        abs(c - across) < 0.3 * T and a0 < min(along, tip) + 0.3 * T and a1 > max(along, tip) - 0.3 * T
+                        for c, a0, a1 in lines[o]):
+                    continue
                 # swing side: where the arc points lie relative to the band
                 side = sum((p[1] if o == "h" else p[0]) - (b0 + b1) / 2 for p in pts)
                 leaves.append(dict(hinge=(cx, cy), radius=rad, side=1 if side > 0 else -1, at=end))
@@ -811,11 +861,19 @@ def detect_page(page):
     L = axis_lines([s for s in page["segs"] if (s[4], round(s[5], 2)) in pens])
     ALL = axis_lines(page["segs"], min_len=0.5)
     gmax = 0.025 * math.hypot(page["width"], page["height"])
-    walls, hatch = {}, {}
-    for o in ("h", "v"):
-        walls[o], hatch[o] = wall_pairs(L[o], gmax)
+    walls = {o: wall_pairs(L[o], gmax)[0] for o in ("h", "v")}
+    # walls drawn as solid bands: read the fills' outlines instead when they pair up into clearly more wall
+    band = band_segs(page["fills"])
+    BL_ = axis_lines(band)
+    bwalls = {o: wall_pairs(BL_[o], gmax)[0] for o in ("h", "v")}
+    run = lambda ws: sum(w[3] - w[2] for o in ("h", "v") for w in ws[o])
+    solid = run(bwalls) > 1.5 * run(walls)
+    if solid:
+        walls = bwalls
     _, hatch_all = zip(*(wall_pairs(ALL[o], gmax) for o in ("h", "v")))
     hatch_all = dict(h=hatch_all[0], v=hatch_all[1])
+    if not walls["h"] + walls["v"]:
+        raise PlanError("no walls found (need double-line walls or solid wall bands)")
     T = thickness_mode(walls["h"] + walls["v"])
     by_pen = defaultdict(list)          # lines per pen with dashes joined (a window frame drawn on a wall face stays its own line)
     outline = fill_outlines(page["fills"])
@@ -831,12 +889,18 @@ def detect_page(page):
     W_solid = W                                  # windows not cut yet: label rays stop at window walls
     CUTS = []
     W = [w for w in cut_windows(W, PEN, T, CUTS) if max(w[1] - w[0], w[3] - w[2]) >= 0.5 * T]   # keep jambs beside windows
-    W += fill_columns(page["fills"], W, T)
+    # (with solid walls, only the wall colour can be a column: pale furniture fills stand against walls too)
+    W += fill_columns([f for f in page["fills"] if f[1] in {g[4] for g in band}] if solid else page["fills"], W, T)
     phr = phrases(page["words"])
     A = arcs(page["curves"])
+    groups = plan_groups(W, T)
+    for r in opening_links(W, PEN, A, T):     # pieces of one wall either side of a door or window: one plan
+        hit = [g for g in groups if any(overlap_rect(r, w, 0.5) for w in g)]
+        if len(hit) > 1:
+            groups = [g for g in groups if all(g is not h for h in hit)] + [sum(hit, [])]
     # floors: wall clusters that contain at least two room names
     floors = []
-    for cl in plan_groups(W, T):
+    for cl in groups:
         b = bbox(cl)
         names = [p for p in phr if inside((p["cx"], p["cy"]), b) and room_type([p["text"]])]
         if len(names) >= 2:
@@ -890,6 +954,23 @@ def detect_floor(f, T, s, phr, lines, hatch, A, zone_lines, cuts=()):
     rooms, zone_of = [], {}        # zone_of[cell] = room index (open plans are split per name label)
     C, ox, oy = F["cell"], F["ox"], F["oy"]
     cell_of = lambda x, y: (int((x - ox) / C), int((y - oy) / C))
+    # an open passage in a wall line parts the rooms either side of it as the wall it interrupts does (drawings
+    # with no line across the passage): its centre line, run on along that wall line, separates zones
+    zone_lines = {k: list(v) for k, v in zone_lines.items()}
+    for op in ops:
+        if op["type"] != "opening":
+            continue
+        k, r = op["axis"], op["rect"]
+        lo, hi, b0, b1 = (r[0], r[1], r[2], r[3]) if k == "h" else (r[2], r[3], r[0], r[1])
+        line = [q if k == "h" else (q[2], q[3], q[0], q[1]) for q in walls + [o["rect"] for o in ops]]
+        line = [(q[0], q[1]) for q in line if abs(q[2] - b0) < 0.2 * T and abs(q[3] - b1) < 0.2 * T]
+        grown = True
+        while grown:
+            grown = False
+            for q0, q1 in line:
+                if q0 <= hi + 0.5 and q1 >= lo - 0.5 and (q0 < lo or q1 > hi):
+                    lo, hi, grown = min(lo, q0), max(hi, q1), True
+        zone_lines[k].append(((b0 + b1) / 2, lo, hi))
     lcells = line_cells(zone_lines, C, ox, oy)
     for rid, cells in F["regions"].items():
         if rid == F["outside"]:
@@ -940,8 +1021,13 @@ def detect_floor(f, T, s, phr, lines, hatch, A, zone_lines, cuts=()):
     out_walls = []
     for w in walls:
         sides = []
+        # a stub left between an opening and a cross wall can be thicker than long: it runs the way the opening
+        # beside it in the same band runs
+        hz = next((o["axis"] == "h" for o in ops if overlap_rect(o["rect"], w, 0.5) and (
+            abs(o["rect"][2] - w[2]) < 0.2 * T and abs(o["rect"][3] - w[3]) < 0.2 * T if o["axis"] == "h" else
+            abs(o["rect"][0] - w[0]) < 0.2 * T and abs(o["rect"][1] - w[1]) < 0.2 * T)), horiz(w))
         for t in (0.1, 0.3, 0.5, 0.7, 0.9):
-            if horiz(w):
+            if hz:
                 m = w[0] + t * (w[1] - w[0])
                 sides += [type_at(m, w[2] - 1.5 * C), type_at(m, w[3] + 1.5 * C)]
             else:
