@@ -19,10 +19,13 @@ The same schema comes out whichever LLM is configured. The stages are:
 A failure at any stage raises a `PlanParseError` subclass (errors.py). Partial JSON is
 never returned, and a different building is never substituted.
 
-The provider, model and key come from settings (`PLAN_PARSER_LLM_*`, settings.py). Results
-are cached by the PDF's sha256 plus the parser, prompt and schema versions and the provider
-and model (plan_cache.py), so the same PDF always yields the same PlanJSON and a switch of
-model parses it afresh.
+The provider, model and key come from settings (`PLAN_PARSER_LLM_*`, settings.py).
+
+Two things are cached (plan_cache.py). The model's reply is kept under the PDF's sha256,
+the prompt version, the provider and the model, so a model is asked about a PDF once. The
+PlanJSON is kept under those plus the parser and schema versions. Raising `PARSER_VERSION`
+after a change to the normaliser or a rule builds the plan again from the stored reply,
+without a model call; only a new PDF, prompt, provider or model reaches a model.
 
 One log line is written per parse: provider, model, tokens, duration and whether it was a
 cache hit. Nothing from the file and no key is ever logged.
@@ -72,7 +75,12 @@ from app.modules.parsing.normalise import (
 )
 from app.modules.parsing.normalise import unit_scale as drawing_unit_scale
 from app.modules.parsing.pdf_input import load_plan_pdf, sha256_of
-from app.modules.parsing.plan_cache import PlanCache, default_plan_cache, plan_cache_key
+from app.modules.parsing.plan_cache import (
+    PlanCache,
+    default_plan_cache,
+    plan_cache_key,
+    reply_cache_key,
+)
 from app.modules.parsing.settings import PlanParserConfigError, resolve_llm_config
 from app.modules.plans.schemas import PlanJSON
 
@@ -186,8 +194,10 @@ class _Usage:
 
 
 def _log_parse(
-    client: Any, usage: _Usage, started: float, *, cache_hit: bool, outcome: str
+    client: Any, usage: _Usage, started: float, *, cache_hit: bool | str, outcome: str
 ) -> None:
+    """`cache_hit` is False (a model was called), True (the stored plan was returned) or
+    "reply" (the plan was built again from the stored model reply)."""
     logger.info(
         "plan parse: provider=%s model=%s input_tokens=%d output_tokens=%d attempts=%d "
         "duration_s=%.1f cache_hit=%s outcome=%s",
@@ -227,22 +237,24 @@ def _repair_text(user_text: str, previous_reply: str, problems: Sequence[str]) -
     )
 
 
-def _parse_images(
+def _accepted_reply(
     client: JSONLLMClient,
     images: Sequence[LLMImage],
     page_texts: Sequence[str],
     usage: _Usage,
     *,
     min_rooms: int,
-    pdf_sha256: str | None,
 ) -> dict[str, Any]:
-    """Stages 2 to 7. Adds every model call it makes to `usage`."""
-    system_prompt, prompt_ver = load_prompt()
+    """Stages 2 to 5: the model's reply that passed the checks, exactly as it was returned.
+
+    Adds every model call it makes to `usage`.
+    """
+    system_prompt, _ = load_prompt()
     user_text = _user_text(list(page_texts) if page_texts else [""] * len(images))
 
     # The best structurally valid reply so far, and how many scale concerns it carries.
-    draft = None
-    draft_concerns = 0
+    accepted: dict[str, Any] | None = None
+    accepted_concerns = 0
     problems: list[str] = []
     text = user_text
     for attempt in range(1 + MAX_REPAIR_ATTEMPTS):
@@ -259,7 +271,7 @@ def _parse_images(
             previous = e.raw_text
         except JSONLLMError as e:
             usage.attempts += 1
-            if draft is not None:
+            if accepted is not None:
                 break  # a usable reply is already in hand; keep it rather than fail
             raise _typed_llm_failure(e) from e
         else:
@@ -271,8 +283,8 @@ def _parse_images(
                     "floor plan with its rooms."
                 )
             if candidate is not None:
-                if draft is None or len(concerns) <= draft_concerns:
-                    draft, draft_concerns = candidate, len(concerns)
+                if accepted is None or len(concerns) <= accepted_concerns:
+                    accepted, accepted_concerns = reply, len(concerns)
                 if not concerns:
                     break
                 problems = concerns
@@ -285,13 +297,37 @@ def _parse_images(
         )
         text = _repair_text(user_text, previous, problems)
 
-    if draft is None:
+    if accepted is None:
         raise PlanOutputInvalidError(
             "The floor plan could not be read reliably from this drawing. "
             "Check that the PDF shows a clear, labelled floor plan and try again.",
             details=problems,
         )
+    return accepted
 
+
+def _plan_from_reply(
+    reply: dict[str, Any],
+    *,
+    min_rooms: int,
+    pdf_sha256: str | None,
+    provider: str | None,
+    model: str | None,
+    usage: _Usage,
+) -> dict[str, Any]:
+    """Stages 6 and 7: a model reply -> validated PlanJSON. No model is involved.
+
+    Used straight after a model call and again, later, on a reply read back from the
+    cache, so a change to the normaliser or to a rule never needs a new model call.
+    `usage` is what the model call that produced the reply cost.
+    """
+    draft, problems, _ = check_draft(reply, min_rooms)
+    if draft is None or not draft.floor_plan_found:
+        raise PlanOutputInvalidError(
+            "The floor plan could not be read reliably from this drawing. "
+            "Check that the PDF shows a clear, labelled floor plan and try again.",
+            details=problems,
+        )
     try:
         plan = normalise_plan(draft.model_dump())
     except (ValueError, ValidationError) as e:
@@ -311,9 +347,9 @@ def _parse_images(
     plan["parser"] = {
         "pdf_sha256": pdf_sha256,
         "parser_version": PARSER_VERSION,
-        "prompt_version": prompt_ver,
-        "provider": getattr(client, "provider", None),
-        "model": getattr(client, "model", None),
+        "prompt_version": prompt_version(),
+        "provider": provider,
+        "model": model,
         "input_tokens": usage.input_tokens,
         "output_tokens": usage.output_tokens,
         "attempts": usage.attempts,
@@ -325,6 +361,28 @@ def _parse_images(
             "The floor plan was read but could not be converted to a valid plan.",
             details=[str(e)[:500]],
         ) from e
+
+
+def _parse_images(
+    client: JSONLLMClient,
+    images: Sequence[LLMImage],
+    page_texts: Sequence[str],
+    usage: _Usage,
+    *,
+    min_rooms: int,
+    pdf_sha256: str | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Stages 2 to 7. Returns (PlanJSON, the model reply it was built from)."""
+    reply = _accepted_reply(client, images, page_texts, usage, min_rooms=min_rooms)
+    plan = _plan_from_reply(
+        reply,
+        min_rooms=min_rooms,
+        pdf_sha256=pdf_sha256,
+        provider=getattr(client, "provider", None),
+        model=getattr(client, "model", None),
+        usage=usage,
+    )
+    return plan, reply
 
 
 def parse_plan_images(
@@ -341,7 +399,7 @@ def parse_plan_images(
     client = client or build_client()
     usage, started = _Usage(), time.monotonic()
     try:
-        plan = _parse_images(
+        plan, _ = _parse_images(
             client, images, page_texts or [], usage, min_rooms=min_rooms, pdf_sha256=pdf_sha256
         )
     except PlanParseError as e:
@@ -364,25 +422,41 @@ def parse_plan_pdf(
     `min_rooms` is the fewest rooms the lowest floor must have. A cached plan with fewer
     rooms than that is not accepted; the PDF is parsed again.
 
+    A model is called only when its reply for this PDF is not in the cache: that is, for a
+    new PDF, prompt version, provider or model. Otherwise the stored plan is returned, or
+    built again from the stored reply when the parser version has changed.
+
     A PDF over the size or page limit (PLAN_PARSER_MAX_PDF_MB, PLAN_PARSER_MAX_PDF_PAGES;
     `max_pages` overrides the latter) is rejected before any model call.
     """
     started = time.monotonic()
     client = client or build_client()
     cache = cache if cache is not None else default_plan_cache()
+    pdf_sha256 = sha256_of(pdf_bytes)
     key = plan_cache_key(
-        sha256_of(pdf_bytes), PARSER_VERSION, prompt_version(), client.provider, client.model
+        pdf_sha256, PARSER_VERSION, prompt_version(), client.provider, client.model
     )
+    reply_key = reply_cache_key(pdf_sha256, prompt_version(), client.provider, client.model)
+    wanted = max(min_rooms, 1)
+
     cached = cache.get(key) if pdf_bytes else None
-    if cached and len(cached["levels"][0]["rooms"]) >= max(min_rooms, 1):
+    if cached and len(cached["levels"][0]["rooms"]) >= wanted:
         _log_parse(client, _Usage(), started, cache_hit=True, outcome="ok")
         return cached
+
+    stored = cache.get_reply(reply_key) if pdf_bytes else None
+    if stored:
+        plan = _plan_from_stored_reply(stored, client, min_rooms=min_rooms, pdf_sha256=pdf_sha256)
+        if plan is not None:
+            cache.put(key, plan)
+            _log_parse(client, _Usage(), started, cache_hit="reply", outcome="ok")
+            return plan
 
     usage = _Usage()
     try:
         # Checks the size and page limits before anything is sent to a model.
         pdf = load_plan_pdf(pdf_bytes, max_pages)
-        plan = _parse_images(
+        plan, reply = _parse_images(
             client,
             [LLMImage(page.png) for page in pdf.pages],
             [page.text for page in pdf.pages],
@@ -393,9 +467,50 @@ def parse_plan_pdf(
     except PlanParseError as e:
         _log_parse(client, usage, started, cache_hit=False, outcome=e.code)
         raise
+    cache.put_reply(
+        reply_key,
+        {
+            "pdf_sha256": pdf.sha256,
+            "prompt_version": prompt_version(),
+            "provider": client.provider,
+            "model": client.model,
+            "input_tokens": usage.input_tokens,
+            "output_tokens": usage.output_tokens,
+            "attempts": usage.attempts,
+            "reply": reply,
+        },
+    )
     cache.put(key, plan)
     _log_parse(client, usage, started, cache_hit=False, outcome="ok")
     return plan
+
+
+def _plan_from_stored_reply(
+    stored: dict[str, Any], client: JSONLLMClient, *, min_rooms: int, pdf_sha256: str
+) -> dict[str, Any] | None:
+    """PlanJSON from a cached model reply, or None when that reply can no longer be used.
+
+    None happens when today's checks reject the stored reply, or it has fewer rooms than
+    this caller needs. The PDF is then sent to the model again.
+    """
+
+    def count(name: str) -> int:
+        value = stored.get(name)
+        return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+    usage = _Usage(count("input_tokens"), count("output_tokens"), count("attempts"))
+    try:
+        return _plan_from_reply(
+            stored["reply"],
+            min_rooms=min_rooms,
+            pdf_sha256=pdf_sha256,
+            provider=client.provider,
+            model=client.model,
+            usage=usage,
+        )
+    except PlanParseError as e:
+        logger.info("stored model reply not used (%s); the PDF will be parsed again", e.code)
+        return None
 
 
 parse = parse_plan_pdf

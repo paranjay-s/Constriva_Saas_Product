@@ -40,11 +40,19 @@ from app.modules.parsing.llm_parser import (
     parse_plan_pdf,
 )
 from app.modules.parsing.llm_schema import WIRE_JSON_SCHEMA
-from app.modules.parsing.pdf_input import RENDER_DPI, effective_dpi, load_plan_pdf
-from app.modules.parsing.plan_cache import FilePlanCache, plan_cache_key
+from app.modules.parsing.pdf_input import (
+    MAX_IMAGE_SIDE_PX,
+    RENDER_DPI,
+    effective_dpi,
+    load_plan_pdf,
+)
+from app.modules.parsing.plan_cache import FilePlanCache, plan_cache_key, reply_cache_key
 from app.modules.plans.schemas import SCHEMA_VERSION, PlanJSON
 
 EXTRACTED_PLAN = Path(__file__).resolve().parents[2] / "extracted_plan.json"
+# Fingerprint of the prompt text, the wire schema and the render settings (see the test
+# that uses it). It changes only together with the prompt version.
+SENT_TO_MODEL_FINGERPRINT = "405916461b697d2f"
 IMAGES = [LLMImage(b"not-a-real-png")]
 
 
@@ -508,7 +516,9 @@ def test_same_pdf_is_parsed_once_and_then_served_from_the_cache(tmp_path):
     again = parse_plan_pdf(data, client=FakeLLM(), cache=cache)  # would fail if it called the model
     assert again == first
     assert len(llm.calls) == 1
-    assert len(list(tmp_path.glob("*.json"))) == 1
+    # one entry for the plan and one for the model reply it was built from
+    names = sorted(path.name for path in tmp_path.glob("*.json"))
+    assert len(names) == 2 and ".reply." in names[1] and ".parser-" in names[0]
 
 
 def test_cache_key_holds_everything_that_decides_the_result():
@@ -531,21 +541,130 @@ def test_switching_model_parses_again_instead_of_returning_the_older_result(tmp_
     second = parse_plan_pdf(data, client=other, cache=cache)
     assert len(other.calls) == 1  # not answered from model-a's entry
     assert (first["parser"]["model"], second["parser"]["model"]) == ("model-a", "model-b")
-    assert len(list(tmp_path.glob("*.json"))) == 2
+    assert len(list(tmp_path.glob("*.json"))) == 4  # a plan and a reply for each model
 
     # each model still gets its own cached result back
     assert parse_plan_pdf(data, client=FakeLLM(model="model-a"), cache=cache) == first
     assert parse_plan_pdf(data, client=FakeLLM(model="model-b"), cache=cache) == second
 
 
-def test_a_new_parser_version_does_not_reuse_old_cache_entries(tmp_path, monkeypatch):
+def test_a_new_parser_version_builds_the_plan_again_without_calling_the_model(
+    tmp_path, monkeypatch, caplog
+):
+    cache = FilePlanCache(tmp_path)
+    data = make_pdf()
+    usage = LLMUsage(input_tokens=1200, output_tokens=300)
+    first = parse_plan_pdf(data, client=FakeLLM(good_reply(), usage=usage), cache=cache)
+
+    # a rule or the normaliser changed: the parser version goes up
+    monkeypatch.setattr(llm_parser, "PARSER_VERSION", "9.9.9")
+    silent = FakeLLM()  # has no reply to give: any call would fail the test
+    with caplog.at_level(logging.INFO, logger="construtiva.parsing.llm"):
+        plan = parse_plan_pdf(data, client=silent, cache=cache)
+    assert silent.calls == []
+    assert plan["parser"]["parser_version"] == "9.9.9"
+    assert plan["levels"] == first["levels"]
+    # what the model call cost is kept with the plan; this run cost nothing
+    assert (plan["parser"]["input_tokens"], plan["parser"]["attempts"]) == (1200, 1)
+    line = next(r.getMessage() for r in caplog.records if "plan parse:" in r.getMessage())
+    assert "cache_hit=reply" in line and "input_tokens=0" in line and "attempts=0" in line
+    # the rebuilt plan is stored, so the next upload is a plain plan-cache hit
+    assert parse_plan_pdf(data, client=FakeLLM(), cache=cache) == plan
+
+
+def test_the_plan_is_rebuilt_with_todays_rules(tmp_path, monkeypatch):
+    cache = FilePlanCache(tmp_path)
+    data = make_pdf()
+    reply = good_reply()
+    reply["levels"][0]["rooms"][0]["name"] = "KIT. 10' X 12'"
+    first = parse_plan_pdf(data, client=FakeLLM(reply), cache=cache)
+    assert first["levels"][0]["rooms"][0]["boq_type"] == "KITCHEN"
+
+    # the same stored reply, read by a build whose rules type that label differently
+    from app.modules.parsing import normalise
+
+    monkeypatch.setattr(llm_parser, "PARSER_VERSION", "9.9.9")
+    monkeypatch.setattr(normalise, "resolve_boq_type", lambda name, supplied, area=None: "STORE")
+    rebuilt = parse_plan_pdf(data, client=FakeLLM(), cache=cache)
+    assert {r["boq_type"] for r in rebuilt["levels"][0]["rooms"] if r["boq_type"]} == {"STORE"}
+
+
+def test_only_a_new_pdf_prompt_provider_or_model_reaches_the_model(tmp_path, monkeypatch):
     cache = FilePlanCache(tmp_path)
     data = make_pdf()
     parse_plan_pdf(data, client=FakeLLM(good_reply()), cache=cache)
+
+    def calls(pdf: bytes = data, **client) -> int:
+        llm = FakeLLM(good_reply(), **client)
+        parse_plan_pdf(pdf, client=llm, cache=cache)
+        return len(llm.calls)
+
+    assert calls() == 0  # nothing changed
+    assert calls(pdf=make_pdf(text="ANOTHER PLAN")) == 1  # another PDF
+    assert calls(model="fake-2") == 1  # another model
+    other_provider = FakeLLM(good_reply())
+    other_provider.provider = "other"
+    parse_plan_pdf(data, client=other_provider, cache=cache)
+    assert len(other_provider.calls) == 1  # another provider
+    monkeypatch.setattr(llm_parser, "prompt_version", lambda: "9.9.9")
+    assert calls() == 1  # another prompt
+    assert calls() == 0  # and that reply is kept too
+
+
+def test_reply_cache_key_holds_only_what_decides_the_model_call():
+    key = reply_cache_key("abc", "2.2.0", "anthropic", "model-a")
+    assert key == "abc.reply.prompt-2.2.0.anthropic.model-a"
+    assert PARSER_VERSION not in key and SCHEMA_VERSION not in key.replace("2.2.0", "")
+    for other in (
+        reply_cache_key("abd", "2.2.0", "anthropic", "model-a"),
+        reply_cache_key("abc", "2.2.1", "anthropic", "model-a"),
+        reply_cache_key("abc", "2.2.0", "gemini", "model-a"),
+        reply_cache_key("abc", "2.2.0", "anthropic", "model-b"),
+    ):
+        assert other != key
+
+
+def test_a_stored_reply_that_fails_todays_checks_is_parsed_again(tmp_path, monkeypatch):
+    cache = FilePlanCache(tmp_path)
+    data = make_pdf()
+    parse_plan_pdf(data, client=FakeLLM(good_reply()), cache=cache)
+    # corrupt the stored reply the way a stricter future check would see it
+    reply_file = next(tmp_path.glob("*.reply.*.json"))
+    record = json.loads(reply_file.read_text())
+    record["reply"] = broken_reply()
+    reply_file.write_text(json.dumps(record))
+
     monkeypatch.setattr(llm_parser, "PARSER_VERSION", "9.9.9")
     llm = FakeLLM(good_reply())
     plan = parse_plan_pdf(data, client=llm, cache=cache)
     assert len(llm.calls) == 1 and plan["parser"]["parser_version"] == "9.9.9"
+
+
+def test_unreadable_reply_entries_are_ignored(tmp_path):
+    cache = FilePlanCache(tmp_path)
+    (tmp_path / "a.reply.json").write_text("{not json")
+    (tmp_path / "b.reply.json").write_text(json.dumps({"reply": "not an object"}))
+    assert cache.get_reply("a.reply") is None
+    assert cache.get_reply("b.reply") is None
+    assert cache.get_reply("missing") is None
+    cache.put_reply("c.reply", {"reply": {"levels": []}, "attempts": 1})
+    assert cache.get_reply("c.reply") == {"reply": {"levels": []}, "attempts": 1}
+
+
+def test_what_is_sent_to_the_model_is_pinned_to_the_prompt_version():
+    """The reply cache trusts the prompt version to stand for everything a model is sent.
+
+    If this fails, the prompt text, the wire schema or the page rendering changed: raise
+    `prompt_version` in ai/prompts/parsing/plan_parser.md, then update the fingerprint.
+    """
+    import hashlib
+
+    prompt_text, version = load_prompt()
+    sent = json.dumps(
+        [prompt_text, WIRE_JSON_SCHEMA, RENDER_DPI, MAX_IMAGE_SIDE_PX], sort_keys=True
+    )
+    fingerprint = hashlib.sha256(sent.encode("utf-8")).hexdigest()[:16]
+    assert (version, fingerprint) == ("2.2.0", SENT_TO_MODEL_FINGERPRINT)
 
 
 def test_a_failed_parse_is_not_cached(tmp_path):

@@ -12,8 +12,10 @@ plan = parse_plan_pdf(pdf_bytes)   # a validated PlanJSON 2.0 dict, or a PlanPar
 
 ```
 PDF -> pdf_input -> LLM call -> JSON extraction -> draft validation -> repair (up to 2) -> normaliser -> PlanJSON validation
-          |                                                                                   |
-          +------------------------- plan cache (sha256 + versions) --------------------------+
+          |                                                                |                  |
+          |                                                          reply cache              |
+          |                                               (sha256, prompt, provider, model)   |
+          +----------------- plan cache (the same, plus parser and schema versions) ----------+
 ```
 
 1. **Input** (`pdf_input.py`). Each page is rendered to PNG at a fixed 300 DPI. Sheets larger than A3 are scaled down by a rule that depends only on the page size, so the long side stays within 5000 px. The PDF's own text is read too, one block per line in reading order. This input is the same for every provider. Scanned PDFs have no text layer and send images only. A PDF whose pages are all blank is rejected here and never reaches a model.
@@ -72,7 +74,7 @@ Settings (`parsing/settings.py`, env prefix `PLAN_PARSER_`):
 | `PLAN_PARSER_LLM_TIMEOUT_S` | Seconds to wait on one model call (default 300). |
 | `PLAN_PARSER_MAX_PDF_MB` | Largest PDF accepted (default 20). |
 | `PLAN_PARSER_MAX_PDF_PAGES` | Most pages a PDF may have (default 10). |
-| `PLAN_PARSER_CACHE` | `off` disables the plan cache. |
+| `PLAN_PARSER_CACHE` | `off` disables both caches (model reply and plan). |
 | `PLAN_PARSER_CACHE_DIR` | Cache folder (default `backend/.tmp/plan_cache`). |
 
 No variable is named after a vendor. For Gemini only, when `PLAN_PARSER_LLM_API_KEY` is empty the key falls back to `LLM_API_KEY`, then `GEMINI_API_KEY`, so an existing Gemini setup keeps working.
@@ -102,13 +104,31 @@ Each parse writes one line, on the logger `construtiva.parsing.llm`:
 
     plan parse: provider=anthropic model=<model> input_tokens=6120 output_tokens=9800 attempts=1 duration_s=74.2 cache_hit=False outcome=ok
 
-`attempts` counts model calls (the first try plus repairs) and the token counts are their sum. A cache hit logs `cache_hit=True` with zero tokens. A failure logs its error code as `outcome`. File contents and keys are never logged. The same token counts are stored with the plan under `parser`.
+`attempts` counts model calls (the first try plus repairs) and the token counts are their sum. A plan-cache hit logs `cache_hit=True` with zero tokens, and a plan built again from the stored model reply logs `cache_hit=reply`, also with zero tokens. A failure logs its error code as `outcome`. File contents and keys are never logged. The same token counts are stored with the plan under `parser`.
 
 ## Cache
 
-`plan_cache.py` stores the normalised PlanJSON under `sha256(pdf) + parser version + prompt version + schema version + provider + model`. A second upload of the same bytes reads the stored plan and does not call a model. Changing `PARSER_VERSION` (in `llm_parser.py`), the prompt's `prompt_version` line, `SCHEMA_VERSION`, the provider or the model starts fresh entries. Only the plan is cached, never project, user or plan-row ids. A failed parse is not cached.
+`plan_cache.py` keeps two things, in the same folder:
 
-Bump `PARSER_VERSION` whenever the pipeline or the normaliser would change what a given PDF parses to.
+| Cache | Key | Holds |
+|---|---|---|
+| Reply cache | `sha256(pdf) + prompt version + provider + model` | The model's reply that passed the checks, as it was returned, with what the call cost. |
+| Plan cache | the same, plus `parser version + schema version` | The normalised PlanJSON. |
+
+What happens on an upload:
+
+1. The plan is in the plan cache: it is returned. No model call.
+2. Otherwise the reply is in the reply cache: the plan is built from it again (checks, normaliser, rules) and stored. No model call.
+3. Otherwise the PDF is sent to the model, and both the reply and the plan are stored.
+
+So **only a new PDF, prompt version, provider or model reaches a model.** A change to the normaliser or to a rule (room kinds and types, units, ids) needs a new `PARSER_VERSION` (in `llm_parser.py`) and nothing else: every PDF already seen is normalised again from its stored reply the next time it is uploaded.
+
+Rules for the two version numbers:
+
+- Raise `PARSER_VERSION` whenever the checks, the normaliser or a rule would change what a given reply turns into.
+- Raise the prompt's `prompt_version` line whenever what is sent to the model changes: the prompt text, the wire schema (`WIRE_JSON_SCHEMA`) or the page rendering (`RENDER_DPI`, `MAX_IMAGE_SIDE_PX`). A test pins a fingerprint of those to the prompt version, so the change cannot be made without it.
+
+Two cases still call the model for a PDF it has seen: the stored reply no longer passes the checks, or it has fewer rooms than the caller needs (the 2D-to-3D import asks for six, the BOQ for one). Only the reply and the plan are cached, never project, user or plan-row ids. A failed parse is not cached.
 
 ## Errors
 
@@ -156,7 +176,7 @@ No flow substitutes another plan for one that could not be read.
 | `pdf_input.py` | The upload check (`check_plan_pdf`) and PDF to page images and text. |
 | `llm_schema.py` | `WIRE_JSON_SCHEMA` (what the model is asked for), `LLMPlanDraft` (the validator) and the draft checks. |
 | `normalise.py` | The deterministic normaliser and `upgrade_plan`. |
-| `plan_cache.py` | The PlanJSON cache. |
+| `plan_cache.py` | The reply cache and the PlanJSON cache. |
 | `errors.py` | Typed parser errors. |
 | `settings.py` | `PLAN_PARSER_*` settings and their validation (`resolve_llm_config`). |
 | `validate.py` | Geometric validators and the confidence score. |
