@@ -634,19 +634,22 @@ def test_unlabelled_rooms_are_other_and_wet_items_are_zero():
     )
 
 
-def test_arabic_and_abbreviated_labels_use_the_type_the_model_supplied():
+def test_arabic_and_unlisted_abbreviations_use_the_type_the_model_supplied():
     raw = {
         "units": "m",
         "levels": [
             {
                 "name": "Ground Floor",
                 "rooms": [
-                    # the keyword rules return OTHER for all three names
-                    room("k", "KIT.", 0, 0, 3, 4, kind="indoor", boq_type="KITCHEN"),
-                    room("b", "حمام", 3, 0, 5, 4, kind="indoor", boq_type="BATH"),
-                    room("d", "DRG./DN.", 0, 4, 5, 9, kind="indoor", boq_type="LIVING"),
+                    # the rules return OTHER for these three names
+                    room("k", "KTCHN.", 0, 0, 3, 4, kind="indoor", boq_type="KITCHEN"),
+                    room(
+                        "b", "\u062d\u0645\u0627\u0645", 3, 0, 5, 4, kind="indoor", boq_type="BATH"
+                    ),
+                    room("d", "LNG.", 0, 4, 5, 9, kind="indoor", boq_type="LIVING"),
                     # a rule matches here, so the model's answer is ignored
                     room("m", "Master Bedroom", 5, 0, 9, 9, kind="indoor", boq_type="KITCHEN"),
+                    room("x", "KIT.", 9, 0, 12, 4, kind="indoor", boq_type="BED"),
                 ],
             }
         ],
@@ -654,14 +657,15 @@ def test_arabic_and_abbreviated_labels_use_the_type_the_model_supplied():
     plan = normalise_plan(raw)
     types = {r["name"]: r["boq_type"] for r in plan["levels"][0]["rooms"]}
     assert types == {
-        "KIT.": "KITCHEN",
-        "حمام": "BATH",
-        "DRG./DN.": "LIVING",
+        "KTCHN.": "KITCHEN",
+        "\u062d\u0645\u0627\u0645": "BATH",
+        "LNG.": "LIVING",
         "Master Bedroom": "BED",
+        "KIT.": "KITCHEN",
     }
     d = derived(plan)
-    assert (d["N_kit"], d["N_bath"], d["N_liv"], d["N_bed"]) == (1, 1, 1, 1)
-    assert d["A_kit"] == 12 and d["A_bath"] == 8
+    assert (d["N_kit"], d["N_bath"], d["N_liv"], d["N_bed"]) == (2, 1, 1, 1)
+    assert d["A_kit"] == 24 and d["A_bath"] == 8
 
 
 def test_upper_floor_smaller_than_ground():
@@ -820,6 +824,75 @@ def test_same_input_twice_gives_identical_output():
     first = json.dumps(map_plan_to_materials(plan), sort_keys=True)
     second = json.dumps(map_plan_to_materials(json.loads(json.dumps(plan))), sort_keys=True)
     assert first == second
+
+
+# ------------------------------------------------------------------ rule checks (section 8.1)
+
+
+def test_combined_dressing_and_toilet_gives_half_its_area_as_bathroom():
+    plan = {
+        "units": "m",
+        "levels": [
+            level(
+                [
+                    room("d", "DRESS/TOI. 7'X11'6", 0, 0, 4, 2),  # 8.0 m2, perimeter 12
+                    room("b", "Bedroom", 0, 2, 4, 6),
+                    room("k", "Kitchen", 4, 0, 7, 3),
+                ]
+            )
+        ],
+    }
+    result = map_plan_to_materials(plan)
+    assert result["room_breakdown"][0]["boq_type"] == "BATH"
+    d = result["derived_quantities"]
+    assert (d["A_bath"], d["P_bath"], d["N_bath"], d["N_shower"]) == (4, 8, 1, 1)
+    assert d["A_wet"] == 4 + 9
+    assert d["A_dry"] == (8 + 16 + 9) - 13  # the dressing half is dry area
+    assert d["T_wall"] == pytest.approx(2.07 * 8 + 0.30 * 12)
+    q = quantities(result)
+    assert q[40] == 2  # max(1, ceil(4 / 2)) lights for the bath portion
+    assert q[12] == pytest.approx((2.07 * 8 + 0.30 * 12) * 1.10)
+    assert q["18a"] == pytest.approx(1.10 * 13) and q["18b"] == pytest.approx(1.10 * 20)
+    # for every other formula it is one BATH room
+    assert (q[55], q[27], q["47a"]) == (1, 1, 1)
+
+
+def test_bath_portion_on_the_formula_layer():
+    def baths(*rooms: RoomFact):
+        facts = fixture_facts(rooms=rooms)
+        p = derive_primitives(facts)
+        return p, compute_items(p, facts)
+
+    p, items = baths(RoomFact("DRESS/TOI.", "indoor", 8.0, 12.0, "BATH"))
+    assert (p.a_bath, p.p_bath, p.n_shower, items[40].quantity) == (4.0, 8.0, 1, 2)
+    p, items = baths(RoomFact("TOI.", "indoor", 2.6, 6.6, "BATH"))
+    assert (p.a_bath, p.p_bath, p.n_shower, items[40].quantity) == (2.6, 6.6, 1, 2)
+    p, items = baths(RoomFact("DRESS/TOI.", "indoor", 4.0, 8.0, "BATH"))
+    assert (p.a_bath, p.n_shower, items[40].quantity) == (2.0, 0, 1)  # 2.0 m2: no shower
+    assert p.p_bath == pytest.approx(4 * math.sqrt(2.0))
+    # a plain dressing room is a store and has no bath portion
+    p, _ = baths(RoomFact("Dressing", "indoor", 6.0, 10.0, "STORE"))
+    assert (p.a_bath, p.n_bath) == (0, 0)
+
+
+def test_small_pantry_is_a_store_and_a_larger_one_a_kitchen():
+    def types(pantry_depth: float) -> list[str]:
+        rooms = [room("p", "Pantry", 0, 0, 2, pantry_depth), room("b", "Bedroom", 2, 0, 6, 4)]
+        return [
+            r["boq_type"]
+            for r in map_plan_to_materials({"levels": [level(rooms)]})["room_breakdown"]
+        ]
+
+    assert types(1.75) == ["STORE", "BED"]  # 3.5 m2
+    assert types(2.0) == ["KITCHEN", "BED"]  # 4.0 m2
+
+
+def test_abbreviated_open_plan_kitchen_counts_one_kitchen():
+    plan = {"levels": [level([room("o", "KIT./DIN.", 0, 0, 6, 5)])]}  # 30 m2
+    result = map_plan_to_materials(plan)
+    assert result["room_breakdown"][0]["boq_type"] == "LIVING"
+    d = result["derived_quantities"]
+    assert (d["N_kit"], d["A_kit"], d["open_plan_kitchens"]) == (1, 10, 1)
 
 
 # ------------------------------------------------------------------ boq_kind (section 2.1)

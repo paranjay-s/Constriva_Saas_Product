@@ -347,7 +347,7 @@ def compute_items(p: Primitives, facts: PlanFacts) -> dict[Serial, ItemValue]:
     )
     chandeliers = p.n_liv + p.n_din + ceil(p.n_bed / 2)
     bath_lights = sum(
-        max(1, ceil(r.area / c.BATH_LIGHT_AREA_M2)) for r in indoor if r.boq_type == "BATH"
+        max(1, ceil(r.bath_area / c.BATH_LIGHT_AREA_M2)) for r in indoor if r.boq_type == "BATH"
     )
     lights = spotlights + chandeliers + bath_lights  # Lt
 

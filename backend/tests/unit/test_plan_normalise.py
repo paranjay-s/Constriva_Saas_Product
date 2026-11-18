@@ -21,6 +21,7 @@ from app.modules.plans.room_types import (
     BOQ_TYPES,
     boq_kind_from,
     boq_type_from_name,
+    is_dress_bath,
     is_open_plan_kitchen,
     resolve_boq_type,
     stored_or_derived_boq_kind,
@@ -199,8 +200,6 @@ def test_parser_kind_rules(name, reported, expected):
         ("Home Office", "STUDY"),
         ("Hall", "LIVING"),  # rule 10
         ("Room 1", "OTHER"),
-        ("KIT. 12'6X10'", "OTHER"),  # abbreviations are left to the model
-        ("DRG./DIN. 17'9 X 21'", "OTHER"),
         ("", "OTHER"),
         (None, "OTHER"),
     ],
@@ -211,12 +210,87 @@ def test_boq_type_keyword_rules(name, expected):
 
 
 @pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        # an abbreviation counts only as a whole word of the name
+        ("KIT. 12'6X10'", "KITCHEN"),
+        ("KIT", "KITCHEN"),
+        ("KITTY ROOM", "OTHER"),
+        ("DRG. 10' X 17'6\"", "LIVING"),
+        ("DRG./DIN. 17'9 X 21'", "LIVING"),  # LIVING is the earlier rule
+        ("LIV.", "LIVING"),
+        ("LVG RM", "LIVING"),
+        ("DELIVERY BAY", "OTHER"),
+        ("DIN. 9' X 8'", "DINING"),
+        ("DINETTE", "OTHER"),
+        ("BR 2", "BED"),
+        ("BR-2", "BED"),
+        ("M.BR", "BED"),
+        ("MBR", "BED"),
+        ("BDR 1", "BED"),
+        ("LIBRARY", "STUDY"),  # contains "br", but not as a word
+        ("BTH 1", "BATH"),
+        ("UTIL.", "LAUNDRY"),
+        # STORE's keyword is "dress", so DRESS alone is a store
+        ("DRESS", "STORE"),
+        ("DRESS 6' X 8'", "STORE"),
+        ("Dressing Room", "STORE"),
+        ("PASSAGE / DRESS 5'5\" X 5'6\"", "CIRC"),  # the earlier rule still wins
+    ],
+)
+def test_abbreviations_are_whole_words(name, expected):
+    assert boq_type_from_name(name) == expected
+
+
+@pytest.mark.parametrize(
+    ("name", "area", "expected"),
+    [
+        ("Pantry", 3.5, "STORE"),
+        ("Pantry", 3.99, "STORE"),
+        ("Pantry", 4.0, "KITCHEN"),
+        ("Pantry", None, "KITCHEN"),  # size unknown: a kitchen, as before
+        ("Kitchen / Pantry", 3.0, "KITCHEN"),  # a kitchen by another word
+        ("KIT. + PANTRY", 3.0, "KITCHEN"),
+        ("Lounge with Pantry", 3.0, "LIVING"),  # open plan comes first
+        ("Kitchen", 3.0, "KITCHEN"),  # the rule is for pantries only
+    ],
+)
+def test_a_small_pantry_is_a_store(name, area, expected):
+    assert boq_type_from_name(name, area) == expected
+    assert resolve_boq_type(name, "KITCHEN", area) == expected  # the rules still win
+    assert stored_or_derived_boq_type(name, None, area) == expected
+
+
+@pytest.mark.parametrize(
+    ("name", "combined"),
+    [
+        ("DRESS/TOI. 7'X11'6", True),
+        ("Toilet with wardrobe", True),
+        ("Bath + Walk-in Closet", True),
+        ("TOI. 9'X5'", False),
+        ("Dressing", False),  # a store, not a bathroom
+        ("Walk-in Closet", False),
+        ("Bedroom", False),
+    ],
+)
+def test_combined_dressing_and_toilet(name, combined):
+    assert is_dress_bath(name) is combined
+    if combined:
+        assert boq_type_from_name(name) == "BATH"
+
+
+@pytest.mark.parametrize(
     ("name", "open_plan"),
     [
         ("Living / Dining / Kitchen", True),
         ("Kitchen + Family", True),
         ("Lounge with Pantry", True),
         ("Kitchen Hall", True),
+        ("Kitchen / Sitting", True),  # any keyword of the LIVING and DINING rules
+        ("KIT./DIN.", True),  # and their abbreviations
+        ("LIV/KIT", True),
+        ("DRG. + KITCHEN", True),
+        ("KIT.", False),
         ("Open Kitchen", False),
         ("Kitchen", False),
         ("Living Room", False),
@@ -231,7 +305,8 @@ def test_open_plan_kitchen_is_a_living_room(name, open_plan):
 
 def test_rules_win_and_the_model_fills_in_only_for_other():
     assert resolve_boq_type("Master Bedroom", "KITCHEN") == "BED"  # rule beats the model
-    assert resolve_boq_type("KIT. 12'6X10'", "KITCHEN") == "KITCHEN"  # abbreviated label
+    assert resolve_boq_type("KIT. 12'6X10'", "BED") == "KITCHEN"  # a listed abbreviation is a rule
+    assert resolve_boq_type("KTCHN.", "KITCHEN") == "KITCHEN"  # one that is not: the model's
     assert resolve_boq_type("\u0645\u0637\u0628\u062e", "kitchen") == "KITCHEN"  # Arabic label
     assert resolve_boq_type("Room 1", "PLAYROOM") == "OTHER"  # not a valid code
     assert resolve_boq_type("Room 1", None) == "OTHER"
@@ -259,7 +334,7 @@ def test_normaliser_types_indoor_rooms_only():
     rooms = {r["name"]: r for r in normalise_plan(raw)["levels"][0]["rooms"]}
     assert rooms["Open Kitchen 10' X 10'"]["boq_type"] == "KITCHEN"  # keyword rule wins
     assert rooms["BEDROOM 10' X 10'"]["boq_type"] == "BED"
-    assert rooms["KIT. 10' X 10'"]["boq_type"] == "KITCHEN"  # rules gave OTHER: model used
+    assert rooms["KIT. 10' X 10'"]["boq_type"] == "KITCHEN"  # "kit" is a whole word
     assert rooms["OPEN 4'6\"X10'"]["kind"] == "void"
     assert rooms["OPEN 4'6\"X10'"]["boq_type"] is None  # not an indoor room
 

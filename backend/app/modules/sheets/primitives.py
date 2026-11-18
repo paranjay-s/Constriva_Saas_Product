@@ -11,7 +11,7 @@ Everything here is computed once per plan, from project-level quantities.
 import math
 from dataclasses import dataclass
 
-from app.modules.plans.room_types import is_open_plan_kitchen
+from app.modules.plans.room_types import DRESS_BATH_SHARE, is_dress_bath, is_open_plan_kitchen
 from app.modules.sheets import constants as c
 
 
@@ -51,6 +51,21 @@ class RoomFact:
     def open_plan_kitchen(self) -> bool:
         """A LIVING room whose label also names a kitchen ("Living / Dining / Kitchen")."""
         return self.indoor and self.boq_type == "LIVING" and is_open_plan_kitchen(self.name)
+
+    @property
+    def dress_bath(self) -> bool:
+        """A BATH room that is a combined dressing and toilet room ("DRESS/TOI.")."""
+        return self.indoor and self.boq_type == "BATH" and is_dress_bath(self.name)
+
+    @property
+    def bath_area(self) -> float:
+        """A_b: the bathroom part of a BATH room. Half of a combined room, else all of it."""
+        return self.area * DRESS_BATH_SHARE if self.dress_bath else self.area
+
+    @property
+    def bath_perimeter(self) -> float:
+        """P_b: 4 x sqrt(A_b) for a combined room, else the room's own perimeter."""
+        return 4.0 * math.sqrt(self.bath_area) if self.dress_bath else self.perimeter
 
 
 @dataclass(frozen=True)
@@ -187,10 +202,12 @@ def derive_primitives(facts: PlanFacts) -> Primitives:
     a_built = sum(level.built_area for level in facts.levels)
     a_ground = facts.levels[0].built_area if facts.levels else 0.0
 
-    a_bath = sum(r.area for r in baths)
-    p_bath = sum(r.perimeter for r in baths)
+    # A combined dressing and toilet room gives half its area as bathroom; the other half
+    # stays in A_in, so it ends up in the dry area.
+    a_bath = sum(r.bath_area for r in baths)
+    p_bath = sum(r.bath_perimeter for r in baths)
     n_bath = len(baths)
-    n_shower = sum(1 for r in baths if r.area >= c.SHOWER_MIN_BATH_AREA_M2)
+    n_shower = sum(1 for r in baths if r.bath_area >= c.SHOWER_MIN_BATH_AREA_M2)
 
     # Kitchens, plus the kitchen portion of every open-plan living space.
     a_kit = sum(r.area for r in kitchens)

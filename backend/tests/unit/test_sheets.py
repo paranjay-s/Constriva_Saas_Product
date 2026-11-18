@@ -150,7 +150,9 @@ def test_map_plan_to_materials_smt_geeta_gaud():
 
     Wall areas follow the wall model of docs/materials_formula_spec.md (section 3): the
     parapet is 1.0 m x the exterior perimeter (55.54 m), and the gypsum / cement plaster
-    split comes from the exterior, interior and wet-wall areas of this plan.
+    split comes from the exterior, interior and wet-wall areas of this plan. The plan's
+    abbreviated labels are typed by the rules ("KIT." is a kitchen), so its two kitchens
+    add splashback tiles to the cement-plastered wall area.
     """
     import json
     from pathlib import Path
@@ -185,13 +187,13 @@ def test_map_plan_to_materials_smt_geeta_gaud():
     assert mats["steel_rebar"]["secondary_unit"] == "rods_12m"
 
     # Cement
-    assert mats["cement"]["quantity"] == 336
+    assert mats["cement"]["quantity"] == 337
     assert mats["cement"]["unit"] == "bags_50kg"
 
     # Sand
-    assert mats["sand"]["quantity"] == 47.45
+    assert mats["sand"]["quantity"] == 47.63
     assert mats["sand"]["unit"] == "metric_tons"
-    assert mats["sand"]["secondary_quantity"] == 29.15
+    assert mats["sand"]["secondary_quantity"] == 29.27
     assert mats["sand"]["secondary_unit"] == "m3"
 
     # Ballast / Gitti
@@ -201,9 +203,9 @@ def test_map_plan_to_materials_smt_geeta_gaud():
     assert mats["ballast_gitti"]["secondary_unit"] == "m3"
 
     # Plaster
-    assert mats["plaster"]["quantity"] == 405
+    assert mats["plaster"]["quantity"] == 402
     assert mats["plaster"]["unit"] == "bags_30kg"
-    assert mats["plaster"]["details"]["external_wet_cement_plaster_area_m2"] == 350.15
+    assert mats["plaster"]["details"]["external_wet_cement_plaster_area_m2"] == 356.33
 
     # Tiles
     assert mats["tiles"]["quantity"] == 534

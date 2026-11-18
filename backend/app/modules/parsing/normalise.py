@@ -626,12 +626,13 @@ def _normalise_level(
             boq_kind = stored_or_derived_boq_kind(room_name, kind, r.get("boq_kind"))
         # Only rooms the BOQ counts as indoor are typed. A fresh parse applies the keyword
         # rules, which win unless they return OTHER; a stored plan keeps the type it has.
+        area_m2 = abs(signed_area(polygon))  # the pantry rule depends on the room's size
         if boq_kind != "indoor":
             boq_type = None
         elif canonical:
-            boq_type = resolve_boq_type(room_name, r.get("boq_type"))
+            boq_type = resolve_boq_type(room_name, r.get("boq_type"), area_m2)
         else:
-            boq_type = stored_or_derived_boq_type(room_name, r.get("boq_type"))
+            boq_type = stored_or_derived_boq_type(room_name, r.get("boq_type"), area_m2)
         room = {
             "id": str(r.get("id") if r.get("id") is not None else f"room_{index}"),
             "name": room_name,

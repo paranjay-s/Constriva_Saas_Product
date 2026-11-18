@@ -636,7 +636,7 @@ def _measure_level(
         counts_as_built = r_boq_kind in ("indoor", "semi_open")
         # Indoor rooms only. A plan stored without `boq_type` gets it from the name.
         r_boq_type = (
-            stored_or_derived_boq_type(r.get("name"), r.get("boq_type"))
+            stored_or_derived_boq_type(r.get("name"), r.get("boq_type"), area_m2)
             if r_boq_kind == "indoor"
             else None
         )

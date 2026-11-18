@@ -208,11 +208,10 @@ def test_result_summary_metadata_and_warnings(result):
     meta = result["project_metadata"]
     assert meta["source_file_name"] == "Second Floor Plan.pdf"
     assert meta["building_type"] == "other"
-    # an older stored plan: its abbreviated labels ("KIT.", "DRG.") have no boq_type
+    # an older stored plan without boq_type: the rules type its labels ("KIT.", "DRG.")
+    assert summary["kitchens_count"] == 2
     assert result["warnings"] == [
         "Level 1: the drawing states no ceiling height; 3.35 m was assumed.",
-        "No kitchen was detected, so kitchen items are 0. Check the room labels.",
-        "38% of the indoor area has no recognised room type. Room-based quantities may be low.",
         "No paved outdoor rooms were found, so items 22 and 23 are 0.",
     ]
 
@@ -475,7 +474,7 @@ def test_excel_export_of_the_full_bill_is_grouped_and_keeps_lettered_rows(result
     info = {
         row[0].value: row[1].value for row in wb["Inputs and warnings"].iter_rows() if row[0].value
     }
-    assert info["Items"] == 64 and info["Bathrooms"] == 4 and info["Kitchens"] == 0
+    assert info["Items"] == 64 and info["Bathrooms"] == 4 and info["Kitchens"] == 2
     assert info["Exterior wall area (m2)"] == result["geometry_summary"]["a_exterior_wall_m2"]
 
 
