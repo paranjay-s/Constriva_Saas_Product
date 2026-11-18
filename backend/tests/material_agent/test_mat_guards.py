@@ -67,7 +67,18 @@ def test_schema_field_names_have_no_money_fields():
 def test_api_schema_has_no_money_fields():
     spec = app.openapi()
     paths = {p: v for p, v in spec["paths"].items() if "/material-analysis" in p}
-    assert len(paths) == 6
+    # Every material-finder path, so a new one is looked at here before it ships.
+    # `/{report_id}/image` (the photo of a saved analysis) came with the chat history.
+    base = "/api/v1/ai/material-analysis"
+    assert set(paths) == {
+        base,
+        f"{base}/jobs/{{job_id}}",
+        f"{base}/jobs/{{job_id}}/events",
+        f"{base}/{{report_id}}",
+        f"{base}/{{report_id}}/image",
+        f"{base}/{{report_id}}/recalculate",
+        f"{base}/{{report_id}}/chat",
+    }
     assert "/api/v1/ai/analyze-materials" not in spec["paths"]  # the old cost endpoint is gone
     text = json.dumps(paths).lower()
     for bad in ("cost", "price", "budget", "currency", "inr"):
