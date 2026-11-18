@@ -2,10 +2,13 @@
 import { useRef, useState } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { ArrowRightIcon, FilePdfIcon, TrashIcon, UploadIcon } from '../../../components/ui/Icons';
+import type { UploadLimits } from '../../files';
 import { formatFileSize } from '../boqLogic';
 
 interface BoqUploadProps {
   file: File | null;
+  /** The server's upload limits, shown under the dropzone. */
+  limits: UploadLimits;
   /** Called with whatever was picked or dropped; the page validates it. */
   onPick: (file: File) => void;
   onClear: () => void;
@@ -15,7 +18,7 @@ interface BoqUploadProps {
 
 const FOCUS = 'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A77B]';
 
-export function BoqUpload({ file, onPick, onClear, onStart, onCancel }: BoqUploadProps) {
+export function BoqUpload({ file, limits, onPick, onClear, onStart, onCancel }: BoqUploadProps) {
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const browse = () => input.current?.click();
@@ -66,7 +69,9 @@ export function BoqUpload({ file, onPick, onClear, onStart, onCancel }: BoqUploa
           <span className="mt-4 flex items-center gap-4 font-mono text-[11px] uppercase tracking-wider text-[#737373]">
             <span>Format: PDF</span>
             <span aria-hidden="true">•</span>
-            <span>Max Size: 50 MB</span>
+            <span>Max Size: {limits.max_pdf_mb} MB</span>
+            <span aria-hidden="true">•</span>
+            <span>Up to {limits.max_pdf_pages} pages</span>
           </span>
         </button>
       ) : (

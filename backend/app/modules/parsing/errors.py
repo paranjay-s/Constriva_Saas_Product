@@ -10,6 +10,7 @@ They subclass ValueError because earlier callers of the parser catch ValueError.
 
 class PlanParseError(ValueError):
     code = "plan_parse_failed"
+    http_status = 422
 
     def __init__(self, message: str, *, details: list[str] | None = None) -> None:
         super().__init__(message)
@@ -24,6 +25,36 @@ class PdfInputError(PlanParseError):
     """The upload is not a readable PDF (or image)."""
 
     code = "invalid_pdf"
+    http_status = 400
+
+
+class UploadRejectedError(PlanParseError):
+    """The upload was turned away before any model was called.
+
+    `http_status` is what an endpoint should answer with.
+    """
+
+    code = "upload_rejected"
+    http_status = 400
+
+
+class NotAPdfError(UploadRejectedError):
+    """The file is not a PDF."""
+
+    code = "not_a_pdf"
+
+
+class FileTooLargeError(UploadRejectedError):
+    """The PDF is larger than PLAN_PARSER_MAX_PDF_MB."""
+
+    code = "file_too_large"
+    http_status = 413
+
+
+class TooManyPagesError(UploadRejectedError):
+    """The PDF has more pages than PLAN_PARSER_MAX_PDF_PAGES."""
+
+    code = "too_many_pages"
 
 
 class NoFloorPlanError(PlanParseError):

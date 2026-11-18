@@ -73,7 +73,7 @@ from app.modules.parsing.normalise import (
 from app.modules.parsing.normalise import unit_scale as drawing_unit_scale
 from app.modules.parsing.pdf_input import load_plan_pdf, sha256_of
 from app.modules.parsing.plan_cache import PlanCache, default_plan_cache, plan_cache_key
-from app.modules.parsing.settings import PlanParserConfigError, get_settings, resolve_llm_config
+from app.modules.parsing.settings import PlanParserConfigError, resolve_llm_config
 from app.modules.plans.schemas import PlanJSON
 
 logger = logging.getLogger("construtiva.parsing.llm")
@@ -363,6 +363,9 @@ def parse_plan_pdf(
 
     `min_rooms` is the fewest rooms the lowest floor must have. A cached plan with fewer
     rooms than that is not accepted; the PDF is parsed again.
+
+    A PDF over the size or page limit (PLAN_PARSER_MAX_PDF_MB, PLAN_PARSER_MAX_PDF_PAGES;
+    `max_pages` overrides the latter) is rejected before any model call.
     """
     started = time.monotonic()
     client = client or build_client()
@@ -377,7 +380,8 @@ def parse_plan_pdf(
 
     usage = _Usage()
     try:
-        pdf = load_plan_pdf(pdf_bytes, max_pages or get_settings().max_pdf_pages)
+        # Checks the size and page limits before anything is sent to a model.
+        pdf = load_plan_pdf(pdf_bytes, max_pages)
         plan = _parse_images(
             client,
             [LLMImage(page.png) for page in pdf.pages],
@@ -389,10 +393,6 @@ def parse_plan_pdf(
     except PlanParseError as e:
         _log_parse(client, usage, started, cache_hit=False, outcome=e.code)
         raise
-    if pdf.skipped_pages:
-        plan["warnings"].append(
-            f"Only the first {len(pdf.pages)} of {pdf.page_count} pages were read."
-        )
     cache.put(key, plan)
     _log_parse(client, usage, started, cache_hit=False, outcome="ok")
     return plan

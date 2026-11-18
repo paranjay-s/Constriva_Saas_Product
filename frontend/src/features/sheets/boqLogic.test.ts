@@ -19,7 +19,6 @@ import {
   quantityDecimals,
   sortItems,
   stepStates,
-  validatePdf,
 } from './boqLogic';
 import { type BoqItem, boqResultSchema } from './boqSchemas';
 
@@ -247,14 +246,6 @@ describe('BOQ progress steps', () => {
 });
 
 describe('BOQ files', () => {
-  it('accepts only PDFs up to 50 MB', () => {
-    expect(validatePdf({ name: 'plan.pdf', size: 1024, type: 'application/pdf' })).toBeNull();
-    expect(validatePdf({ name: 'PLAN.PDF', size: 50 * 1024 * 1024 })).toBeNull();
-    expect(validatePdf({ name: 'plan.png', size: 1024, type: 'image/png' })).toMatch(/pdf format/i);
-    expect(validatePdf({ name: 'plan.pdf', size: 50 * 1024 * 1024 + 1 })).toMatch(/50MB/);
-    expect(validatePdf({ name: 'plan.pdf', size: 0 })).toMatch(/empty/i);
-  });
-
   it('reads the file name a download asks for', () => {
     expect(fileNameFromDisposition('attachment; filename="BOQ_green-villa.pdf"')).toBe('BOQ_green-villa.pdf');
     expect(fileNameFromDisposition('attachment; filename=BOQ.xlsx')).toBe('BOQ.xlsx');

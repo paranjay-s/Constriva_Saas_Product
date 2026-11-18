@@ -16,8 +16,6 @@ from app.modules.sheets.llm_mapper import map_plan_to_materials
 
 logger = logging.getLogger("construtiva.sheets.boq")
 
-MAX_PDF_BYTES = 50 * 1024 * 1024
-
 # pdf bytes -> PlanJSON dict; raises ValueError (PlanParseError) when the plan is unreadable
 PlanPdfParser = Callable[[bytes], dict[str, Any]]
 

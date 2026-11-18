@@ -1,6 +1,6 @@
 """BOQ endpoints, mounted at /api/v1/sheets/boq.
 
-POST /                       multipart `file` (PDF) -> 202 {job_id}
+POST /                       multipart `file` (PDF, within the upload limits) -> 202 {job_id}
 GET  /jobs/{job_id}          job state with every event so far
 GET  /jobs/{job_id}/events   SSE progress (replays, then live): uploading, parsing, calculating
 GET  /jobs/{job_id}/result   the BOQ once the job is done
@@ -17,6 +17,7 @@ from fastapi.responses import Response, StreamingResponse
 
 from app.core.security import AuthenticatedUser, get_current_user
 from app.modules.ai.jobs_common import stream_events
+from app.modules.parsing.service import read_plan_upload
 from app.modules.sheets.boq_export import (
     PDF_MIME,
     XLSX_MIME,
@@ -26,12 +27,7 @@ from app.modules.sheets.boq_export import (
 )
 from app.modules.sheets.boq_jobs import BoqJob, BoqJobManager, get_boq_jobs
 from app.modules.sheets.boq_schemas import BoqExportRequest, BoqJobCreated, BoqJobState
-from app.modules.sheets.boq_service import (
-    MAX_PDF_BYTES,
-    PlanPdfParser,
-    default_pdf_parser,
-    start_boq_job,
-)
+from app.modules.sheets.boq_service import PlanPdfParser, default_pdf_parser, start_boq_job
 
 router = APIRouter()
 
@@ -64,15 +60,15 @@ async def start_boq(
     parse_pdf: Parser,
     file: Annotated[UploadFile, File(description="Floor plan PDF")],
 ) -> BoqJobCreated:
-    name = file.filename or "plan.pdf"
-    if not name.lower().endswith(".pdf"):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Please upload the floor plan as a PDF.")
-    pdf_bytes = await file.read()
-    if not pdf_bytes:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "The uploaded file is empty.")
-    if len(pdf_bytes) > MAX_PDF_BYTES:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "The PDF is larger than 50 MB.")
-    job = start_boq_job(jobs, user.id, name, pdf_bytes, parse_pdf)
+    # The same check as the 2D-to-3D import: PDF only, within the size and page limits.
+    # A rejected upload starts no job and never reaches a model.
+    try:
+        pdf_bytes = await read_plan_upload(file)
+    except ValueError as rejected:
+        raise HTTPException(
+            getattr(rejected, "http_status", status.HTTP_400_BAD_REQUEST), str(rejected)
+        ) from rejected
+    job = start_boq_job(jobs, user.id, file.filename or "plan.pdf", pdf_bytes, parse_pdf)
     return BoqJobCreated(job_id=job.id)
 
 

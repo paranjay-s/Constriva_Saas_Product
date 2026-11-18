@@ -20,7 +20,8 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, s
 from fastapi.responses import StreamingResponse, Response, RedirectResponse
 from app.core.supabase import get_supabase_client
 from app.core.security import get_current_user, AuthenticatedUser, clean_uuid, resolve_project_uuid
-from app.modules.parsing.service import ParsingService
+from app.modules.parsing.errors import PlanParseError
+from app.modules.parsing.service import ParsingService, read_plan_upload, upload_limits
 
 logger = logging.getLogger("construtiva.parsing.router")
 router = APIRouter()
@@ -113,6 +114,18 @@ def get_or_create_default_project(user_id: str, filename: Optional[str] = None) 
         return new_id
 
 
+@router.get(
+    "/upload-limits",
+    summary="The size and page limits a plan PDF must meet"
+)
+async def get_upload_limits():
+    """
+    Returns the limits every plan upload is checked against, so a client can say them
+    up front. They are set by PLAN_PARSER_MAX_PDF_MB and PLAN_PARSER_MAX_PDF_PAGES.
+    """
+    return upload_limits()
+
+
 @router.post(
     "/process",
     status_code=status.HTTP_202_ACCEPTED,
@@ -136,17 +149,14 @@ async def process_blueprint(
     Returns:
         dict: task_id, status, and SSE stream URL to listen to progress.
     """
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Uploaded document must be in PDF format (.pdf)."
-        )
+    # PDF only, within the size and page limits. A rejected upload creates no project,
+    # no job and no stored file, and never reaches a model.
+    try:
+        pdf_bytes = await read_plan_upload(file)
+    except PlanParseError as rejected:
+        raise HTTPException(status_code=rejected.http_status, detail=rejected.message)
 
     try:
-        pdf_bytes = await file.read()
-        if len(pdf_bytes) == 0:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty.")
-
         # Ensure valid project exists so foreign key constraints are always satisfied
         target_project_id = ensure_project_exists(project_id, current_user.id, file.filename)
 

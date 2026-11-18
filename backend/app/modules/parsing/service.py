@@ -22,8 +22,10 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from app.core.supabase import get_supabase_client, upload_to_storage, ensure_storage_buckets
 from app.modules.parsing.pdf_to_image import convert_pdf_page_to_png
-from app.modules.parsing.errors import PlanParseError
+from app.modules.parsing.errors import FileTooLargeError, NotAPdfError, PlanParseError
 from app.modules.parsing.llm_parser import parse_plan_pdf
+from app.modules.parsing.pdf_input import check_plan_pdf
+from app.modules.parsing.settings import get_settings
 
 logger = logging.getLogger("construtiva.parsing")
 
@@ -54,6 +56,37 @@ def get_default_verified_plan() -> Dict[str, Any]:
     if hasattr(DEFAULT_VERIFIED_PLAN, "model_dump"):
         return DEFAULT_VERIFIED_PLAN.model_dump()
     return DEFAULT_VERIFIED_PLAN
+
+
+def upload_limits() -> Dict[str, Any]:
+    """The limits every plan upload is held to (PLAN_PARSER_MAX_PDF_MB / _PAGES)."""
+    settings = get_settings()
+    return {"max_pdf_mb": settings.max_pdf_mb, "max_pdf_pages": settings.max_pdf_pages}
+
+
+async def read_plan_upload(upload: Any) -> bytes:
+    """
+    Reads an uploaded plan and checks it before anything else happens to it:
+    PDF only, within the size limit, opens as a PDF, within the page limit.
+
+    Used by every flow that accepts a plan PDF. Raises a PlanParseError subclass whose
+    message can be shown to the user and whose `http_status` an endpoint can answer with.
+    Nothing is stored and no model is called for a rejected upload. At most one byte more
+    than the size limit is read into memory.
+    """
+    limit = get_settings().max_pdf_bytes
+    name = upload.filename or ""
+    if not name.lower().endswith(".pdf"):
+        raise NotAPdfError("Please upload the floor plan as a PDF file.")
+    declared = getattr(upload, "size", None)
+    if isinstance(declared, int) and declared > limit:
+        raise FileTooLargeError(
+            f"This PDF is {declared / 1048576:.1f} MB. "
+            f"The largest file accepted is {limit / 1048576:g} MB."
+        )
+    data = await upload.read(limit + 1)
+    check_plan_pdf(data, name)
+    return data
 
 
 class ParsingService:

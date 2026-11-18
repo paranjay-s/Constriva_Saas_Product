@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { AlertCircleIcon, ArrowLeftIcon, IconDownload, IconFilePdf, IconUpload } from '../../components/ui/Icons';
-import { validatePdf } from './boqLogic';
+import { planFileProblem, useUploadLimits } from '../files';
 import type { BoqResult } from './boqSchemas';
 import { BoqProgress } from './components/BoqProgress';
 import { BoqSummary } from './components/BoqSummary';
@@ -104,9 +104,10 @@ export function BoqPage() {
   const [fileError, setFileError] = useState<string | null>(null);
   const job = useBoqJob();
   const { phase } = job;
+  const limits = useUploadLimits();
 
   const pick = (picked: File) => {
-    const problem = validatePdf(picked);
+    const problem = planFileProblem(picked, limits);
     setFileError(problem);
     if (!problem) setFile(picked);
   };
@@ -151,6 +152,7 @@ export function BoqPage() {
                   {fileError && <ErrorBanner message={fileError} />}
                   <BoqUpload
                     file={file}
+                    limits={limits}
                     onPick={pick}
                     onClear={() => {
                       setFile(null);

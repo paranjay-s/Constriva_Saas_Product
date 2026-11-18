@@ -369,7 +369,7 @@ describe('BOQ page', () => {
     expect(startButton.hasAttribute('disabled')).toBe(true);
 
     pick(new File(['x'], 'plan.png', { type: 'image/png' }));
-    expect(screen.getByRole('alert').textContent).toMatch(/pdf format/i);
+    expect(screen.getByRole('alert').textContent).toMatch(/as a PDF file/i);
     expect(startButton.hasAttribute('disabled')).toBe(true);
 
     pick(pdf());

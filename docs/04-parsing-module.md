@@ -127,6 +127,17 @@ All subclass `PlanParseError` (`errors.py`), which carries a stable `code`, a us
 | `PlanOutputInvalidError` | `llm_output_invalid` | Reply still invalid after the repair attempts |
 | `PlanNormalisationError` | `normalisation_failed` | Valid reply could not become a valid PlanJSON |
 
+## Upload limits
+
+Both upload flows (the 2D-to-3D import and the BOQ) accept a plan through the same check, `read_plan_upload` in `service.py`, before anything else happens:
+
+1. the file name ends in `.pdf`;
+2. the size is within `PLAN_PARSER_MAX_PDF_MB` (default 20);
+3. the content really is a PDF that opens, and is not password protected;
+4. it has at most `PLAN_PARSER_MAX_PDF_PAGES` pages (default 10).
+
+A rejected upload gets a clear message (`413` for size, `400` otherwise), creates no project, job or stored file, and never reaches a model. Pages are never silently dropped: a PDF over the page limit is rejected, not truncated. The parser applies the same limits itself (`load_plan_pdf`), so a caller that skips the endpoint check is still covered. `GET /api/v1/parsing/upload-limits` returns the two limits so the upload screens can state them.
+
 ## When parsing fails
 
 No flow substitutes another plan for one that could not be read.
@@ -142,7 +153,7 @@ No flow substitutes another plan for one that could not be read.
 | `router.py` | `POST /parsing/process` (upload and start), `GET /parsing/stream/{task_id}` (SSE progress), `GET /parsing/{project_id}/plan`. |
 | `service.py` | The blueprint import used by the 2D-to-3D flow: stores the PDF and its raster, calls `parse_plan_pdf`, saves the plan row, reports job progress. When the parser fails the job is marked `failed` with the typed error (`result.error.code` and message) and no plan row is written. |
 | `llm_parser.py` | The pipeline above. `parse_plan_pdf`, `parse_plan_images`, and the earlier entry points kept for existing callers. |
-| `pdf_input.py` | PDF to page images and positioned text. |
+| `pdf_input.py` | The upload check (`check_plan_pdf`) and PDF to page images and text. |
 | `llm_schema.py` | `WIRE_JSON_SCHEMA` (what the model is asked for), `LLMPlanDraft` (the validator) and the draft checks. |
 | `normalise.py` | The deterministic normaliser and `upgrade_plan`. |
 | `plan_cache.py` | The PlanJSON cache. |

@@ -41,7 +41,7 @@ from app.modules.parsing.llm_parser import (
 )
 from app.modules.parsing.llm_schema import WIRE_JSON_SCHEMA
 from app.modules.parsing.pdf_input import RENDER_DPI, effective_dpi, load_plan_pdf
-from app.modules.parsing.plan_cache import FilePlanCache, NullPlanCache, plan_cache_key
+from app.modules.parsing.plan_cache import FilePlanCache, plan_cache_key
 from app.modules.plans.schemas import SCHEMA_VERSION, PlanJSON
 
 EXTRACTED_PLAN = Path(__file__).resolve().parents[2] / "extracted_plan.json"
@@ -460,7 +460,7 @@ def test_old_schema_reply_is_accepted_and_upgraded():
 
 def test_pdf_input_renders_pages_and_reads_text():
     pdf = load_plan_pdf(make_pdf(pages=2), max_pages=4)
-    assert pdf.page_count == 2 and len(pdf.pages) == 2 and pdf.skipped_pages == 0
+    assert pdf.page_count == 2 and len(pdf.pages) == 2
     page = pdf.pages[0]
     assert page.png.startswith(b"\x89PNG") and page.dpi == RENDER_DPI
     assert (page.width_px, page.height_px) == (1750, 1238)
@@ -482,11 +482,13 @@ def test_large_sheets_are_scaled_by_a_fixed_rule():
     assert effective_dpi(2384, 1684) == effective_dpi(1684, 2384)
 
 
-@pytest.mark.parametrize("data", [b"", b"this is not a pdf"])
-def test_bad_pdf_raises_pdf_input_error(data):
-    with pytest.raises(PdfInputError) as caught:
-        load_plan_pdf(data)
-    assert caught.value.code == "invalid_pdf"
+def test_bad_pdf_raises_a_typed_input_error():
+    with pytest.raises(PdfInputError) as empty:
+        load_plan_pdf(b"")
+    assert empty.value.code == "invalid_pdf"
+    with pytest.raises(PlanParseError) as not_pdf:
+        load_plan_pdf(b"this is not a pdf")
+    assert not_pdf.value.code == "not_a_pdf"
 
 
 def test_parse_plan_pdf_runs_the_whole_pipeline(tmp_path):
@@ -564,13 +566,6 @@ def test_a_cached_plan_with_too_few_rooms_is_parsed_again(tmp_path):
     llm = FakeLLM(good_reply())
     plan = parse_plan_pdf(data, client=llm, cache=cache, min_rooms=2)
     assert len(llm.calls) == 1 and len(plan["levels"][0]["rooms"]) == 2
-
-
-def test_unread_pages_are_reported(tmp_path):
-    plan = parse_plan_pdf(
-        make_pdf(pages=3), client=FakeLLM(good_reply()), cache=NullPlanCache(), max_pages=2
-    )
-    assert "Only the first 2 of 3 pages were read." in plan["warnings"]
 
 
 def test_corrupt_cache_entry_is_ignored(tmp_path):

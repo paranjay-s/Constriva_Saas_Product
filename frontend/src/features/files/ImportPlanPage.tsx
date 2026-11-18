@@ -12,7 +12,8 @@ import {
   UploadIcon,
 } from '../../components/ui/Icons';
 import { useProject } from '../../context/ProjectContext';
-import { filesApi, type ParsingProgressEvent } from './api';
+import { filesApi, planFileProblem, type ParsingProgressEvent } from './api';
+import { useUploadLimits } from './hooks/useUploadLimits';
 
 type UploadStage = 'idle' | 'uploading' | 'parsing' | 'completed' | 'error';
 
@@ -48,6 +49,7 @@ export const ImportPlanPage: React.FC = () => {
   const sseCleanupRef = useRef<(() => void) | null>(null);
   const { activeProject, setProjectStatus, setPlanData } = useProject();
   const navigate = useNavigate();
+  const limits = useUploadLimits();
 
   useEffect(() => {
     return () => {
@@ -58,12 +60,9 @@ export const ImportPlanPage: React.FC = () => {
   }, []);
 
   const handleFileChange = (selectedFile: File) => {
-    if (!selectedFile.name.toLowerCase().endsWith('.pdf')) {
-      setErrorMessage('Please upload an architectural document in PDF format.');
-      return;
-    }
-    if (selectedFile.size > 50 * 1024 * 1024) {
-      setErrorMessage('File size exceeds 50MB limit.');
+    const problem = planFileProblem(selectedFile, limits);
+    if (problem) {
+      setErrorMessage(problem);
       return;
     }
 
@@ -276,7 +275,9 @@ export const ImportPlanPage: React.FC = () => {
                   <div className="mt-4 flex items-center gap-4 text-[11px] font-mono text-[#737373] uppercase tracking-wider">
                     <span>Format: PDF</span>
                     <span>•</span>
-                    <span>Max Size: 50 MB</span>
+                    <span>Max Size: {limits.max_pdf_mb} MB</span>
+                    <span>•</span>
+                    <span>Up to {limits.max_pdf_pages} pages</span>
                   </div>
                 </div>
               ) : (

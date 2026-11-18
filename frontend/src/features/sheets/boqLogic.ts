@@ -313,17 +313,6 @@ export function stepStates(progress: { uploading: boolean; stages: readonly stri
 
 // ------------------------------------------------------------------- files
 
-export const MAX_PDF_BYTES = 50 * 1024 * 1024;
-
-/** Why a picked file cannot be used, or null when it is fine. */
-export function validatePdf(file: { name: string; size: number; type?: string }): string | null {
-  const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
-  if (!isPdf) return 'Please upload an architectural document in PDF format.';
-  if (file.size > MAX_PDF_BYTES) return 'File size exceeds 50MB limit.';
-  if (file.size === 0) return 'This PDF is empty. Please choose another file.';
-  return null;
-}
-
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
