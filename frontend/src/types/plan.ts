@@ -50,6 +50,7 @@ export type Openings = Opening[];
 export type Id2 = string;
 export type Name1 = string | null;
 export type Kind1 = ("indoor" | "semi_open" | "outdoor" | "void") | null;
+export type BoqKind = ("indoor" | "semi_open" | "outdoor" | "void") | null;
 export type BoqType =
   ("BATH" | "KITCHEN" | "LAUNDRY" | "CIRC" | "LIVING" | "DINING" | "STORE" | "BED" | "STUDY" | "OTHER") | null;
 export type Polygon = [number, number][];
@@ -72,6 +73,9 @@ export type ParserVersion = string | null;
 export type PromptVersion = string | null;
 export type Provider = string | null;
 export type Model = string | null;
+export type InputTokens = number | null;
+export type OutputTokens = number | null;
+export type Attempts = number | null;
 
 export interface PlanJSON {
   schema_version?: SchemaVersion;
@@ -128,6 +132,7 @@ export interface Room {
   id: Id2;
   name?: Name1;
   kind?: Kind1;
+  boq_kind?: BoqKind;
   boq_type?: BoqType;
   polygon: Polygon;
   height_m?: HeightM;
@@ -153,5 +158,8 @@ export interface ParserInfo {
   prompt_version?: PromptVersion;
   provider?: Provider;
   model?: Model;
+  input_tokens?: InputTokens;
+  output_tokens?: OutputTokens;
+  attempts?: Attempts;
   [k: string]: unknown;
 }

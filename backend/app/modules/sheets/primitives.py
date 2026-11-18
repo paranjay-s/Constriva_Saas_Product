@@ -33,7 +33,7 @@ def clamp(x: float, lo: float, hi: float) -> float:
 @dataclass(frozen=True)
 class RoomFact:
     name: str
-    kind: str  # indoor | semi_open | outdoor | void
+    kind: str  # the room's boq_kind: indoor | semi_open | outdoor | void
     area: float
     perimeter: float
     boq_type: str | None = None  # indoor rooms only
@@ -79,6 +79,8 @@ class PlanFacts:
     a_netwall_0: float  # A_netwall_0 (ground level)
     site_width: float = 0.0  # bounding box of every room of any kind on level 0
     site_depth: float = 0.0
+    # Parking and driveway rooms that sit under an upper floor (names, in plan order).
+    covered_parking: tuple[str, ...] = ()
     building_type: str = "villa"
     f_fc: float = 1.0  # share of dry area that gets a false ceiling
     plot_perimeter: float | None = None

@@ -250,6 +250,42 @@
           ],
           "default": null,
           "title": "Model"
+        },
+        "input_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Tokens"
+        },
+        "output_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Tokens"
+        },
+        "attempts": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attempts"
         }
       },
       "title": "ParserInfo",
@@ -291,6 +327,24 @@
           ],
           "default": null,
           "title": "Kind"
+        },
+        "boq_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "indoor",
+                "semi_open",
+                "outdoor",
+                "void"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Boq Kind"
         },
         "boq_type": {
           "anyOf": [

@@ -473,6 +473,11 @@ def calculation_warnings(p: Primitives, facts: PlanFacts) -> list[str]:
         warnings.append("Opening widths are absent, so items 28 and 29 are 0.")
     if p.a_pave <= 0 and not apartment:
         warnings.append("No paved outdoor rooms were found, so items 22 and 23 are 0.")
+    if facts.covered_parking:
+        warnings.append(
+            "Parking under an upper floor is counted as paved outdoor area, so slab "
+            f"quantities exclude it: {', '.join(facts.covered_parking)}."
+        )
     if p.a_ext_capped:
         warnings.append(
             "The exterior wall area was capped by the net wall area. "

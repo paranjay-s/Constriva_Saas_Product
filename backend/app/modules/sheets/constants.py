@@ -85,6 +85,9 @@ AC_MIN_ROOM_AREA_M2 = 6.0             # smaller rooms get no AC unit
 BATH_WALL_TILE_FACTOR = 2.07          # skirting to 2.40 m, 10% off for openings: 2.30 x 0.90
 SPLASHBACK_TILE_FACTOR = 0.30         # 0.60 m splashback on half the perimeter
 
+# Two bounding boxes overlap when they share more than this in both directions.
+BOX_OVERLAP_MIN_M = 0.05
+
 # --- Default opening sizes when a plan gives none (section 1)
 DEFAULT_DOOR_WIDTH_M = 0.90
 DEFAULT_DOOR_HEIGHT_M = 2.10

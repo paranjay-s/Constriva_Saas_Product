@@ -17,7 +17,7 @@ PlanJSON -> measure each level -> PlanFacts -> derive_primitives -> Primitives -
 
 | Step | Where | What it does |
 |---|---|---|
-| Room type | `plans/room_types.py` | `boq_type` of each indoor room (spec section 2). Shared with the plan parser, which writes it; the calculator derives it from the name when a stored plan has none. |
+| Room kind and type | `plans/room_types.py` | `boq_kind` of each room and `boq_type` of each indoor room (spec section 2). Shared with the plan parser, which writes them; the calculator derives them when a stored plan has none. `room.kind` is read and never changed. |
 | Measure | `llm_mapper._measure_level` | Applies the unit scale, then measures rooms, wall areas, openings and bounding boxes of one level. |
 | Derive | `primitives.derive_primitives` | The derived quantities, computed once per plan: wet and dry areas, room counts, the roof level, and the wall model (`A_ext`, `A_int`, `A_gyp_wall`, `A_cem`, `s_gyp`, `s_cem`). |
 | Formulas | `formulas.compute_items` | One formula per item, written as the spec states it. Pure functions of numbers, so they are tested without a drawing. |
@@ -36,7 +36,7 @@ Optional inputs of `map_plan_to_materials` (and of `POST /sheets/boq`): `false_c
 
 The result also carries `derived_quantities`: every symbol of spec section 3 for this plan, for checking a quantity by hand.
 
-Warnings the calculator adds: no bathroom or kitchen detected; more than 30% of the indoor area has no recognised room type; opening widths absent (items 28 and 29 are 0); no paved outdoor rooms (items 22 and 23 are 0); the exterior wall area was capped by the net wall area; the gypsum-plastered wall area was clamped to 0; no built area.
+Warnings the calculator adds: parking under an upper floor is counted as paved outdoor area; no bathroom or kitchen detected; more than 30% of the indoor area has no recognised room type; opening widths absent (items 28 and 29 are 0); no paved outdoor rooms (items 22 and 23 are 0); the exterior wall area was capped by the net wall area; the gypsum-plastered wall area was clamped to 0; no built area.
 
 ## Row contract
 

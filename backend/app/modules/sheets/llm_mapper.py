@@ -28,7 +28,11 @@ import logging
 from typing import Dict, Any, List, Optional, Tuple
 
 from app.modules.plans.room_kind import is_open_void_label
-from app.modules.plans.room_types import stored_or_derived_boq_type
+from app.modules.plans.room_types import (
+    is_parking,
+    stored_or_derived_boq_kind,
+    stored_or_derived_boq_type,
+)
 from app.modules.sheets.boq_rows import build_boq_rows
 from app.modules.sheets.formulas import calculation_warnings, compute_items
 from app.modules.sheets.primitives import (
@@ -41,6 +45,7 @@ from app.modules.sheets.primitives import (
     derive_primitives,
 )
 from app.modules.sheets.constants import (  # noqa: F401  (re-exported)
+    BOX_OVERLAP_MIN_M,
     CEMENT_BAGS_PER_M3,
     CEMENT_WASTE_FACTOR,
     CFT_PER_M3,
@@ -567,6 +572,27 @@ def _box_dims_m(points: list[tuple[float, float]]) -> tuple[float, float]:
     return max(xs) - min(xs), max(ys) - min(ys)
 
 
+Box = tuple[float, float, float, float]  # x0, y0, x1, y1 in metres
+
+
+def _box_m(points: list[tuple[float, float]]) -> Box | None:
+    if not points:
+        return None
+    xs = [pt[0] for pt in points]
+    ys = [pt[1] for pt in points]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def _boxes_overlap(a: Box | None, b: Box | None) -> bool:
+    """True when two boxes share an area (touching edges do not count)."""
+    if a is None or b is None:
+        return False
+    return (
+        min(a[2], b[2]) - max(a[0], b[0]) > BOX_OVERLAP_MIN_M
+        and min(a[3], b[3]) - max(a[1], b[1]) > BOX_OVERLAP_MIN_M
+    )
+
+
 def _measure_level(
     lvl: dict[str, Any],
     lvl_idx: int,
@@ -597,18 +623,21 @@ def _measure_level(
             continue
 
         r_id = str(r.get("id", f"room_{room_serial_start + len(records) + 1}"))
+        # `kind` is the 3D adapter's key and is only read. The BOQ counts by `boq_kind`,
+        # which a plan stored without it gets from the same rules the parser uses.
         r_kind = _classify_room_kind(r)
+        r_boq_kind = stored_or_derived_boq_kind(r.get("name"), r_kind, r.get("boq_kind")) or r_kind
         area_m2 = compute_polygon_area_m2(poly, unit_scale)
         perim_m = compute_polygon_perimeter_m(poly, unit_scale)
         len_m, brd_m = compute_bounding_dims_m(poly, unit_scale)
         h_room = _resolve_room_height_m(r, lvl, global_ceiling_height_m, use_standard_11ft_default)
         points = [(float(pt[0]) * unit_scale, float(pt[1]) * unit_scale) for pt in poly]
 
-        counts_as_built = r_kind in ("indoor", "semi_open")
+        counts_as_built = r_boq_kind in ("indoor", "semi_open")
         # Indoor rooms only. A plan stored without `boq_type` gets it from the name.
         r_boq_type = (
             stored_or_derived_boq_type(r.get("name"), r.get("boq_type"))
-            if r_kind == "indoor"
+            if r_boq_kind == "indoor"
             else None
         )
         r_gross_wall = (perim_m * SHARED_WALL_REDUCTION_FACTOR * h_room) if counts_as_built else 0.0
@@ -629,7 +658,9 @@ def _measure_level(
             "id": r_id,
             "name": str(r.get("name") or "Room"),
             "kind": r_kind,
+            "boq_kind": r_boq_kind,
             "boq_type": r_boq_type,
+            "box": _box_m(points) if has_area else None,
             "poly": poly,
             "area_m2": area_m2,
             "perim_m": perim_m,
@@ -661,6 +692,7 @@ def _measure_level(
     # The exterior outline: the bounding box of the built rooms, or of the walls when the
     # level has walls but no usable rooms.
     width, depth = _box_dims_m(built_points)
+    built_box = _box_m(built_points)
     if built_area <= 0.0 and walls:
         warnings.append(
             f"{label}: no usable rooms were found; areas were estimated from the wall outline."
@@ -671,6 +703,7 @@ def _measure_level(
             for pt in (w["start"], w["end"])
         ]
         width, depth = _box_dims_m(wall_points)
+        built_box = _box_m(wall_points)
         built_area = width * depth
         total_wall_len = sum(
             math.hypot(
@@ -716,12 +749,34 @@ def _measure_level(
         "height": height,
         "width": width,
         "depth": depth,
+        "built_box": built_box,
         "all_rooms_box": _box_dims_m(all_points),
         "openings": opening_facts,
         "doors": doors,
         "windows": windows,
         "columns": len(lvl.get("columns", [])),
     }
+
+
+def _parking_under_an_upper_floor(measured: list[dict[str, Any]]) -> tuple[str, ...]:
+    """Names of parking and driveway rooms that have built rooms of the next level over them.
+
+    Such a room is paved outdoor area for the BOQ, so the slab quantities leave it out.
+    "Over them" is the spec's test: the bounding box of the built rooms of the level above
+    overlaps the room's bounding box.
+    """
+    names: list[str] = []
+    for level, above in zip(measured, measured[1:], strict=False):
+        if above["built_area"] <= 0.0:
+            continue
+        for rec in level["records"]:
+            if (
+                rec["boq_kind"] == "outdoor"
+                and is_parking(rec["name"])
+                and _boxes_overlap(rec["box"], above["built_box"])
+            ):
+                names.append(rec["name"])
+    return tuple(names)
 
 
 def _derived_summary(p: Primitives) -> dict[str, Any]:
@@ -819,7 +874,7 @@ def map_plan_to_materials(
         rooms=tuple(
             RoomFact(
                 name=rec["name"],
-                kind=rec["kind"],
+                kind=rec["boq_kind"],
                 area=rec["area_m2"],
                 perimeter=rec["perim_m"],
                 boq_type=rec["boq_type"],
@@ -834,6 +889,7 @@ def map_plan_to_materials(
         a_netwall_0=measured[0]["net_wall_area"],
         site_width=site_width,
         site_depth=site_depth,
+        covered_parking=_parking_under_an_upper_floor(measured),
         building_type=building_type,
         f_fc=min(max(float(false_ceiling_share), 0.0), 1.0),
         plot_perimeter=(
@@ -909,6 +965,7 @@ def map_plan_to_materials(
                 "id": r_id,
                 "name": r.get("name", "Room"),
                 "kind": rec["kind"],
+                "boq_kind": rec["boq_kind"],
                 "boq_type": rec["boq_type"],
                 "vertices_count": len(rec["poly"]),
                 "is_complex_polygon": len(rec["poly"]) > 4,

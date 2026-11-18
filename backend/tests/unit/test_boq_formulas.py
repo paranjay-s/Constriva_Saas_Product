@@ -822,6 +822,121 @@ def test_same_input_twice_gives_identical_output():
     assert first == second
 
 
+# ------------------------------------------------------------------ boq_kind (section 2.1)
+
+PARKING_WARNING = (
+    "Parking under an upper floor is counted as paved outdoor area, so slab quantities exclude it: "
+)
+
+
+def ground_with_parking() -> dict:
+    return level(
+        [
+            room("g1", "Living Room", 0, 0, 6, 5, kind="indoor"),
+            room("g2", "Kitchen", 6, 0, 10, 5, kind="indoor"),
+            room("g3", "PARKING 18X18'6", 0, 5, 6, 8, kind="semi_open"),
+            room("g4", "Bedroom", 6, 5, 10, 8, kind="indoor"),
+        ]
+    )
+
+
+def test_parking_under_an_upper_floor_is_paved_outdoor_area_with_a_warning():
+    first = level([room("f1", "Master Bedroom", 0, 0, 10, 8, kind="indoor")])
+    result = map_plan_to_materials({"units": "m", "levels": [ground_with_parking(), first]})
+    parking = next(r for r in result["room_breakdown"] if r["id"] == "g3")
+    # `kind` is the 3D adapter's and is reported as it was; the BOQ counts by `boq_kind`
+    assert (parking["kind"], parking["boq_kind"], parking["boq_type"]) == (
+        "semi_open",
+        "outdoor",
+        None,
+    )
+    assert parking["included_in_built_area"] is False
+    assert parking["materials_by_key"]["tiles"]["quantity"] == 0
+    d = result["derived_quantities"]
+    assert (d["A_ground"], d["A_built"]) == (62, 142)  # 80 - 18 on the ground, 80 above
+    assert (d["A_pave"], d["P_pave"]) == (18, 18)
+    q = quantities(result)
+    assert q[22] == pytest.approx(18 * 1.05)
+    assert q[23] == pytest.approx(0.75 * 18 * 1.05)
+    assert PARKING_WARNING + "PARKING 18X18'6." in result["warnings"]
+    assert not any("items 22 and 23 are 0" in w for w in result["warnings"])
+
+
+def test_parking_with_no_floor_over_it_has_no_warning():
+    single = map_plan_to_materials({"units": "m", "levels": [ground_with_parking()]})
+    assert single["derived_quantities"]["A_pave"] == 18
+    assert not any(w.startswith(PARKING_WARNING) for w in single["warnings"])
+
+    # an upper floor that does not reach over the parking (x from 6 to 10 only)
+    beside = level([room("f1", "Master Bedroom", 6, 0, 10, 8, kind="indoor")])
+    result = map_plan_to_materials({"units": "m", "levels": [ground_with_parking(), beside]})
+    assert not any(w.startswith(PARKING_WARNING) for w in result["warnings"])
+
+
+def test_bounding_boxes_use_boq_kind():
+    plan = {
+        "units": "m",
+        "levels": [
+            level(
+                [
+                    room("a", "Living Room", 0, 0, 10, 5, kind="indoor"),
+                    room("b", "Car Porch", 10, 0, 15, 5, kind="semi_open"),
+                ]
+            )
+        ],
+    }
+    d = derived(plan)
+    assert d["P_ext"] == [30]  # the built outline stops at the living room
+    assert d["P_site"] == 40  # the site outline takes every room
+    assert (d["A_built"], d["A_roof"], d["A_pave"]) == (50, 50, 25)
+
+
+def test_semi_open_wet_rooms_are_indoor_for_the_boq_and_stairs_stay_semi_open():
+    plan = {
+        "units": "m",
+        "levels": [
+            level(
+                [
+                    room("a", "Bedroom", 0, 0, 4, 4, kind="indoor"),
+                    room("b", "WASH 5' WD.", 4, 0, 6, 2, kind="semi_open"),
+                    room("c", "Washroom", 4, 2, 6, 4, kind="semi_open"),
+                    room("d", "STAIRCASE", 0, 4, 3, 7, kind="semi_open"),
+                    room("e", "Kitchen", 3, 4, 6, 7, kind="indoor"),
+                ]
+            )
+        ],
+    }
+    result = map_plan_to_materials(plan)
+    rooms = {r["id"]: (r["kind"], r["boq_kind"], r["boq_type"]) for r in result["room_breakdown"]}
+    assert rooms["b"] == ("semi_open", "indoor", "LAUNDRY")
+    assert rooms["c"] == ("semi_open", "indoor", "BATH")
+    assert rooms["d"] == ("semi_open", "semi_open", None)
+    d = result["derived_quantities"]
+    assert (d["N_lau"], d["N_bath"], d["N_kit"]) == (1, 1, 1)
+    assert (d["A_in"], d["A_built"]) == (33, 42)  # the staircase is built but not indoor
+    q = quantities(result)
+    assert q[27] == 2  # wet-area doors: the washroom and the wash yard
+
+
+def test_a_stored_boq_kind_is_used_and_a_missing_one_is_derived():
+    def a_built(**extra) -> float:
+        rooms = [
+            room("a", "Bedroom", 0, 0, 4, 4, kind="indoor"),
+            room("p", "Parking", 4, 0, 8, 4, kind="semi_open", **extra),
+        ]
+        return derived({"units": "m", "levels": [level(rooms)]})["A_built"]
+
+    assert a_built() == 16  # derived: parking is outdoor
+    assert a_built(boq_kind="semi_open") == 32  # stored: kept as it is
+    assert a_built(boq_kind="nonsense") == 16
+
+
+def test_covered_parking_warning_on_the_formula_layer():
+    facts = fixture_facts(covered_parking=("Parking 1", "Driveway"))
+    warnings = calculation_warnings(derive_primitives(facts), facts)
+    assert PARKING_WARNING + "Parking 1, Driveway." in warnings
+
+
 # ------------------------------------------------------------------ scopes and units
 
 

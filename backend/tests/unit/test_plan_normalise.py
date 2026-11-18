@@ -19,9 +19,11 @@ from app.modules.parsing.normalise import (
 from app.modules.plans.room_kind import is_open_void_label, parser_room_kind
 from app.modules.plans.room_types import (
     BOQ_TYPES,
+    boq_kind_from,
     boq_type_from_name,
     is_open_plan_kitchen,
     resolve_boq_type,
+    stored_or_derived_boq_kind,
     stored_or_derived_boq_type,
 )
 from app.modules.plans.schemas import SCHEMA_VERSION, UNSTATED_WALL_HEIGHT_M, PlanJSON
@@ -260,6 +262,103 @@ def test_normaliser_types_indoor_rooms_only():
     assert rooms["KIT. 10' X 10'"]["boq_type"] == "KITCHEN"  # rules gave OTHER: model used
     assert rooms["OPEN 4'6\"X10'"]["kind"] == "void"
     assert rooms["OPEN 4'6\"X10'"]["boq_type"] is None  # not an indoor room
+
+
+# ------------------------------------------------------------------- room boq_kind
+
+
+@pytest.mark.parametrize(
+    ("name", "kind", "expected"),
+    [
+        # voids stay voids, whatever the name says
+        ("OPEN 4'6X10'4", "void", "void"),
+        ("Parking void", "void", "void"),
+        # parking and driveways are paved outdoor area, whatever the 3D kind is
+        ("PARKING 18X18'6", "semi_open", "outdoor"),
+        ("Car  Park", "indoor", "outdoor"),
+        ("CAR PORCH", "semi_open", "outdoor"),
+        ("Carport", "semi_open", "outdoor"),
+        ("Driveway", "outdoor", "outdoor"),
+        # a semi-open wet room is an indoor room for the BOQ
+        ("WASH 5' WD.", "semi_open", "indoor"),
+        ("Washroom", "semi_open", "indoor"),
+        ("Outdoor Kitchen", "semi_open", "indoor"),
+        ("Utility", "semi_open", "indoor"),
+        # everything else keeps its kind
+        ("STAIRCASE", "semi_open", "semi_open"),
+        ("SITOUT 26' X 8'", "semi_open", "semi_open"),
+        ("Verandah", "semi_open", "semi_open"),
+        ("Garage", "semi_open", "semi_open"),
+        ("Lawn", "outdoor", "outdoor"),
+        ("Garden toilet", "outdoor", "outdoor"),  # only semi-open rooms are promoted
+        ("Bedroom", "indoor", "indoor"),
+    ],
+)
+def test_boq_kind_rules(name, kind, expected):
+    assert boq_kind_from(name, kind) == expected
+
+
+def test_boq_kind_needs_a_kind_and_keeps_a_stored_value():
+    assert boq_kind_from("Parking", None) is None  # the caller classifies the room first
+    assert boq_kind_from("Parking", "garage") is None
+    assert stored_or_derived_boq_kind("Parking", "semi_open", None) == "outdoor"
+    assert stored_or_derived_boq_kind("Parking", "semi_open", "semi_open") == "semi_open"
+    assert stored_or_derived_boq_kind("Parking", "semi_open", "not-a-kind") == "outdoor"
+
+
+def test_normaliser_sets_boq_kind_and_never_changes_kind():
+    raw = raw_plan()
+    raw["levels"][0]["rooms"] += [
+        {"id": "p", "name": "PARKING 10' X 10'", "kind": "indoor", "polygon": _square(1, 1, 3)},
+        {"id": "w", "name": "WASH 5' X 5'", "kind": "indoor", "polygon": _square(5, 5, 3)},
+        {"id": "s", "name": "STAIRCASE", "kind": "indoor", "polygon": _square(12, 2, 3)},
+    ]
+    rooms = {r["name"]: r for r in normalise_plan(raw)["levels"][0]["rooms"]}
+    # `kind` is what the parser's own rules give, exactly as before
+    parking, wash, stair = rooms["PARKING 10' X 10'"], rooms["WASH 5' X 5'"], rooms["STAIRCASE"]
+    assert (parking["kind"], parking["boq_kind"], parking["boq_type"]) == (
+        "semi_open",
+        "outdoor",
+        None,
+    )
+    assert (wash["kind"], wash["boq_kind"], wash["boq_type"]) == ("semi_open", "indoor", "LAUNDRY")
+    assert (stair["kind"], stair["boq_kind"], stair["boq_type"]) == ("semi_open", "semi_open", None)
+    bed = rooms["BEDROOM 10' X 10'"]
+    assert (bed["kind"], bed["boq_kind"], bed["boq_type"]) == ("indoor", "indoor", "BED")
+    shaft = rooms["OPEN 4'6\"X10'"]
+    assert (shaft["kind"], shaft["boq_kind"], shaft["boq_type"]) == ("void", "void", None)
+
+
+def test_a_stored_plan_keeps_its_kind_and_gains_boq_kind():
+    stored = {
+        "units": "m",
+        "levels": [
+            {
+                "rooms": [
+                    {"id": "a", "name": "Parking", "kind": "semi_open", "polygon": _square(0, 0)},
+                    {"id": "b", "name": "Wash", "kind": "semi_open", "polygon": _square(10, 0)},
+                    {
+                        "id": "c",
+                        "name": "Sitout",
+                        "kind": "semi_open",
+                        "boq_kind": "outdoor",
+                        "polygon": _square(20, 0),
+                    },
+                    {"id": "d", "name": "Room", "polygon": _square(30, 0)},
+                ]
+            }
+        ],
+    }
+    rooms = {r["id"]: r for r in upgrade_plan(stored)["levels"][0]["rooms"]}
+    assert [rooms[i]["kind"] for i in "abcd"] == ["semi_open", "semi_open", "semi_open", None]
+    assert (rooms["a"]["boq_kind"], rooms["b"]["boq_kind"]) == ("outdoor", "indoor")
+    assert rooms["b"]["boq_type"] == "LAUNDRY"
+    assert rooms["c"]["boq_kind"] == "outdoor"  # a stored value is kept
+    assert rooms["d"]["boq_kind"] is None  # no kind to start from: the calculator derives it
+
+
+def _square(x: float, y: float, side: float = 10.0) -> list[list[float]]:
+    return [[x, y], [x + side, y], [x + side, y + side], [x, y + side]]
 
 
 def test_room_type_key_of_the_3d_adapter_is_never_read_written_or_changed():

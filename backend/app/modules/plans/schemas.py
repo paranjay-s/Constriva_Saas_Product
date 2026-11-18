@@ -102,9 +102,14 @@ class Room(_PlanModel):
     id: str
     name: str | None = None
     kind: RoomKind | None = None
-    # What the room is used for, for the material calculator. Indoor rooms only; None on
-    # every other kind and on plans stored before this field existed. This is not
-    # `type`: that key belongs to the 3D adapter and is never read or written here.
+    # How the material calculator counts the room. Starts from `kind` and differs from it
+    # for parking and driveways (outdoor) and for semi-open wet rooms (indoor). `kind`
+    # itself is the 3D adapter's and is never changed. None on plans stored before this
+    # field existed; the calculator then derives it.
+    boq_kind: RoomKind | None = None
+    # What the room is used for, for the material calculator. Only rooms whose `boq_kind`
+    # is indoor have one; None otherwise and on plans stored before this field existed.
+    # This is not `type`: that key belongs to the 3D adapter and is never read or written.
     boq_type: BoqType | None = None
     polygon: list[Point]
     # Ceiling height of this room when it differs from the level's wall_height.

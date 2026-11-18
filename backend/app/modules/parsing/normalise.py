@@ -27,7 +27,12 @@ from typing import Any
 
 from app.modules.parsing.validate import compute_plan_confidence, deduplicate_and_merge_walls
 from app.modules.plans.room_kind import ROOM_KINDS, parser_room_kind
-from app.modules.plans.room_types import resolve_boq_type, stored_or_derived_boq_type
+from app.modules.plans.room_types import (
+    boq_kind_from,
+    resolve_boq_type,
+    stored_or_derived_boq_kind,
+    stored_or_derived_boq_type,
+)
 from app.modules.plans.schemas import SCHEMA_VERSION, UNSTATED_WALL_HEIGHT_M, PlanJSON
 
 logger = logging.getLogger("construtiva.parsing.normalise")
@@ -613,9 +618,15 @@ def _normalise_level(
             kind: str | None = parser_room_kind(room_name, reported)
         else:
             kind = reported if reported in ROOM_KINDS else None
-        # Only indoor rooms are typed. A fresh parse applies the keyword rules, which win
-        # unless they return OTHER; a stored plan keeps the type it already has.
-        if kind != "indoor":
+        # `boq_kind` is how the material calculator counts the room. It is a second key:
+        # `kind` stays exactly as the 3D code expects it.
+        if canonical:
+            boq_kind = boq_kind_from(room_name, kind)
+        else:
+            boq_kind = stored_or_derived_boq_kind(room_name, kind, r.get("boq_kind"))
+        # Only rooms the BOQ counts as indoor are typed. A fresh parse applies the keyword
+        # rules, which win unless they return OTHER; a stored plan keeps the type it has.
+        if boq_kind != "indoor":
             boq_type = None
         elif canonical:
             boq_type = resolve_boq_type(room_name, r.get("boq_type"))
@@ -625,6 +636,7 @@ def _normalise_level(
             "id": str(r.get("id") if r.get("id") is not None else f"room_{index}"),
             "name": room_name,
             "kind": kind,
+            "boq_kind": boq_kind,
             "boq_type": boq_type,
             "polygon": polygon,
             "height_m": _room_height(r, scale),

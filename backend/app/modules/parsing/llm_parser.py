@@ -79,7 +79,7 @@ from app.modules.plans.schemas import PlanJSON
 logger = logging.getLogger("construtiva.parsing.llm")
 
 # Bump when the pipeline or the normaliser changes what a given PDF parses to.
-PARSER_VERSION = "2.2.0"
+PARSER_VERSION = "2.3.0"
 MAX_REPAIR_ATTEMPTS = 2
 MAX_PREVIOUS_REPLY_CHARS = 60_000
 
