@@ -517,6 +517,7 @@ CALLS = dict(bathtub=bathtub, round_rug=round_rug, model=model, bed=bed, nightst
 
 # ------------------------------------------------------------------ build each storey
 COLLIDERS, META_FLOORS, LAMPS = [], [], []
+WET_GROUND = []     # pools, water and docks of the ground storey: the plinth and the site ground are open over them
 by_floor = {}
 
 
@@ -617,8 +618,11 @@ for k, f in enumerate(floors):
         fl.setdefault(m, []).extend((*b[:4], -0.02, 0.0, m) for r in zn["rects"] for b in subtract_all([(*r, -0.02, 0.0)], well + voids))
     for m, bs in fl.items():
         mesh_from_boxes(f"floor_{k}_{m}", bs)
-    if water:
-        mesh_from_boxes(f"water_{k}", water)
+    if water:     # the water planes apart: a transparent object is not baked, so the basin and decks must not share it
+        solid_w = [b for b in water if b[6] != "water"]
+        if solid_w:
+            mesh_from_boxes(f"pool_{k}", solid_w)
+        mesh_from_boxes(f"water_{k}", [b for b in water if b[6] == "water"])
     # the walker cannot enter water (except a dock's deck) or a lift / duct shaft
     closed = subtract_all([(*r, 0, 1) for zn in f["rooms"] if zn["type"] in WATER | SHAFT for r in zn["rects"]],
                           [(*q, 0, 1) for q in wet_walk])
@@ -651,8 +655,10 @@ for k, f in enumerate(floors):
         guards = edge_guards(f, slab, well)
         if guards:
             mesh_from_boxes(f"guards_{k}", [(*b, "exterior") for b in guards])
-    elif k == 0:
-        mesh_from_boxes("plinth", [(bb[0] - 0.2, bb[1] + 0.2, bb[2] - 0.2, bb[3] + 0.2, -0.6, -0.02, "concrete")])
+    elif k == 0:      # (open over pools, water and docks: they are sunk into it)
+        wet = [(*r, -9, 99) for zn in f["rooms"] if zn["type"] in WATER for r in zn["rects"]]
+        WET_GROUND.extend(wet)
+        mesh_from_boxes("plinth", subtract_all([(bb[0] - 0.2, bb[1] + 0.2, bb[2] - 0.2, bb[3] + 0.2, -0.6, -0.02, "concrete")], wet))
     else:
         mesh_from_boxes(f"slab_{k}", [(*b[:4], -SLAB, -0.02, "ceiling") for b in slab])
         guards = edge_guards(f, slab, well)
@@ -735,7 +741,7 @@ set_level(0)
 before = set(bpy.data.objects)
 X0, X1 = min(b[0] for b in bboxes), max(b[1] for b in bboxes)
 Y0, Y1 = min(b[2] for b in bboxes), max(b[3] for b in bboxes)
-mesh_from_boxes("ground", [(X0 - 60, X1 + 60, Y0 - 12, Y1 + 60, -0.65, -0.62, "turf")])
+mesh_from_boxes("ground", subtract_all([(X0 - 60, X1 + 60, Y0 - 12, Y1 + 60, -0.65, -0.62, "turf")], WET_GROUND))
 mesh_from_boxes("road", [(X0 - 60, X1 + 60, Y0 - 34, Y0 - 12, -0.62, -0.6, "asphalt"),
                          (X0 - 60, X1 + 60, Y0 - 12, Y0 - 6, -0.62, -0.45, "footpath")])
 mesh_from_boxes("apron", [(X0 - 0.2, X1 + 0.2, Y0 - 6, Y0 - 0.2, -0.62, -0.58, "pavers")])
