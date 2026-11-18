@@ -147,6 +147,7 @@ WEB_FILES = frozenset(
         "furniture.html",
         "style.css",
         "rooms.json",
+        "tour.js",
     }
 )
 SAFE_PATH = re.compile(r"^[A-Za-z0-9._\-/]+$")

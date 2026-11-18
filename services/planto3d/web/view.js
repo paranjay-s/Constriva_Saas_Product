@@ -5,6 +5,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as walk from './walk.js';
+import { plan as tourPlan } from './tour.js';
 
 const $ = (id) => document.getElementById(id);
 const job = new URLSearchParams(location.search).get('job');
@@ -97,6 +98,39 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyM' && !e.repeat) toggleMap();
 });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+// ---- guided tour (tour.js): walks the route at 1 m/s with eased turns, pausing in the main rooms; any movement key,
+// a mouse button or a touch hands control back
+let tour = null;
+const TOUR_SPEED = 1.0, TURN = 2.5;
+function startTour() {
+  const route = tourPlan(meta);
+  if (route.length < 2) return;
+  Object.assign(p, { x: route[0].x, y: route[0].y, z: route[0].z, pitch: -0.05 });
+  tour = { route, i: 1, wait: 0 };
+  $('tourbtn').textContent = 'Stop tour';
+}
+function stopTour() { tour = null; $('tourbtn').textContent = 'Guided tour'; }
+function tourStep(dt) {
+  if (tour.wait > 0) { tour.wait -= dt; return; }
+  const t = tour.route[tour.i];
+  if (!t) { stopTour(); return; }
+  const dx = t.x - p.x, dy = t.y - p.y, d = Math.hypot(dx, dy);
+  if (d > 0.05) {      // plan axes: yaw 0 looks along +y; heading to (dx, dy) is atan2(-dx, dy)
+    const want = Math.atan2(-dx, dy);
+    let turn = want - p.yaw;
+    turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+    p.yaw += turn * Math.min(1, TURN * dt);
+    const step = Math.min(d, TOUR_SPEED * dt * (Math.abs(turn) > 1.2 ? 0.3 : 1));
+    if (t.stair) { p.x += dx / d * step; p.y += dy / d * step; p.z += (t.z - p.z) * Math.min(1, step / d); }
+    else { p.x += dx / d * step; p.y += dy / d * step; p.z = t.z; }
+  } else {
+    if (t.pause) tour.wait = t.pause;
+    tour.i++;
+  }
+}
+for (const code of ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'])
+  addEventListener('keydown', (e) => { if (e.code === code && tour) stopTour(); });
 const canvas = renderer.domElement;
 $('overlay').addEventListener('click', () => {
   if (matchMedia('(pointer: coarse)').matches) { $('overlay').style.display = 'none'; return; }
@@ -173,6 +207,8 @@ function toggleTop() {
   $('topbtn').textContent = topView ? 'Walk' : 'Top view';
 }
 $('topbtn').onclick = toggleTop;
+$('tourbtn').onclick = () => (tour ? stopTour() : startTour());
+canvas.addEventListener('pointerdown', () => { if (tour) stopTour(); });
 floors.forEach((f, i) => {
   const b = document.createElement('button');
   b.textContent = f.name;
@@ -324,6 +360,7 @@ renderer.setAnimationLoop(() => {
   const raw = clock.getDelta(), dt = Math.min(raw, 0.05);
   frames++; fpsT += raw;
   if (fpsT > 0.5) { $('fps').textContent = `${Math.round(frames / fpsT)} fps`; frames = 0; fpsT = 0; }
+  if (tour && !topView) tourStep(dt);
   if (!topView) {
     const sp = (keys.ShiftLeft || keys.ShiftRight ? RUN : WALK) * dt;
     let f = 0, s = 0;
