@@ -72,6 +72,12 @@ class ChatMessage(_Model):
     version: int | None = None  # plan version after this message
 
 
+class VersionInfo(_Model):
+    version: int
+    change: str = Field(default="", description="The request that replaced this version")
+    at: str = ""
+
+
 class PlanResponse(_Model):
     id: str
     project_id: str | None = None
@@ -84,6 +90,22 @@ class PlanResponse(_Model):
     messages: list[ChatMessage] = Field(default_factory=list)
     plan_json: dict = Field(description="Legacy PlanJSON in metres, for the 3D viewer and BOQ")
     saved: bool = Field(description="False if the database was unreachable (kept in memory)")
+    history: list[VersionInfo] = Field(
+        default_factory=list, description="Earlier versions that can be restored"
+    )
+    facing: str | None = None
+
+
+class RevertRequest(_Model):
+    version: int | None = Field(default=None, ge=1, description="None = the previous version")
+
+
+class FloorplanSummary(_Model):
+    id: str
+    project_id: str | None = None
+    name: str
+    version: int
+    created_at: str = ""
 
 
 class EditRequest(_Model):
@@ -97,7 +119,7 @@ class EditRequest(_Model):
 
 
 class EditResponse(_Model):
-    status: Literal["ok", "no_change", "impossible", "needs_clarification", "failed"]
+    status: Literal["ok", "no_change", "impossible", "needs_clarification", "failed", "info"]
     message: str = ""
     summary: list[str] = Field(default_factory=list)
     alternatives: list[str] = Field(default_factory=list)

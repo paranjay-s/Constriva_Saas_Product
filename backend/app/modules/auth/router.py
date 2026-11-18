@@ -8,21 +8,35 @@ Purpose:
   - POST /api/v1/auth/signup: Admin creation with email_confirm=True (no verification email needed).
   - POST /api/v1/auth/login: Email/password authentication returning a Supabase JWT.
     Automatically auto-confirms unconfirmed accounts in the background if encountered.
+  - POST /api/v1/auth/refresh: New access token from the refresh token (sessions last 1 h).
   - GET  /api/v1/auth/me: Retrieve the currently logged-in user's profile.
+
+Sign-in calls run on a throw-away client (new_auth_client), never on the shared admin
+client: supabase-py would otherwise switch the admin client to the user's token for every
+later database call (row-level security errors, and failures once that token expires).
 =============================================================================
 """
 
 import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, status
-from app.core.supabase import get_supabase_client
+from app.core.supabase import get_supabase_client, new_auth_client
 from app.core.security import get_current_user, AuthenticatedUser
 from app.modules.auth.schemas import (
     UserRegisterRequest,
     UserLoginRequest,
     AuthResponse,
     UserProfileResponse,
+    RefreshRequest,
 )
+
+
+def _session_fields(session) -> dict:
+    return {
+        "access_token": session.access_token,
+        "refresh_token": getattr(session, "refresh_token", None),
+        "expires_at": getattr(session, "expires_at", None),
+    }
 
 logger = logging.getLogger("construtiva.auth")
 router = APIRouter()
@@ -91,8 +105,8 @@ async def signup(payload: UserRegisterRequest):
                 "phone": payload.phone,
             }).execute()
 
-        # Step 3: Sign in immediately to generate access token
-        login_res = supabase.auth.sign_in_with_password({
+        # Step 3: Sign in immediately to generate access token (throw-away client!)
+        login_res = new_auth_client().auth.sign_in_with_password({
             "email": payload.email,
             "password": payload.password,
         })
@@ -103,7 +117,6 @@ async def signup(payload: UserRegisterRequest):
                 detail="User account provisioned, but could not establish active session."
             )
 
-        session_token = login_res.session.access_token
         actual_uid = str(login_res.user.id)
 
         user_profile = UserProfileResponse(
@@ -113,11 +126,7 @@ async def signup(payload: UserRegisterRequest):
             phone=payload.phone,
         )
 
-        return AuthResponse(
-            access_token=session_token,
-            token_type="bearer",
-            user=user_profile,
-        )
+        return AuthResponse(token_type="bearer", user=user_profile, **_session_fields(login_res.session))
 
     except HTTPException:
         raise
@@ -145,12 +154,12 @@ async def login(payload: UserLoginRequest):
     Returns:
         AuthResponse: Valid JWT access token and user profile.
     """
-    supabase = get_supabase_client()
+    supabase = get_supabase_client()  # admin work only; never sign in on it
 
     try:
-        # Authenticate via Supabase Auth
+        # Authenticate via Supabase Auth on a throw-away client
         try:
-            auth_res = supabase.auth.sign_in_with_password({
+            auth_res = new_auth_client().auth.sign_in_with_password({
                 "email": payload.email,
                 "password": payload.password,
             })
@@ -164,7 +173,7 @@ async def login(payload: UserLoginRequest):
                 match = next((u for u in user_objs if getattr(u, "email", "").lower() == payload.email.lower()), None)
                 if match:
                     supabase.auth.admin.update_user_by_id(str(match.id), {"email_confirm": True})
-                    auth_res = supabase.auth.sign_in_with_password({
+                    auth_res = new_auth_client().auth.sign_in_with_password({
                         "email": payload.email,
                         "password": payload.password,
                     })
@@ -180,7 +189,6 @@ async def login(payload: UserLoginRequest):
             )
 
         user_id = str(auth_res.user.id)
-        token = auth_res.session.access_token
 
         # Fetch profile details from public.profiles table
         prof_res = supabase.table("profiles").select("full_name, phone").eq("id", user_id).execute()
@@ -203,11 +211,7 @@ async def login(payload: UserLoginRequest):
             phone=phone,
         )
 
-        return AuthResponse(
-            access_token=token,
-            token_type="bearer",
-            user=user_profile,
-        )
+        return AuthResponse(token_type="bearer", user=user_profile, **_session_fields(auth_res.session))
 
     except HTTPException:
         raise
@@ -217,6 +221,36 @@ async def login(payload: UserLoginRequest):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Authentication failed: {str(e)}"
         )
+
+
+@router.post(
+    "/refresh",
+    response_model=AuthResponse,
+    summary="Exchange a refresh token for a new access token",
+)
+async def refresh(payload: RefreshRequest):
+    """Keeps a session alive past the 1 hour access-token lifetime."""
+    try:
+        res = new_auth_client().auth.refresh_session(payload.refresh_token)
+    except Exception as e:
+        logger.info(f"Session refresh refused: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Your session has expired. Please sign in again.",
+        ) from e
+    if not res or not res.session or not res.user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Your session has expired. Please sign in again.",
+        )
+    meta = res.user.user_metadata or {}
+    profile = UserProfileResponse(
+        id=str(res.user.id),
+        email=res.user.email or "",
+        full_name=meta.get("full_name") or (res.user.email or "User").split("@")[0],
+        phone=meta.get("phone"),
+    )
+    return AuthResponse(token_type="bearer", user=profile, **_session_fields(res.session))
 
 
 @router.get(
@@ -236,8 +270,7 @@ async def get_current_user_profile(
     Returns:
         UserProfileResponse: User id, email, full name, phone.
     """
-    from app.core.supabase import get_user_supabase_client
-    supabase = get_user_supabase_client(current_user.token)
+    supabase = get_supabase_client()  # the user is already verified; scope by id
 
     try:
         prof_res = supabase.table("profiles").select("*").eq("id", current_user.id).execute()

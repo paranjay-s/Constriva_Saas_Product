@@ -17,7 +17,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import ValidationError
 
 from app.core.security import AuthenticatedUser, get_current_user
@@ -37,6 +37,7 @@ from app.modules.ai.material_agent.schemas import (
     JobState,
     ManualSpace,
     RecalculateRequest,
+    SessionSummary,
     SessionView,
 )
 from app.modules.ai.material_agent.settings import get_settings
@@ -197,6 +198,50 @@ async def job_events(job_id: str, user: User, deps: Deps) -> StreamingResponse:
         stream_events(job),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.get("", response_model=list[SessionSummary])
+async def list_analyses(user: User, deps: Deps) -> list[SessionSummary]:
+    """History: the user's earlier analyses, newest first."""
+    try:
+        rows = await run_in_threadpool(deps.store.list_for, user.id)
+    except Exception as e:
+        logger.error("listing material sessions failed: %s", e)
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Your earlier analyses could not be loaded right now. Please try again.",
+        ) from e
+    return [SessionSummary.model_validate(r) for r in rows]
+
+
+@router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_analysis(report_id: str, user: User, deps: Deps) -> Response:
+    try:
+        deleted = await run_in_threadpool(deps.store.delete, report_id, user.id)
+    except Exception as e:
+        logger.error("deleting material session failed: %s", e)
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "The analysis could not be deleted right now."
+        ) from e
+    if not deleted:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Analysis not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{report_id}/image")
+async def analysis_image(report_id: str, user: User, deps: Deps, n: int = 0) -> Response:
+    """The analysed photo (downscaled copy kept by the server), for reopened sessions."""
+    from app.modules.ai.material_agent import vision
+
+    s = await run_in_threadpool(_own, deps, report_id, user)
+    if not 0 <= n < len(s.image_hashes):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No photo kept for this analysis")
+    data = await run_in_threadpool(vision.load_image, s.image_hashes[n])
+    if data is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No photo kept for this analysis")
+    return Response(
+        content=data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"}
     )
 
 

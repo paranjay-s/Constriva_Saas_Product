@@ -1,15 +1,17 @@
 /**
  * Material Finder API client (/api/v1/ai/material-analysis). Every response is checked with zod.
  */
-import { apiRequest } from '../../lib/api';
+import { API_BASE_URL, ApiError, TOKEN_STORAGE_KEY, apiRequest, ensureFreshSession } from '../../lib/api';
 import {
   type ChatReply,
   type ManualSpace,
   type Overrides,
   type Session,
+  type SessionSummary,
   analysisCreatedSchema,
   chatReplySchema,
   sessionSchema,
+  sessionSummarySchema,
 } from './schemas';
 
 export const MATERIAL_BASE = '/api/v1/ai/material-analysis';
@@ -53,5 +55,24 @@ export const materialApi = {
     return chatReplySchema.parse(
       await apiRequest(`${MATERIAL_BASE}/${encodeURIComponent(id)}/chat`, { method: 'POST', body }),
     );
+  },
+
+  /** History: the user's earlier analyses, newest first. */
+  list: async (): Promise<SessionSummary[]> => sessionSummarySchema.array().parse(await apiRequest(MATERIAL_BASE)),
+
+  remove: async (id: string): Promise<void> => {
+    await apiRequest(`${MATERIAL_BASE}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+
+  /** The analysed photo kept by the server, as an object URL (null if none was kept). */
+  image: async (id: string): Promise<string | null> => {
+    await ensureFreshSession();
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+    const res = await fetch(`${API_BASE_URL}${MATERIAL_BASE}/${encodeURIComponent(id)}/image`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new ApiError(res.status, `Photo could not be loaded (${res.status})`);
+    return URL.createObjectURL(await res.blob());
   },
 };

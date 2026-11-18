@@ -63,3 +63,9 @@ class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserProfileResponse
+    refresh_token: Optional[str] = None  # exchange at POST /auth/refresh before expiry
+    expires_at: Optional[int] = None  # unix seconds when access_token expires
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str

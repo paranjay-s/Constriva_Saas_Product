@@ -6,24 +6,30 @@ threads) and is easy to test without HTTP.
 
 import logging
 import uuid
+from datetime import UTC, datetime
 
 from app.modules.ai.floorplan.jobs import Job
 from app.modules.ai.floorplan.legacy_plan_json import to_legacy_plan_json
 from app.modules.ai.floorplan.pipeline.brief_parser import parse_brief
-from app.modules.ai.floorplan.pipeline.edit_engine import edit_plan
+from app.modules.ai.floorplan.pipeline.edit_engine import EditResult, edit_plan
 from app.modules.ai.floorplan.pipeline.generate import generate_plan
+from app.modules.ai.floorplan.pipeline.plan_tools import facing
 from app.modules.ai.floorplan.pipeline.requirements import describe
 from app.modules.ai.floorplan.render.svg_renderer import render_svg
 from app.modules.ai.floorplan.schemas.api import (
     ChatMessage,
     EditRequest,
     EditResponse,
+    FloorplanSummary,
     ParseBriefRequest,
     ParseBriefResponse,
     PlanResponse,
+    VersionInfo,
 )
 from app.modules.ai.floorplan.schemas.brief import Brief, BriefForm
-from app.modules.ai.floorplan.store import PlanStore, StoredPlan
+from app.modules.ai.floorplan.schemas.plan import FloorPlan
+from app.modules.ai.floorplan.schemas.program import RoomProgram
+from app.modules.ai.floorplan.store import MAX_HISTORY, PlanStore, StoredPlan
 from app.modules.ai.llm.client import LLMClient
 
 logger = logging.getLogger("construtiva.ai.floorplan.service")
@@ -100,21 +106,113 @@ def to_response(sp: StoredPlan) -> PlanResponse:
         messages=[ChatMessage.model_validate(m) for m in sp.messages],
         plan_json=to_legacy_plan_json(sp.plan),
         saved=sp.saved,
+        history=[
+            VersionInfo(version=h["version"], change=h.get("change", ""), at=h.get("at", ""))
+            for h in reversed(sp.history)
+        ],
+        facing=facing(sp.plan),
     )
+
+
+def list_plans(store: PlanStore, owner_id: str, project_id: str | None) -> list[FloorplanSummary]:
+    return [FloorplanSummary.model_validate(r) for r in store.list_for(owner_id, project_id)]
+
+
+def restore(sp: StoredPlan, version: int | None, store: PlanStore) -> EditResponse:
+    """The Undo button / version list: same as asking "undo" in the chat."""
+    asked = "Undo" if version is None else f"Go back to version {version}"
+    sp.messages.append(ChatMessage(role="user", text=asked).model_dump())
+    done, msg = revert(sp, version, store)
+    status = "ok" if done else "no_change"
+    sp.messages.append(
+        ChatMessage(role="assistant", text=msg, status=status, version=sp.version).model_dump()
+    )
+    store.update(sp)
+    return EditResponse(
+        status=status, message=msg, summary=[msg] if done else [], plan=to_response(sp)
+    )
+
+
+# --------------------------------------------------------------------- history
+
+
+def _snapshot(sp: StoredPlan, change: str) -> None:
+    """Keep the current version so it can be restored ("undo", "go back to version 3")."""
+    sp.history.append(
+        {
+            "version": sp.version,
+            "floorplan": sp.plan.model_dump(mode="json", by_alias=True),
+            "program": sp.program.model_dump(mode="json") if sp.program else None,
+            "change": change[:200],
+            "at": datetime.now(UTC).isoformat(),
+        }
+    )
+    sp.history = sp.history[-MAX_HISTORY:]
+
+
+def _sync_brief(sp: StoredPlan) -> None:
+    """Keep the stored brief's plot in step with the plan (after a turn, a plot change)."""
+    if sp.brief is None:
+        return
+    plot = sp.brief.plot.model_copy(
+        update={"width_cm": sp.plan.plot.width, "depth_cm": sp.plan.plot.depth}
+    )
+    update: dict = {"plot": plot}
+    if "road_side" in type(sp.brief).model_fields:
+        update["road_side"] = sp.plan.plot.road_side
+    try:
+        sp.brief = sp.brief.model_copy(update=update)
+    except Exception as e:  # the brief is informative only; never fail an edit over it
+        logger.warning("could not update the brief of plan %s: %s", sp.id, e)
+
+
+def revert(sp: StoredPlan, version: int | None, store: PlanStore) -> tuple[bool, str]:
+    """Restore an earlier version as the newest one. Returns (done, message)."""
+    if not sp.history:
+        return False, "There is no earlier version to go back to yet."
+    if version is None:
+        target = sp.history[-1]
+    else:
+        target = next((h for h in sp.history if h["version"] == version), None)
+        if target is None:
+            if version == sp.version:
+                return False, f"This is already version {version}."
+            kept = ", ".join(str(h["version"]) for h in sp.history)
+            return (
+                False,
+                f"Version {version} is not kept any more. Versions you can go back to: {kept}.",
+            )
+    idx = sp.history.index(target)
+    sp.history = sp.history[:idx]  # versions after it are dropped, like a normal undo stack
+    sp.plan = FloorPlan.model_validate(target["floorplan"])
+    sp.program = RoomProgram.model_validate(target["program"]) if target.get("program") else None
+    old = target["version"]
+    sp.version += 1
+    _sync_brief(sp)
+    return True, f"Back to version {old} (saved as version {sp.version})."
 
 
 def edit(sp: StoredPlan, req: EditRequest, llm: LLMClient | None, store: PlanStore) -> EditResponse:
     res = edit_plan(sp.plan, sp.program, req.message, llm, allow_reflow=req.allow_reflow)
     sp.messages.append(ChatMessage(role="user", text=req.message).model_dump())
-    if res.ok:
+    if res.undo is not None:
+        done, msg = revert(sp, res.undo.version, store)
+        res = EditResult("ok" if done else "no_change", sp.plan, sp.program, message=msg)
+        res.summary = [msg] if done else []
+        reply = msg
+    elif res.status == "info":
+        reply = res.message
+    elif res.ok:
+        _snapshot(sp, req.message)
         sp.plan, sp.program = res.plan, res.program
         sp.version += 1
+        _sync_brief(sp)
         reply = "Done. " + " ".join(res.summary) if res.summary else "Done."
     else:
         reply = res.message
         if res.alternatives:
             reply += " You could: " + " / ".join(res.alternatives)
-    if res.warnings:
+    if res.warnings and res.status != "info":
         reply += " (" + " ".join(res.warnings) + ")"
     sp.messages.append(
         ChatMessage(

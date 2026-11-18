@@ -22,7 +22,7 @@ if _venv_site_packages.exists() and str(_venv_site_packages) not in sys.path:
 import importlib
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.supabase import ensure_storage_buckets
@@ -96,6 +96,15 @@ def create_app() -> FastAPI:
     async def health() -> dict[str, str]:
         """Simple health check endpoint."""
         return {"status": "ok", "app": "Constriva SaaS API", "version": "1.0.0"}
+
+    @app.get("/health/deep", summary="Pre-demo check: database, admin client, auth, AI key")
+    async def health_deep(response: Response) -> dict:
+        from app.core.health import deep_health
+
+        result = await deep_health()
+        if result["status"] != "ok":
+            response.status_code = 503
+        return result
 
     return app
 

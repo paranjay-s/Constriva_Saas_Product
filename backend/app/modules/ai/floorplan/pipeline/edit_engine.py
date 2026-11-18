@@ -50,6 +50,8 @@ from app.modules.ai.floorplan.pipeline.layout.topology import (
     build_topology,
     door_span_needed,
 )
+from app.modules.ai.floorplan.pipeline.plan_report import InfoTopic, report
+from app.modules.ai.floorplan.pipeline.plan_tools import TOOL_OPS, ToolError, apply_tool, facing
 from app.modules.ai.floorplan.pipeline.pool_layouts import LOUNGE_ID as POOL_LOUNGE_ID
 from app.modules.ai.floorplan.pipeline.pool_layouts import NAMES as POOL_NAMES
 from app.modules.ai.floorplan.pipeline.pool_layouts import (
@@ -70,6 +72,7 @@ from app.modules.ai.floorplan.rules import (
 )
 from app.modules.ai.floorplan.schemas.common import DEFAULT_LABEL, ZONE_BY_TYPE
 from app.modules.ai.floorplan.schemas.edit_ops import (
+    WHOLE_PLAN_OPS,
     AddRoom,
     AddWindow,
     EditOp,
@@ -81,6 +84,7 @@ from app.modules.ai.floorplan.schemas.edit_ops import (
     SetPlot,
     SetPoolLayout,
     SwapRooms,
+    Undo,
 )
 from app.modules.ai.floorplan.schemas.plan import Door, FloorPlan, Plot, Room, Window
 from app.modules.ai.floorplan.schemas.program import Adjacency, ProgramRoom, RoomProgram
@@ -123,7 +127,7 @@ ANCHOR_SIDES = {
     "south-west": ["south", "west"],
 }
 
-Status = Literal["ok", "no_change", "impossible", "needs_clarification", "failed"]
+Status = Literal["ok", "no_change", "impossible", "needs_clarification", "failed", "info"]
 
 
 class EditInterpretation(BaseModel):
@@ -136,6 +140,11 @@ class EditInterpretation(BaseModel):
     unsupported: list[str] = Field(default_factory=list)
     allow_reflow: bool = Field(
         default=False, description="True only if the person said other rooms may move"
+    )
+    info: InfoTopic | None = Field(
+        default=None,
+        description="A question about the plan (areas, schedule, openings, orientation, help), "
+        "answered by code; use with no ops",
     )
 
 
@@ -150,6 +159,7 @@ class EditResult:
     warnings: list[str] = field(default_factory=list)
     ops: list[EditOp] = field(default_factory=list)
     moved: list[str] = field(default_factory=list)  # ids of rooms whose geometry changed
+    undo: Undo | None = None  # the person asked to go back; the service restores history
 
     @property
     def ok(self) -> bool:
@@ -175,6 +185,7 @@ def describe_plan(plan: FloorPlan) -> dict:
         "unit": unit,
         "plot": fmt_size(plan.plot.width, plan.plot.depth, unit),
         "road_side": plan.plot.road_side,
+        "facing": facing(plan),
         "rooms": [
             {
                 "id": r.id,
@@ -244,6 +255,11 @@ def edit_plan(
         if interp.unsupported
         else []
     )
+    undo = next((o for o in interp.ops if isinstance(o, Undo)), None)
+    if undo is not None:
+        return EditResult("no_change", plan, program, undo=undo, warnings=warnings)
+    if not interp.ops and interp.info and not interp.question:
+        return EditResult("info", plan, program, message=report(plan, interp.info))
     if not interp.ops:
         status: Status = "needs_clarification" if interp.question else "no_change"
         msg = interp.question or "Nothing to change was found in that request."
@@ -286,6 +302,15 @@ def apply_edit(
             if len(ops) > 1:
                 raise EditError("Move the pool on its own, then make other changes.")
             return _set_pool_layout(plan, program, ops[0], time_limit_s)
+        if any(isinstance(o, Undo) for o in ops):
+            raise EditError("Undo on its own, then make other changes.")
+        if any(isinstance(o, WHOLE_PLAN_OPS) for o in ops):
+            if len(ops) > 1:
+                raise EditError(
+                    "Turn or mirror the house on its own, then make other changes "
+                    "(wall directions change when the house turns)."
+                )
+            return _whole_plan(plan, program, ops[0])
         layout_ops = [o for o in ops if isinstance(o, LAYOUT_OPS)]
         other_ops = [o for o in ops if not isinstance(o, LAYOUT_OPS)]
         new_plan, new_program, notes, moved = plan, program, [], []
@@ -302,7 +327,13 @@ def apply_edit(
                     raise full from None
                 new_plan, new_program, notes, moved = best
         for op in other_ops:
-            new_plan, new_program, note = _apply_simple(new_plan, new_program, op)
+            if isinstance(op, TOOL_OPS):
+                try:
+                    new_plan, new_program, note = apply_tool(new_plan, new_program, op)
+                except ToolError as e:
+                    raise EditError(str(e), e.alternatives) from None
+            else:
+                new_plan, new_program, note = _apply_simple(new_plan, new_program, op)
             notes.append(note)
     except EditError as e:
         return EditResult(
@@ -320,6 +351,30 @@ def apply_edit(
         )
     summary = summarize(plan, new_plan, notes)
     return EditResult("ok", new_plan, new_program, summary=summary, ops=ops, moved=moved)
+
+
+def _whole_plan(plan: FloorPlan, program: RoomProgram, op: EditOp) -> EditResult:
+    """Facing / rotate / mirror: an exact transform, so only one summary line."""
+    try:
+        new_plan, new_program, note = apply_tool(plan, program, op)
+    except ToolError as e:
+        return EditResult(
+            "impossible", plan, program, message=str(e), alternatives=e.alternatives, ops=[op]
+        )
+    rep = validate(new_plan, new_program)
+    if not rep.ok:  # a transform keeps every relation, so this should not happen
+        logger.error("whole-plan edit broke the plan: %s", rep.feedback()[:3])
+        return EditResult(
+            "failed", plan, program, message="That change could not be checked; nothing changed."
+        )
+    return EditResult(
+        "ok",
+        new_plan,
+        new_program,
+        summary=[note],
+        ops=[op],
+        moved=[r.id for r in new_plan.rooms],
+    )
 
 
 # ------------------------------------------------------------------ layout changes

@@ -75,8 +75,9 @@ describe('Constriva Frontend - 9 Core Required Pages', () => {
   it('renders Route 7: /projects/ai-generator (AI Floor Plan Generator)', () => {
     renderWithProviders(<AiGeneratorPage />);
     expect(screen.getByText(/ai floor plan generator/i)).toBeDefined();
-    expect(screen.getByLabelText(/describe the house/i)).toBeDefined();
-    expect(screen.getByRole('button', { name: /check my brief/i })).toBeDefined();
+    // a floor plan is always made inside a project: the page asks for one first
+    expect(screen.getByText(/choose a project first/i)).toBeDefined();
+    expect(screen.getByRole('button', { name: /create a new project/i })).toBeDefined();
   });
 
   it('keeps the old generator at /projects/ai-generator/legacy until it is retired', () => {

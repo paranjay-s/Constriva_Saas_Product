@@ -180,6 +180,13 @@ export const chatMessageSchema = z.object({
 });
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
 
+export const versionInfoSchema = z.object({
+  version: z.number(),
+  change: z.string().default(''),
+  at: z.string().default(''),
+});
+export type VersionInfo = z.infer<typeof versionInfoSchema>;
+
 export const planResponseSchema = z.object({
   id: z.string(),
   project_id: z.string().nullable().optional(),
@@ -192,10 +199,21 @@ export const planResponseSchema = z.object({
   messages: z.array(chatMessageSchema),
   plan_json: z.record(z.string(), z.unknown()),
   saved: z.boolean(),
+  history: z.array(versionInfoSchema).default([]),
+  facing: z.string().nullable().optional(),
 });
 export type PlanResponse = z.infer<typeof planResponseSchema>;
 
-export const editStatusSchema = z.enum(['ok', 'no_change', 'impossible', 'needs_clarification', 'failed']);
+export const editStatusSchema = z.enum(['ok', 'no_change', 'impossible', 'needs_clarification', 'failed', 'info']);
+
+export const floorplanSummarySchema = z.object({
+  id: z.string(),
+  project_id: z.string().nullable().optional(),
+  name: z.string(),
+  version: z.number(),
+  created_at: z.string().default(''),
+});
+export type FloorplanSummary = z.infer<typeof floorplanSummarySchema>;
 
 export const editResponseSchema = z.object({
   status: editStatusSchema,

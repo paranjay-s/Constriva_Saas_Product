@@ -4,7 +4,8 @@
  * (sizes, a project, or an attached floor plan give quantities).
  *
  * Identification and quantities only (no money). The analysis id is kept in the URL
- * (?analysis=...), so a reload reopens the same session.
+ * (?analysis=...), so a reload reopens the same session. History lists earlier analyses;
+ * opening one restores its results and the whole chat.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -15,10 +16,11 @@ import { useJobEvents } from '../floorplan';
 import { MATERIAL_BASE, materialApi } from './api';
 import { AnalysisProgress } from './components/AnalysisProgress';
 import { AssumptionsPanel } from './components/AssumptionsPanel';
+import { HistoryPanel } from './components/HistoryPanel';
 import { MaterialChat } from './components/MaterialChat';
 import { ResultView } from './components/ResultView';
 import { UploadPanel } from './components/UploadPanel';
-import type { ManualSpace, Overrides, Session } from './schemas';
+import type { ManualSpace, Overrides, Session, SessionSummary } from './schemas';
 
 const JOB_SOURCE = { base: MATERIAL_BASE };
 
@@ -41,12 +43,56 @@ export function MaterialFinderPage() {
   const [error, setError] = useState<string | null>(null);
   const assumptionsRef = useRef<HTMLDivElement>(null);
 
+  // history (earlier analyses)
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<SessionSummary[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      setHistory(await materialApi.list());
+    } catch (e) {
+      setHistoryError(errorText(e));
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+  const openHistory = () => {
+    setHistoryOpen(true);
+    void loadHistory();
+  };
+
   const analysisId = params.get('analysis');
   const { events, latest, finished } = useJobEvents(jobId, JOB_SOURCE);
-  const preview = useMemo(() => (images[0] ? URL.createObjectURL(images[0]) : null), [images]);
+  const localPreview = useMemo(() => (images[0] ? URL.createObjectURL(images[0]) : null), [images]);
   useEffect(() => () => {
-    if (preview) URL.revokeObjectURL(preview);
-  }, [preview]);
+    if (localPreview) URL.revokeObjectURL(localPreview);
+  }, [localPreview]);
+
+  // a session reopened from history or a link: show the photo the server kept
+  const [serverPreview, setServerPreview] = useState<string | null>(null);
+  const sessionId = session?.id ?? null;
+  useEffect(() => {
+    if (!sessionId || localPreview) return;
+    let url: string | null = null;
+    let cancelled = false;
+    materialApi
+      .image(sessionId)
+      .then((u) => {
+        url = u;
+        if (cancelled && u) URL.revokeObjectURL(u);
+        else setServerPreview(u);
+      })
+      .catch(() => setServerPreview(null));
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+      setServerPreview(null);
+    };
+  }, [sessionId, localPreview]);
+  const preview = localPreview ?? serverPreview;
 
   const load = useCallback(async (id: string) => {
     try {
@@ -150,6 +196,26 @@ export function MaterialFinderPage() {
     setParams({});
   };
 
+  const openFromHistory = (id: string) => {
+    setHistoryOpen(false);
+    if (id === session?.id) return;
+    setError(null);
+    setSession(null);
+    setJobId(null);
+    setImages([]);
+    setParams({ analysis: id });
+  };
+
+  const deleteFromHistory = async (id: string) => {
+    try {
+      await materialApi.remove(id);
+      setHistory((h) => h.filter((x) => x.id !== id));
+      if (id === session?.id || id === analysisId) reset();
+    } catch (e) {
+      setHistoryError(errorText(e));
+    }
+  };
+
   /** After a failed analysis: back to the form with the same photos and settings. */
   const retry = () => {
     setSession(null);
@@ -179,12 +245,33 @@ export function MaterialFinderPage() {
             <p className="hidden font-mono text-[11px] text-white/50 sm:block">Identify finishes in a photo and get quantities for your own room.</p>
           </div>
         </div>
-        {(session || jobId) && (
-          <Button variant="secondary" size="sm" onClick={reset} className="border-white/10 bg-white/[0.04] text-xs">
-            New analysis
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={openHistory} className="border-white/10 bg-white/[0.04] text-xs">
+            History
           </Button>
-        )}
+          {(session || jobId) && (
+            <Button variant="secondary" size="sm" onClick={reset} className="border-white/10 bg-white/[0.04] text-xs">
+              New analysis
+            </Button>
+          )}
+        </div>
       </div>
+
+      <HistoryPanel
+        open={historyOpen}
+        items={history}
+        loading={historyLoading}
+        error={historyError}
+        activeId={session?.id ?? analysisId}
+        onClose={() => setHistoryOpen(false)}
+        onOpen={openFromHistory}
+        onNew={() => {
+          setHistoryOpen(false);
+          reset();
+        }}
+        onDelete={(id) => void deleteFromHistory(id)}
+        onRetry={() => void loadHistory()}
+      />
 
       <main className="mx-auto grid w-full max-w-7xl flex-1 grid-cols-1 gap-8 p-4 sm:p-6 lg:grid-cols-12 lg:p-8">
         {!session && !analysing && !analysisId && (

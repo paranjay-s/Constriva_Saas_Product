@@ -444,3 +444,23 @@ def test_llm_answer_is_used_only_with_real_numbers(api):
     app.dependency_overrides[get_deps] = with_llm("You need 95 sq ft.")  # invented number
     msg = _chat(client, view["id"], "why so much veneer?")["message"]
     assert "95" not in msg and "12 × 10 = 120" in msg
+
+
+def test_history_lists_opens_and_deletes_analyses(api):
+    client, env = api
+    first = _analyse(client, {"kind": "wall", "length": 12, "height": 10})
+    second = _analyse(client, {"kind": "wall", "length": 14, "height": 10})
+    listed = client.get(BASE).json()
+    assert [r["id"] for r in listed] == [second["id"], first["id"]]
+    assert listed[0]["scene"]
+    assert client.get(f"{BASE}/{first['id']}").status_code == 200
+
+    owner = env.user
+    env.user = "someone-else"
+    assert client.get(BASE).json() == []
+    assert client.delete(f"{BASE}/{first['id']}").status_code == 404
+
+    env.user = owner
+    assert client.delete(f"{BASE}/{first['id']}").status_code == 204
+    assert [r["id"] for r in client.get(BASE).json()] == [second["id"]]
+    assert client.get(f"{BASE}/{first['id']}").status_code == 404

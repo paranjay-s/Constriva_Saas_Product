@@ -319,6 +319,16 @@ class SessionView(_Model):
     saved: bool = False
 
 
+class SessionSummary(_Model):
+    """One entry in the history list."""
+
+    id: str
+    title: str = Field(default="", description="What the person asked")
+    scene: str = Field(default="", description="What the photo shows")
+    created_at: str = ""
+    materials: int | None = None
+
+
 class AnalysisCreated(_Model):
     report_id: str
     job_id: str

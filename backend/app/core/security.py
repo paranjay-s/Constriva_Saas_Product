@@ -12,6 +12,7 @@ Purpose:
 """
 
 import uuid
+import time
 import logging
 from typing import Optional, Dict, Any
 import jwt
@@ -74,7 +75,14 @@ class AuthenticatedUser:
     """
     Represents an authenticated user extracted from the Supabase JWT.
     """
-    def __init__(self, user_id: str, email: str, metadata: Optional[Dict[str, Any]] = None, token: Optional[str] = None):
+
+    def __init__(
+        self,
+        user_id: str,
+        email: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        token: Optional[str] = None,
+    ):
         self.id = user_id
         self.email = email
         self.metadata = metadata or {}
@@ -95,7 +103,7 @@ def get_fallback_user() -> AuthenticatedUser:
         return AuthenticatedUser(
             user_id="00000000-0000-0000-0000-000000000001",
             email="test@construtiva.ai",
-            metadata={"full_name": "Test Architect"}
+            metadata={"full_name": "Test Architect"},
         )
 
     global _cached_demo_user_id
@@ -103,7 +111,7 @@ def get_fallback_user() -> AuthenticatedUser:
         return AuthenticatedUser(
             user_id=_cached_demo_user_id,
             email="demo@construtiva.ai",
-            metadata={"full_name": "Demo Architect"}
+            metadata={"full_name": "Demo Architect"},
         )
 
     try:
@@ -115,22 +123,24 @@ def get_fallback_user() -> AuthenticatedUser:
             return AuthenticatedUser(
                 user_id=_cached_demo_user_id,
                 email="demo@construtiva.ai",
-                metadata={"full_name": res.data[0].get("full_name") or "Demo Architect"}
+                metadata={"full_name": res.data[0].get("full_name") or "Demo Architect"},
             )
 
         # 2. If table is empty, auto-create a verified developer user via Admin API
-        admin_res = client.auth.admin.create_user({
-            "email": "demo@construtiva.ai",
-            "password": "Password123!",
-            "email_confirm": True,
-            "user_metadata": {"full_name": "Demo Architect"}
-        })
+        admin_res = client.auth.admin.create_user(
+            {
+                "email": "demo@construtiva.ai",
+                "password": "Password123!",
+                "email_confirm": True,
+                "user_metadata": {"full_name": "Demo Architect"},
+            }
+        )
         if admin_res and admin_res.user:
             _cached_demo_user_id = str(admin_res.user.id)
             return AuthenticatedUser(
                 user_id=_cached_demo_user_id,
                 email="demo@construtiva.ai",
-                metadata={"full_name": "Demo Architect"}
+                metadata={"full_name": "Demo Architect"},
             )
     except Exception as e:
         logger.warning(f"Could not fetch/create dev user from Supabase ({e}). Using default UUID.")
@@ -138,17 +148,134 @@ def get_fallback_user() -> AuthenticatedUser:
     return AuthenticatedUser(
         user_id="00000000-0000-0000-0000-000000000001",
         email="demo@construtiva.ai",
-        metadata={"full_name": "Demo Architect"}
+        metadata={"full_name": "Demo Architect"},
     )
+
+
+# ---------------------------------------------------------------- token checks
+
+SESSION_EXPIRED = "Your session has expired. Please sign in again."
+CLOCK_LEEWAY_S = 60  # server clocks differ by a few seconds; a fresh token is not "from the future"
+_jwks_client = None
+_verified: dict[str, tuple[float, "AuthenticatedUser"]] = {}  # token -> (exp, user)
+_VERIFIED_MAX = 2000
+
+
+def _jwks():
+    """Supabase's public signing keys (ES256 / RS256 projects), cached by PyJWT."""
+    global _jwks_client
+    if _jwks_client is None:
+        url = settings.supabase_url.rstrip("/") + "/auth/v1/.well-known/jwks.json"
+        _jwks_client = jwt.PyJWKClient(url, cache_keys=True, lifespan=3600, timeout=10)
+    return _jwks_client
+
+
+def _user_from_claims(claims: Dict[str, Any], token: str) -> "AuthenticatedUser":
+    return AuthenticatedUser(
+        user_id=str(claims["sub"]),
+        email=claims.get("email", "") or "",
+        metadata=claims.get("user_metadata", {}) or {},
+        token=token,
+    )
+
+
+def _verify_locally(token: str) -> Optional[Dict[str, Any]]:
+    """Verified claims (signature + expiry), or None if no key is available to check it.
+
+    Raises jwt.ExpiredSignatureError for an expired token and jwt.InvalidTokenError for a
+    forged or broken one.
+    """
+    alg = jwt.get_unverified_header(token).get("alg", "")
+    options = {"verify_aud": False, "require": ["exp", "sub"]}
+    if alg.startswith("HS"):
+        if not settings.supabase_jwt_secret:
+            return None
+        return jwt.decode(
+            token,
+            settings.supabase_jwt_secret,
+            algorithms=[alg],
+            options=options,
+            leeway=CLOCK_LEEWAY_S,
+        )
+    if alg.startswith(("ES", "RS", "PS", "Ed")):
+        try:
+            key = _jwks().get_signing_key_from_jwt(token)
+        except jwt.PyJWKClientError as e:  # keys unreachable: let Supabase check it
+            logger.warning(f"Could not load Supabase signing keys: {e}")
+            return None
+        return jwt.decode(token, key.key, algorithms=[alg], options=options, leeway=CLOCK_LEEWAY_S)
+    raise jwt.InvalidTokenError(f"unsupported token algorithm {alg!r}")
+
+
+def _verify_with_supabase(token: str) -> "AuthenticatedUser":
+    """Ask Supabase Auth (used only when the token cannot be checked locally)."""
+    try:
+        res = get_supabase_client().auth.get_user(token)  # reads the token; no session is stored
+    except Exception as e:
+        text = str(e).lower()
+        if "expired" in text:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, SESSION_EXPIRED) from e
+        if any(w in text for w in ("invalid", "jwt", "401", "403", "bad_jwt", "not found")):
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED, "Invalid session. Please sign in again."
+            ) from e
+        logger.error(f"Supabase Auth unreachable while checking a token: {e}")
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Sign-in service is not reachable right now. Please try again in a moment.",
+        ) from e
+    if not res or not res.user:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid session. Please sign in again.")
+    return AuthenticatedUser(
+        user_id=str(res.user.id),
+        email=res.user.email or "",
+        metadata=res.user.user_metadata or {},
+        token=token,
+    )
+
+
+def verify_token(token: str) -> "AuthenticatedUser":
+    """The user of a Supabase access token, or HTTP 401 (expired / invalid).
+
+    Verified locally (signature and expiry) whenever possible, so it is fast and does not
+    depend on the network; a verified token is remembered until it expires. An expired or
+    forged token is NEVER accepted (it used to be, which sent expired tokens to the
+    database and surfaced as row-level security errors an hour after signing in).
+    """
+    now = time.time()
+    hit = _verified.get(token)
+    if hit and hit[0] > now + 5:
+        return hit[1]
+    try:
+        claims = _verify_locally(token)
+    except jwt.ExpiredSignatureError as e:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, SESSION_EXPIRED) from e
+    except jwt.InvalidTokenError as e:
+        logger.info(f"Rejected an invalid token: {e}")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "Invalid session. Please sign in again."
+        ) from e
+    if claims is not None:
+        user = _user_from_claims(claims, token)
+        if len(_verified) > _VERIFIED_MAX:
+            for t in [t for t, (exp, _) in _verified.items() if exp <= now]:
+                del _verified[t]
+            if len(_verified) > _VERIFIED_MAX:
+                _verified.clear()
+        _verified[token] = (float(claims["exp"]), user)
+        return user
+    return _verify_with_supabase(token)
 
 
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
 ) -> AuthenticatedUser:
     """
-    FastAPI dependency that validates the Bearer JWT token from the Authorization header.
-    Supports both native Supabase API validation and fallback local decoding across all algorithms
-    (HS256, RS256, ES256).
+    FastAPI dependency: the signed-in user from the Bearer token.
+
+    No token -> the shared demo user (unchanged behaviour for the demo flows).
+    A token that is expired, forged or unreadable -> HTTP 401, so the frontend can refresh
+    the session or ask the person to sign in again.
     """
     if (
         not credentials
@@ -156,72 +283,7 @@ async def get_current_user(
         or credentials.credentials.strip().lower() in ("", "string", "null", "undefined")
     ):
         return get_fallback_user()
-
     token = credentials.credentials.strip()
-
-    # Strategy 1: Validate via Supabase Auth API (authoritative and algorithm-agnostic)
-    try:
-        client = get_supabase_client()
-        user_res = client.auth.get_user(token)
-        if user_res and user_res.user:
-            return AuthenticatedUser(
-                user_id=str(user_res.user.id),
-                email=user_res.user.email or "",
-                metadata=user_res.user.user_metadata or {},
-                token=token,
-            )
-    except Exception as api_err:
-        logger.debug(f"Supabase auth.get_user check bypassed: {api_err}")
-
-    # Strategy 2: Decode using SUPABASE_JWT_SECRET with dynamic algorithm detection
-    if settings.supabase_jwt_secret:
-        try:
-            header = jwt.get_unverified_header(token)
-            alg = header.get("alg", "HS256")
-            # Only use secret if token algorithm is HMAC based
-            if alg.startswith("HS"):
-                payload = jwt.decode(
-                    token,
-                    settings.supabase_jwt_secret,
-                    algorithms=[alg],
-                    options={"verify_aud": False}
-                )
-                user_id = payload.get("sub")
-                if user_id:
-                    return AuthenticatedUser(
-                        user_id=user_id,
-                        email=payload.get("email", ""),
-                        metadata=payload.get("user_metadata", {}),
-                        token=token,
-                    )
-        except jwt.ExpiredSignatureError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication token has expired. Please log in again."
-            )
-        except Exception as jwt_err:
-            logger.debug(f"HMAC secret verification skipped: {jwt_err}")
-
-    # Strategy 3: Decode unverified payload (validates token structure and claims)
-    try:
-        unverified_payload = jwt.decode(
-            token,
-            options={"verify_signature": False, "verify_aud": False}
-        )
-        user_id = unverified_payload.get("sub")
-        email = unverified_payload.get("email", "")
-        user_meta = unverified_payload.get("user_metadata", {})
-        if user_id:
-            return AuthenticatedUser(
-                user_id=str(user_id),
-                email=email,
-                metadata=user_meta,
-                token=token,
-            )
-    except Exception as unverified_err:
-        logger.error(f"Unverified token parse failure: {unverified_err}")
-
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials: Invalid session token. Please log in again."
-    )
+    if token.count(".") != 2:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid session. Please sign in again.")
+    return verify_token(token)

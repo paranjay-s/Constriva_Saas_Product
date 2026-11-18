@@ -144,3 +144,12 @@ export const MATERIAL_STAGES = [
   { stage: 'calculating', label: 'Calculating quantities' },
   { stage: 'writing_summary', label: 'Writing the summary' },
 ] as const;
+
+export const sessionSummarySchema = z.object({
+  id: z.string(),
+  title: z.string().default(''),
+  scene: z.string().default(''),
+  created_at: z.string().default(''),
+  materials: z.number().nullable().optional(),
+});
+export type SessionSummary = z.infer<typeof sessionSummarySchema>;
