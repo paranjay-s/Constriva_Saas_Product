@@ -24,6 +24,20 @@ from app.main import app
 from app.core.security import AuthenticatedUser, get_current_user
 
 
+@pytest.fixture(autouse=True)
+def no_live_llm(monkeypatch):
+    """Unit tests never call a live model.
+
+    The plan parser builds its real client only when it is not handed one. Any test that
+    reaches that point fails here instead of spending money on a provider.
+    """
+
+    def refuse() -> None:
+        raise AssertionError("A test tried to build a live LLM client. Pass a fake client.")
+
+    monkeypatch.setattr("app.modules.parsing.llm_parser.build_client", refuse)
+
+
 @pytest.fixture
 def mock_user() -> AuthenticatedUser:
     """

@@ -1,58 +1,81 @@
 """Gemini adapter for `JSONLLMClient`. The only module that knows Gemini's API.
 
-Temperature is always 0. The API key travels in a header, never in the URL, so it cannot
-end up in access logs or error messages.
+The key is passed in by the caller and travels in a header, never in the URL, so it
+cannot end up in access logs or error messages. Temperature is 0; if a model rejects the
+parameter the request is sent again without it.
 """
 
 import base64
 import logging
-import os
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import httpx
 
 from app.modules.ai.llm.json_client import (
+    JSONLLMError,
+    LLMAuthenticationError,
+    LLMBillingError,
     LLMImage,
     LLMInvalidJSONError,
     LLMNotConfiguredError,
+    LLMRateLimitError,
     LLMRequestRejectedError,
+    LLMServerError,
     LLMUnavailableError,
+    LLMUsage,
     extract_json_object,
     schema_instruction,
+    with_retries,
 )
 
 logger = logging.getLogger("construtiva.ai.llm.gemini_json")
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
-# Same model order the blueprint parser has always tried.
-DEFAULT_MODEL = "gemini-3.5-flash-lite"
-DEFAULT_FALLBACK_MODELS = (
-    "gemini-3.1-flash-lite",
-    "gemini-3-flash-preview",
-    "gemini-3.1-pro-preview",
-    "gemini-3.7-flash",
-)
 
-BUSY_STATUS = (429, 500, 502, 503, 504)
-BUSY_RETRIES = 1  # extra tries on the same model before moving to the next one
+def _error_fields(resp: httpx.Response) -> tuple[str, str, list[str]]:
+    """(status text, message, detail reasons) of a Gemini error body; blanks if unreadable."""
+    try:
+        error = resp.json().get("error") or {}
+    except ValueError:
+        return "", "", []
+    reasons = [str(d.get("reason", "")) for d in error.get("details") or [] if isinstance(d, dict)]
+    return str(error.get("status", "")), str(error.get("message", "")), reasons
 
 
-def resolve_api_key(explicit: str = "") -> str:
-    """Explicit key, else the Gemini variables, else the app's generic LLM key."""
-    if explicit:
-        return explicit
-    from app.core.config import settings  # read at call time so tests can patch the env
+def _retry_after(resp: httpx.Response) -> float | None:
+    try:
+        return float(resp.headers.get("retry-after", ""))
+    except ValueError:
+        return None
 
-    return (
-        os.environ.get("GEMINI_API_KEY")
-        or os.environ.get("GOOGLE_API_KEY")
-        or settings.gemini_api_key
-        or settings.llm_api_key
-        or ""
-    )
+
+def _raise_for_status(resp: httpx.Response) -> None:
+    """Turn a non-200 Gemini response into the matching typed error."""
+    code = resp.status_code
+    status, message, reasons = _error_fields(resp)
+    lower = message.lower()
+    summary = f"HTTP {code}" + (f" {status}" if status else "")
+
+    # Gemini reports a bad key as 400 INVALID_ARGUMENT with reason API_KEY_INVALID.
+    bad_key = "API_KEY_INVALID" in reasons or "api key not valid" in lower
+    if code in (401, 403) and "billing" in lower:
+        raise LLMBillingError(f"Gemini reports a billing problem on the account ({summary}).")
+    if code in (401, 403) or bad_key:
+        raise LLMAuthenticationError(f"Gemini refused the API key ({summary}).")
+    if code == 429:
+        raise LLMRateLimitError(
+            f"Gemini rate limit or quota reached ({summary}).", _retry_after(resp)
+        )
+    if code >= 500:
+        raise LLMServerError(f"Gemini server error ({summary}).")
+    if code == 404:
+        raise LLMRequestRejectedError(
+            f"Gemini does not know this model, or the key cannot use it ({summary})."
+        )
+    raise LLMRequestRejectedError(f"Gemini rejected the request ({summary}): {message[:200]}")
 
 
 class GeminiJSONClient:
@@ -61,21 +84,23 @@ class GeminiJSONClient:
     def __init__(
         self,
         *,
-        model: str = "",
-        fallback_models: Sequence[str] | None = None,
-        api_key: str = "",
-        timeout_s: float = 120.0,
+        model: str,
+        api_key: str,
+        timeout_s: float = 300.0,
         transport: httpx.BaseTransport | None = None,
-        sleep: Any = time.sleep,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
-        self.primary_model = model or DEFAULT_MODEL
-        fallbacks = DEFAULT_FALLBACK_MODELS if fallback_models is None else fallback_models
-        self.fallback_models = tuple(m for m in fallbacks if m and m != self.primary_model)
-        self.model = self.primary_model
+        if not model:
+            raise LLMNotConfiguredError("No Gemini model was given.")
+        if not api_key:
+            raise LLMNotConfiguredError("No Gemini API key was given.")
+        self.model = model
         self.timeout_s = timeout_s
+        self.last_usage: LLMUsage | None = None
         self._api_key = api_key
         self._transport = transport
         self._sleep = sleep
+        self._send_temperature = True
 
     def generate_json(
         self,
@@ -85,11 +110,6 @@ class GeminiJSONClient:
         text: str,
         json_schema: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        key = resolve_api_key(self._api_key)
-        if not key:
-            raise LLMNotConfiguredError(
-                "No Gemini API key. Set GEMINI_API_KEY (or LLM_API_KEY) in .env."
-            )
         system = system_prompt + (schema_instruction(json_schema) if json_schema else "")
         parts: list[dict[str, Any]] = [
             {
@@ -101,63 +121,52 @@ class GeminiJSONClient:
             for img in images
         ]
         parts.append({"text": text})
+        self.last_usage = None
+        try:
+            body = with_retries(lambda: self._post(system, parts), sleep=self._sleep)
+        except LLMRequestRejectedError as e:
+            if not (self._send_temperature and "temperature" in str(e).lower()):
+                raise
+            # This model does not take the sampling parameter: leave it out from now on.
+            logger.info("gemini model %s rejects temperature; sending without it", self.model)
+            self._send_temperature = False
+            body = with_retries(lambda: self._post(system, parts), sleep=self._sleep)
+        usage = body.get("usageMetadata") or {}
+        self.last_usage = LLMUsage(
+            input_tokens=int(usage.get("promptTokenCount") or 0),
+            output_tokens=int(usage.get("candidatesTokenCount") or 0)
+            + int(usage.get("thoughtsTokenCount") or 0),
+        )
+        return extract_json_object(self._reply_text(body))
+
+    def _post(self, system: str, parts: list[dict[str, Any]]) -> dict[str, Any]:
+        config: dict[str, Any] = {"response_mime_type": "application/json"}
+        if self._send_temperature:
+            config["temperature"] = 0
         payload = {
             "system_instruction": {"parts": [{"text": system}]},
             "contents": [{"role": "user", "parts": parts}],
-            "generationConfig": {"temperature": 0, "response_mime_type": "application/json"},
+            "generationConfig": config,
         }
-        headers = {"Content-Type": "application/json", "x-goog-api-key": key}
-
-        last = "no model tried"
-        for model in (self.primary_model, *self.fallback_models):
-            ok, result = self._call_model(model, payload, headers)
-            if ok:
-                self.model = model
-                if model != self.primary_model:
-                    logger.warning(
-                        "gemini: %s unavailable (%s); used %s", self.primary_model, last, model
-                    )
-                return extract_json_object(result)
-            last = result
-        raise LLMUnavailableError(f"Gemini request failed on every model ({last}).")
-
-    def _call_model(
-        self, model: str, payload: dict[str, Any], headers: dict[str, str]
-    ) -> tuple[bool, str]:
-        """(True, reply text), or (False, reason) when another model might still work.
-
-        Raises LLMRequestRejectedError for failures no other model would fix.
-        """
-        last = ""
-        for attempt in range(BUSY_RETRIES + 1):
-            try:
-                with httpx.Client(timeout=self.timeout_s, transport=self._transport) as http:
-                    resp = http.post(GEMINI_URL.format(model=model), json=payload, headers=headers)
-            except httpx.TimeoutException:
-                return False, "timeout"
-            except httpx.HTTPError as e:
-                last = f"network error: {type(e).__name__}"
-                self._sleep(1.0 * (attempt + 1))
-                continue
-            if resp.status_code == 200:
-                return True, self._reply_text(resp)
-            last = f"HTTP {resp.status_code}"
-            if resp.status_code == 404:
-                return False, last  # model retired or unknown: try the next one
-            if resp.status_code in BUSY_STATUS:
-                self._sleep(1.5 * (attempt + 1))
-                continue
-            raise LLMRequestRejectedError(f"Gemini rejected the request ({last}).")
-        return False, last
-
-    @staticmethod
-    def _reply_text(resp: httpx.Response) -> str:
+        headers = {"Content-Type": "application/json", "x-goog-api-key": self._api_key}
         try:
-            body = resp.json()
+            with httpx.Client(timeout=self.timeout_s, transport=self._transport) as http:
+                resp = http.post(GEMINI_URL.format(model=self.model), json=payload, headers=headers)
+        except httpx.TimeoutException as e:
+            raise LLMUnavailableError("Gemini did not answer in time.") from e
+        except httpx.HTTPError as e:
+            raise LLMUnavailableError(f"Gemini could not be reached ({type(e).__name__}).") from e
+        if resp.status_code != 200:
+            _raise_for_status(resp)
+        try:
+            return resp.json()
         except ValueError as e:
             raise LLMInvalidJSONError(
                 "Gemini returned a non-JSON HTTP body.", resp.text[:2000]
             ) from e
+
+    @staticmethod
+    def _reply_text(body: dict[str, Any]) -> str:
         candidates = body.get("candidates") or []
         if not candidates:
             reason = (body.get("promptFeedback") or {}).get("blockReason", "no candidates")
@@ -169,3 +178,6 @@ class GeminiJSONClient:
             # A cut-off reply is not parseable JSON; report it as such so the caller can retry.
             raise LLMInvalidJSONError("Gemini stopped at its output limit (reply cut off).", text)
         return text
+
+
+__all__ = ["GeminiJSONClient", "JSONLLMError"]

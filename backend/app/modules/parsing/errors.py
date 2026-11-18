@@ -38,8 +38,35 @@ class ParserNotConfiguredError(PlanParseError):
     code = "llm_not_configured"
 
 
+class ParserAuthError(PlanParseError):
+    """The LLM provider refused the configured API key. Not retried."""
+
+    code = "llm_auth_failed"
+
+
+class ParserBillingError(PlanParseError):
+    """The LLM provider account has no credit, a billing problem or hit its spend cap.
+
+    Not retried.
+    """
+
+    code = "llm_billing"
+
+
+class ParserRateLimitedError(PlanParseError):
+    """The LLM provider kept answering "too many requests" after the bounded retries."""
+
+    code = "llm_rate_limited"
+
+
+class ParserRequestRejectedError(PlanParseError):
+    """The LLM provider rejected the request itself (unknown model, bad request, declined)."""
+
+    code = "llm_request_rejected"
+
+
 class ParserUnavailableError(PlanParseError):
-    """The LLM provider could not be reached or refused the request."""
+    """The LLM provider could not be reached, timed out or kept failing."""
 
     code = "llm_unavailable"
 

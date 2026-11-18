@@ -132,6 +132,10 @@ class ParserInfo(_PlanModel):
     prompt_version: str | None = None
     provider: str | None = None
     model: str | None = None
+    # What the parse cost: tokens billed over every model call it made, and how many calls.
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    attempts: int | None = None
 
 
 class PlanJSON(_PlanModel):

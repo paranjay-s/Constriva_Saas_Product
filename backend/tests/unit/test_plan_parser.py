@@ -2,26 +2,31 @@
 
 import copy
 import json
+import logging
 from pathlib import Path
 
-import httpx
 import pymupdf
 import pytest
 
-from app.modules.ai.llm.gemini_json import GeminiJSONClient
 from app.modules.ai.llm.json_client import (
+    LLMAuthenticationError,
+    LLMBillingError,
     LLMImage,
     LLMInvalidJSONError,
     LLMNotConfiguredError,
+    LLMRateLimitError,
     LLMRequestRejectedError,
     LLMUnavailableError,
-    extract_json_object,
-    get_json_llm,
+    LLMUsage,
 )
 from app.modules.parsing import llm_parser
 from app.modules.parsing.errors import (
     NoFloorPlanError,
+    ParserAuthError,
+    ParserBillingError,
     ParserNotConfiguredError,
+    ParserRateLimitedError,
+    ParserRequestRejectedError,
     ParserUnavailableError,
     PdfInputError,
     PlanOutputInvalidError,
@@ -34,6 +39,7 @@ from app.modules.parsing.llm_parser import (
     parse_plan_images,
     parse_plan_pdf,
 )
+from app.modules.parsing.llm_schema import WIRE_JSON_SCHEMA
 from app.modules.parsing.pdf_input import RENDER_DPI, effective_dpi, load_plan_pdf
 from app.modules.parsing.plan_cache import FilePlanCache, NullPlanCache, plan_cache_key
 from app.modules.plans.schemas import SCHEMA_VERSION, PlanJSON
@@ -48,9 +54,11 @@ class FakeLLM:
     provider = "fake"
     model = "fake-1"
 
-    def __init__(self, *replies):
+    def __init__(self, *replies, model: str = "fake-1", usage: LLMUsage | None = None):
         self.replies = list(replies)
         self.calls: list[dict] = []
+        self.model = model
+        self.last_usage = usage
 
     def generate_json(self, *, system_prompt, images, text, json_schema=None):
         self.calls.append(
@@ -184,6 +192,9 @@ def test_valid_output_becomes_plan_json():
         "prompt_version": load_prompt()[1],
         "provider": "fake",
         "model": "fake-1",
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "attempts": 1,
     }
     assert len(llm.calls) == 1
 
@@ -196,7 +207,7 @@ def test_the_model_gets_the_prompt_file_the_page_text_and_the_schema():
     assert "prompt_version" not in call["system_prompt"]
     assert "BEDROOM 12' X 14'" in call["text"]
     assert call["images"] == IMAGES
-    assert "levels" in call["json_schema"]["properties"]
+    assert call["json_schema"] is WIRE_JSON_SCHEMA
 
 
 def test_same_model_output_gives_identical_plan_json():
@@ -498,12 +509,31 @@ def test_same_pdf_is_parsed_once_and_then_served_from_the_cache(tmp_path):
     assert len(list(tmp_path.glob("*.json"))) == 1
 
 
-def test_cache_key_changes_with_parser_prompt_and_schema_versions():
-    key = plan_cache_key("abc", "2.0.0", "2.0.0")
+def test_cache_key_holds_everything_that_decides_the_result():
+    key = plan_cache_key("abc", "2.0.0", "2.0.0", "gemini", "model-a")
     assert key.startswith("abc.") and f"schema-{SCHEMA_VERSION}" in key
-    assert plan_cache_key("abc", "2.0.1", "2.0.0") != key
-    assert plan_cache_key("abc", "2.0.0", "2.0.1") != key
-    assert plan_cache_key("abd", "2.0.0", "2.0.0") != key
+    assert key.endswith(".gemini.model-a")
+    assert plan_cache_key("abc", "2.0.1", "2.0.0", "gemini", "model-a") != key
+    assert plan_cache_key("abc", "2.0.0", "2.0.1", "gemini", "model-a") != key
+    assert plan_cache_key("abd", "2.0.0", "2.0.0", "gemini", "model-a") != key
+    assert plan_cache_key("abc", "2.0.0", "2.0.0", "anthropic", "model-a") != key
+    assert plan_cache_key("abc", "2.0.0", "2.0.0", "gemini", "model-b") != key
+
+
+def test_switching_model_parses_again_instead_of_returning_the_older_result(tmp_path):
+    cache = FilePlanCache(tmp_path)
+    data = make_pdf()
+    first = parse_plan_pdf(data, client=FakeLLM(good_reply(), model="model-a"), cache=cache)
+
+    other = FakeLLM(good_reply(), model="model-b")
+    second = parse_plan_pdf(data, client=other, cache=cache)
+    assert len(other.calls) == 1  # not answered from model-a's entry
+    assert (first["parser"]["model"], second["parser"]["model"]) == ("model-a", "model-b")
+    assert len(list(tmp_path.glob("*.json"))) == 2
+
+    # each model still gets its own cached result back
+    assert parse_plan_pdf(data, client=FakeLLM(model="model-a"), cache=cache) == first
+    assert parse_plan_pdf(data, client=FakeLLM(model="model-b"), cache=cache) == second
 
 
 def test_a_new_parser_version_does_not_reuse_old_cache_entries(tmp_path, monkeypatch):
@@ -550,113 +580,81 @@ def test_corrupt_cache_entry_is_ignored(tmp_path):
     assert cache.get("missing") is None
 
 
-# ------------------------------------------------------- provider-neutral interface
+# ------------------------------------------------------------- typed provider failures
 
 
 @pytest.mark.parametrize(
-    "text",
+    ("client_error", "parser_error", "code"),
     [
-        '{"a": 1}',
-        '```json\n{"a": 1}\n```',
-        'Here you go:\n{"a": 1}\nHope it helps.',
-        '  {"a": 1}  ',
+        (LLMAuthenticationError("bad key"), ParserAuthError, "llm_auth_failed"),
+        (LLMBillingError("no credit"), ParserBillingError, "llm_billing"),
+        (LLMRateLimitError("slow down"), ParserRateLimitedError, "llm_rate_limited"),
+        (
+            LLMRequestRejectedError("unknown model"),
+            ParserRequestRejectedError,
+            "llm_request_rejected",
+        ),
+        (LLMUnavailableError("timeout"), ParserUnavailableError, "llm_unavailable"),
+        (LLMNotConfiguredError("no key"), ParserNotConfiguredError, "llm_not_configured"),
     ],
 )
-def test_extract_json_object(text):
-    assert extract_json_object(text) == {"a": 1}
+def test_provider_failures_become_typed_parse_errors(client_error, parser_error, code):
+    llm = FakeLLM(client_error)
+    with pytest.raises(parser_error) as caught:
+        parse_plan_images(IMAGES, [""], client=llm)
+    assert caught.value.code == code
+    assert caught.value.details == [str(client_error)]
+    assert caught.value.message  # a message a user can be shown
+    assert len(llm.calls) == 1  # the parser itself never retries a provider failure
 
 
-@pytest.mark.parametrize("text", ["", "no json here", "[1, 2, 3]", '{"a": '])
-def test_extract_json_object_rejects_non_objects(text):
-    with pytest.raises(LLMInvalidJSONError) as caught:
-        extract_json_object(text)
-    assert caught.value.raw_text == text.strip()
+# ---------------------------------------------------------------------- per-parse log
 
 
-def test_unknown_provider_is_reported():
-    with pytest.raises(LLMNotConfiguredError, match="Unsupported LLM provider"):
-        get_json_llm("no-such-provider")
-
-
-def gemini(handler, **kwargs) -> GeminiJSONClient:
-    return GeminiJSONClient(
-        api_key="test-key", transport=httpx.MockTransport(handler), sleep=lambda _s: None, **kwargs
+def test_one_log_line_per_parse_with_provider_model_tokens_and_duration(tmp_path, caplog):
+    cache = FilePlanCache(tmp_path)
+    data = make_pdf(text="CONFIDENTIAL CLIENT NAME")
+    llm = FakeLLM(
+        broken_reply(), good_reply(), usage=LLMUsage(input_tokens=1200, output_tokens=300)
     )
+    with caplog.at_level(logging.INFO, logger="construtiva.parsing.llm"):
+        plan = parse_plan_pdf(data, client=llm, cache=cache)
+        parse_plan_pdf(data, client=FakeLLM(), cache=cache)
+
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("plan parse:")]
+    assert len(lines) == 2
+    fresh, cached = lines
+    for part in (
+        "provider=fake",
+        "model=fake-1",
+        "input_tokens=2400",
+        "output_tokens=600",
+        "attempts=2",
+        "duration_s=",
+        "cache_hit=False",
+        "outcome=ok",
+    ):
+        assert part in fresh
+    for part in (
+        "provider=fake",
+        "model=fake-1",
+        "input_tokens=0",
+        "output_tokens=0",
+        "cache_hit=True",
+    ):
+        assert part in cached
+    # the cost of the parse is also kept with the plan
+    assert (
+        plan["parser"]["input_tokens"],
+        plan["parser"]["output_tokens"],
+        plan["parser"]["attempts"],
+    ) == (2400, 600, 2)
+    # nothing from the file is logged
+    assert "CONFIDENTIAL" not in caplog.text
 
 
-def gemini_answer(text: str, finish: str = "STOP") -> httpx.Response:
-    body = {"candidates": [{"content": {"parts": [{"text": text}]}, "finishReason": finish}]}
-    return httpx.Response(200, json=body)
-
-
-def test_gemini_adapter_sends_a_neutral_request_at_temperature_zero():
-    seen = {}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        seen["url"] = str(request.url)
-        seen["key"] = request.headers.get("x-goog-api-key")
-        seen["body"] = json.loads(request.content)
-        return gemini_answer('{"levels": []}')
-
-    client = gemini(handler, model="model-a")
-    out = client.generate_json(
-        system_prompt="SYSTEM",
-        images=[LLMImage(b"png-bytes")],
-        text="USER",
-        json_schema={"type": "object"},
-    )
-    assert out == {"levels": []}
-    assert "model-a:generateContent" in seen["url"]
-    assert "test-key" not in seen["url"] and seen["key"] == "test-key"  # key only in the header
-    body = seen["body"]
-    assert body["generationConfig"] == {"temperature": 0, "response_mime_type": "application/json"}
-    assert body["system_instruction"]["parts"][0]["text"].startswith("SYSTEM")
-    assert '{"type":"object"}' in body["system_instruction"]["parts"][0]["text"]
-    parts = body["contents"][0]["parts"]
-    assert parts[0]["inline_data"]["mime_type"] == "image/png" and parts[-1] == {"text": "USER"}
-
-
-def test_gemini_adapter_falls_back_to_the_next_model():
-    tried = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        tried.append(str(request.url).split("/models/")[1].split(":")[0])
-        return httpx.Response(404) if len(tried) == 1 else gemini_answer('{"ok": true}')
-
-    client = gemini(handler, model="retired-model", fallback_models=["next-model"])
-    assert client.generate_json(system_prompt="s", images=[], text="t") == {"ok": True}
-    assert tried == ["retired-model", "next-model"]
-    assert client.model == "next-model"
-
-
-def test_gemini_adapter_reports_an_outage():
-    client = gemini(lambda request: httpx.Response(503), model="m", fallback_models=[])
-    with pytest.raises(LLMUnavailableError):
-        client.generate_json(system_prompt="s", images=[], text="t")
-
-
-def test_gemini_adapter_reports_a_rejected_request():
-    client = gemini(
-        lambda request: httpx.Response(400, json={"error": "bad"}), model="m", fallback_models=[]
-    )
-    with pytest.raises(LLMRequestRejectedError):
-        client.generate_json(system_prompt="s", images=[], text="t")
-
-
-def test_gemini_adapter_reports_a_cut_off_reply_as_invalid_json():
-    client = gemini(
-        lambda request: gemini_answer('{"levels": [', "MAX_TOKENS"), model="m", fallback_models=[]
-    )
-    with pytest.raises(LLMInvalidJSONError) as caught:
-        client.generate_json(system_prompt="s", images=[], text="t")
-    assert caught.value.raw_text == '{"levels": ['
-
-
-def test_gemini_adapter_without_a_key_is_not_configured(monkeypatch):
-    for name in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
-        monkeypatch.delenv(name, raising=False)
-    monkeypatch.setattr("app.core.config.settings.gemini_api_key", "")
-    monkeypatch.setattr("app.core.config.settings.llm_api_key", "")
-    client = GeminiJSONClient(transport=httpx.MockTransport(lambda r: httpx.Response(500)))
-    with pytest.raises(LLMNotConfiguredError):
-        client.generate_json(system_prompt="s", images=[], text="t")
+def test_a_failed_parse_is_logged_with_its_error_code(caplog):
+    with caplog.at_level(logging.INFO, logger="construtiva.parsing.llm"):
+        with pytest.raises(ParserBillingError):
+            parse_plan_images(IMAGES, [""], client=FakeLLM(LLMBillingError("no credit")))
+    assert "outcome=llm_billing" in caplog.text and "cache_hit=False" in caplog.text

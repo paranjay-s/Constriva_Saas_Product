@@ -2,8 +2,9 @@
 
 The same PDF always yields the same PlanJSON: the first parse is stored, and every later
 upload of the same bytes reads it back instead of asking a model again. The key also holds
-the parser, prompt and schema versions, so changing any of them starts a fresh entry
-rather than serving JSON an older parser produced.
+the parser, prompt and schema versions and the provider and model, so changing any of
+them starts a fresh entry rather than serving JSON an older parser or another model
+produced.
 
 Entries live in the folder the blueprint import has always cached in
 (`backend/.tmp/plan_cache`, git-ignored). Only the plan is stored: no project, user or
@@ -27,8 +28,18 @@ BACKEND_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_CACHE_DIR = BACKEND_ROOT / ".tmp" / "plan_cache"
 
 
-def plan_cache_key(pdf_sha256: str, parser_version: str, prompt_version: str) -> str:
-    return f"{pdf_sha256}.parser-{parser_version}.prompt-{prompt_version}.schema-{SCHEMA_VERSION}"
+def plan_cache_key(
+    pdf_sha256: str, parser_version: str, prompt_version: str, provider: str, model: str
+) -> str:
+    """Everything that decides what a PDF parses to.
+
+    The provider and the model are part of it: after a switch to another model the PDF is
+    parsed again, and the older model's result is not returned as if it were the new one's.
+    """
+    return (
+        f"{pdf_sha256}.parser-{parser_version}.prompt-{prompt_version}"
+        f".schema-{SCHEMA_VERSION}.{provider}.{model}"
+    )
 
 
 class PlanCache(Protocol):

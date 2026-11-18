@@ -9,11 +9,19 @@ be real numbers, and every opening must sit on a wall that exists.
 to the model when it asks for a corrected reply.
 """
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.modules.parsing.normalise import clean_polygon, signed_area, stated_area_m2, unit_scale
+from app.modules.plans.room_types import BoqType
+from app.modules.plans.schemas import (
+    BuildingType,
+    OpeningType,
+    RoomKind,
+    WallHeightSource,
+    WallKind,
+)
 
 MAX_ERRORS_REPORTED = 40
 
@@ -103,7 +111,83 @@ class LLMPlanDraft(_Draft):
     levels: list[DraftLevel] = Field(default_factory=list)
 
 
-DRAFT_JSON_SCHEMA: dict[str, Any] = LLMPlanDraft.model_json_schema()
+# ------------------------------------------------------------------------ wire schema
+#
+# The schema the model is asked to fill in. It describes the same document as
+# `LLMPlanDraft`, written for providers that enforce a schema with a grammar: every field
+# is required (a value the drawing does not give is null), only nine fields are nullable,
+# and there are no length or range constraints. `LLMPlanDraft` stays the validator, so a
+# reply in the older, looser shape is still accepted.
+
+
+class _Wire(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class WireRoom(_Wire):
+    id: str
+    name: str
+    kind: RoomKind
+    boq_type: BoqType
+    polygon: list[list[float]]
+    height_m: float | None
+    is_double_height_void: bool
+
+
+class WireWall(_Wire):
+    id: str
+    start: list[float]
+    end: list[float]
+    thickness: float
+    kind: WallKind
+    inferred: bool
+
+
+class WireOpening(_Wire):
+    id: str
+    wall_id: str
+    type: OpeningType
+    offset: float
+    width: float
+    height: float
+    sill: float
+    inferred: bool
+
+
+class WireColumn(_Wire):
+    id: str
+    position: list[float]
+    width: float
+    depth: float
+
+
+class WireLevel(_Wire):
+    index: int
+    name: str
+    overall_width: float | None
+    overall_depth: float | None
+    elevation: float | None
+    wall_height: float | None
+    wall_height_source: WallHeightSource
+    rooms: list[WireRoom]
+    walls: list[WireWall]
+    openings: list[WireOpening]
+    columns: list[WireColumn]
+
+
+class WirePlan(_Wire):
+    floor_plan_found: bool
+    units: Literal["m"]
+    building_type: BuildingType
+    scale_source: Literal["dimension_label", "scale_bar", "stated_scale", "assumed"]
+    project_title: str | None
+    subject: str | None
+    client: str | None
+    architect: str | None
+    levels: list[WireLevel]
+
+
+WIRE_JSON_SCHEMA: dict[str, Any] = WirePlan.model_json_schema()
 
 
 def _path(loc: tuple) -> str:

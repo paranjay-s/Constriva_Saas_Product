@@ -50,6 +50,14 @@ async def lifespan(app: FastAPI):
     Initializes Supabase Storage buckets on startup.
     """
     logger.info("Initializing Construtiva FastAPI backend...")
+    # Fail at startup, with one message naming the variable, when the plan parser's
+    # provider, model or key is missing or unknown (PLAN_PARSER_LLM_*).
+    from app.modules.parsing.settings import resolve_llm_config
+
+    parser_config = resolve_llm_config()
+    logger.info(
+        "Plan parser: provider=%s model=%s", parser_config.provider, parser_config.model
+    )
     ensure_storage_buckets()
     yield
     logger.info("Construtiva backend shutting down.")
