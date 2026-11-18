@@ -185,7 +185,7 @@ async def type_unknown_rooms(job_id: str, client: Any, classify: Any = None) -> 
             continue
         if a["type"] == "new":
             try:
-                r["area"] = await client.save_area(a["spec"])
+                r["area_type"] = await client.save_area(a["spec"])
             except Exception as e:  # noqa: BLE001 - a refused spec leaves the room flagged
                 logger.info("area spec for %r refused: %s", r["label"], e)
                 continue

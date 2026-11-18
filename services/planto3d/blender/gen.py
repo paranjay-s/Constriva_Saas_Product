@@ -709,7 +709,7 @@ for k, f in enumerate(floors):
             water += court_parts(zn)
             continue
         if zn["type"] == "custom":         # an area built from its spec (areaspec.py), or a labelled generic zone
-            spec = areaspec.spec_for(zn.get("area") or zn.get("label"))
+            spec = areaspec.spec_for(zn.get("area_type") or zn.get("label"))
             for r in zn["rects"]:
                 bxs, objs, walkable = areaspec.parts(spec, r)
                 water += bxs

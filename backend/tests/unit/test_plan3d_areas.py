@@ -87,7 +87,7 @@ async def test_unknown_rooms_get_a_type_or_a_new_area_once():
     n = await areas.type_unknown_rooms("j1", svc, classify=lambda labels, types: answers)
     rooms = svc.saved["floors"][0]["rooms"]
     assert n == 2
-    assert rooms[0]["type"] == "custom" and rooms[0]["area"] == "helipad"
+    assert rooms[0]["type"] == "custom" and rooms[0]["area_type"] == "helipad"
     assert rooms[0]["src"] == "ai"
     assert rooms[1]["type"] == "store"
     assert rooms[2]["type"] == "multipurpose"  # too unsure: stays flagged
