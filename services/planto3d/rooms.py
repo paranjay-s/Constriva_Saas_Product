@@ -72,3 +72,10 @@ def _classify(ws):
             if r >= 0.85 and (best is None or r > best[0]):
                 best = (r, typ)
     return (best[1], "fuzzy") if best else (None, None)
+
+
+def names(label, typ):
+    """does the label name this type anywhere (DRG./DIN. names living and dining)?"""
+    ws = words(label)
+    ws = ws + [p for w in ws for p in w.split(".") if p and "." in w]
+    return any(t == typ and any(tuple(ws[i:i + len(p)]) == p for i in range(len(ws) - len(p) + 1)) for p, t in PHRASES)

@@ -208,3 +208,17 @@ with tile lining, coping, steps and a water plane (a raised basin on an upper st
 shallow basin, and a dock as water with a plank deck on posts along its long sides; and closes water (except the dock
 decks) and lift and duct shafts to the walker. The review page lists every type by name. `tests/test_rooms.py`: 202
 labels. The four vector test plans are read exactly as before.
+
+## 16. Open plans: one function per zone and passages between zones (furnish.py, rooms.py, tests/test_openplan.py)
+
+Why: in an open plan (kitchen, dining and living in one space, read as zones side by side with no wall between them)
+the furniture of neighbouring zones crowded together, and every dining zone of more than 150 sq ft also got a sofa
+group (the rule meant for "DRG./DIN." rooms), next to the living zone's own.
+
+What: a dining room gets a sofa group only when its label also names a living room (`rooms.names`). Along an open
+edge between two indoor zones (at least 4 ft long, no wall, no window, no door) each zone keeps a 1.5 ft strip clear,
+so neighbouring zones leave 0.9 m between their furniture. Rooms with walls, outdoor rooms and doorways are not
+affected; on the test plans the only change is one fridge in OPT 5's first-floor kitchen, which opens onto the dining
+room. `tests/test_openplan.py` (in `run_all.sh`): every zone furnished, no overlaps, no second sofa group, 0.9 m
+between zones, every zone reachable from the door. Not done: an island or peninsula facing the other zones, and
+dragging zone cuts on the review page (a zone's type can be changed there, as for any room).

@@ -30,6 +30,13 @@ def subtract_iv(ivs, a, b):
     return [x for p, q in ivs for x in ((p, min(q, a)), (max(p, b), q)) if x[1] - x[0] > 0.05]
 
 
+def subtract_ivs(ivs, cuts):
+    """intervals minus every interval in cuts"""
+    for a, b in cuts:
+        ivs = subtract_iv(ivs, a, b)
+    return ivs
+
+
 def union_iv(ivs):
     out = []
     for a, b in sorted(ivs):
@@ -113,6 +120,19 @@ class Room:
                     low = subtract_iv(low, a - 0.4, b + 0.4)
                     tall = subtract_iv(tall, a - 0.4, b + 0.4)
             self.free[side] = {"low": low, "tall": tall}
+            # an open edge (no wall, no window: an open-plan boundary with the next zone) keeps a strip of half a
+            # passage clear inside the room, so two zones side by side leave 0.9 m (3 ft) between their furniture
+            doors_here = [(o["rect"][0], o["rect"][1]) if side in "NS" else (o["rect"][2], o["rect"][3]) for o in ops
+                          if o["type"] != "window" and overlap(o["rect"], (x0 - 1, x1 + 1, y0 - 1, y1 + 1))]
+            for a, b in subtract_ivs([along], cov + [(d0 - 0.5, d1 + 0.5) for d0, d1 in doors_here]):
+                m = (a + b) / 2
+                past = {"N": (m, y1 + 0.75), "S": (m, y0 - 0.75), "E": (x1 + 0.75, m), "W": (x0 - 0.75, m)}[side]
+                beyond = zone["type"] in INDOOR and any(
+                    z is not zone and z["type"] in INDOOR and any(q[0] <= past[0] <= q[1] and q[2] <= past[1] <= q[3] for q in z["rects"])
+                    for z in floor["rooms"])
+                if b - a >= 4.0 and beyond:
+                    self.keepout.append({"N": (a, b, y1 - 1.5, y1), "S": (a, b, y0, y0 + 1.5),
+                                         "E": (x1 - 1.5, x1, a, b), "W": (x0, x0 + 1.5, a, b)}[side])
         # fridges and wardrobes must not stand in front of a window on a neighbouring wall either
         self.win_front = []
         for o in ops:
@@ -486,7 +506,9 @@ def living(R):
 
 
 def dining(R):
-    if R.zone.get("area", R.w * R.d) >= 150:     # a big "DRG./DIN." room is drawing + dining: sofa set first
+    # a "DRG./DIN." room is drawing + dining: sofa set first. Only when the label names both: a large dining area
+    # in an open plan has its living room next to it, with its own sofas
+    if rooms.names(R.zone.get("label") or "", "living") and R.zone.get("area", R.w * R.d) >= 150:
         living(R)
         if not dining_table(R):            # no room left beside the sofa: the table goes in the L's other arm
             r = max_rect(R.zone["rects"], exclude=R.rect)
