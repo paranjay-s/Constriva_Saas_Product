@@ -421,3 +421,41 @@ describe('furniture models page', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 });
+
+describe('build notifications', () => {
+  beforeEach(() => {
+    localStorage.setItem(TOKEN_STORAGE_KEY, 'test-token');
+  });
+  afterEach(() => {
+    localStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('lists finished builds with a link to each', async () => {
+    mockApi({
+      [`GET ${BASE}/notifications`]: () =>
+        json({
+          email: true,
+          items: [{ job_id: 'aaaaaaaaaaaa', outcome: 'done', title: 'Your 3D house is ready', quality: 'high', at: '2026-11-19T02:00:00+00:00' }],
+        }),
+      [`PUT ${BASE}/notifications/settings`]: () => json({ email: false }),
+    });
+    renderPage();
+    const notices = await screen.findByRole('region', { name: 'Build notifications' });
+    fireEvent.click(within(notices).getByRole('link', { name: 'Your 3D house is ready' }));
+    expect(screen.getByTestId('where').textContent).toBe('/3d/aaaaaaaaaaaa');
+  });
+
+  it('saves the email switch', async () => {
+    const fetchMock = mockApi({
+      [`GET ${BASE}/notifications`]: () => json({ email: true, items: [] }),
+      [`PUT ${BASE}/notifications/settings`]: () => json({ email: false }),
+    });
+    renderPage();
+    const box = await screen.findByRole('checkbox', { name: /email me/i });
+    fireEvent.click(box);
+    await waitFor(() => expect((box as HTMLInputElement).checked).toBe(false));
+    const [put] = callsTo(fetchMock, 'PUT', `${BASE}/notifications/settings`);
+    expect(JSON.parse(String(put.init.body))).toEqual({ email: false });
+  });
+});

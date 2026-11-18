@@ -17,6 +17,8 @@ import {
   type Plan3dQualityId,
   type Plan3dSystem,
   plan3dEmbedSchema,
+  type Plan3dNotifications,
+  plan3dNotificationsSchema,
   plan3dExportSchema,
   plan3dJobCreatedSchema,
   plan3dJobListSchema,
@@ -127,6 +129,18 @@ export const plan3dApi = {
   /** The URL of the furniture models page, which needs no job. */
   furnitureEmbed: async (signal?: AbortSignal): Promise<Plan3dEmbed> =>
     plan3dEmbedSchema.parse(await apiRequest(`${PLAN3D_BASE}/embed`, { method: 'POST', signal })),
+
+  /** Long builds that finished or failed, newest first, and the email setting. */
+  notifications: async (signal?: AbortSignal): Promise<Plan3dNotifications> =>
+    plan3dNotificationsSchema.parse(await apiRequest(`${PLAN3D_BASE}/notifications`, { signal })),
+
+  /** Turn the emails about finished builds on or off. */
+  setEmail: async (email: boolean): Promise<boolean> =>
+    z
+      .looseObject({ email: z.boolean() })
+      .parse(
+        await apiRequest(`${PLAN3D_BASE}/notifications/settings`, { method: 'PUT', body: JSON.stringify({ email }) }),
+      ).email,
 
   /** Delete a job and its files. Refused (409) while it is being built. */
   remove: async (jobId: string): Promise<void> => {

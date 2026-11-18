@@ -17,6 +17,7 @@ import { Plan3dJobList } from './components/Plan3dJobList';
 import { BackLink, ErrorNotice, LinkButton, PageFrame, PageTitle, StatusNote } from './components/Plan3dParts';
 import { Plan3dUpload } from './components/Plan3dUpload';
 import { usePlan3dJobs } from './hooks/usePlan3dJobs';
+import { Plan3dNotices } from './components/Plan3dNotices';
 import { usePlan3dSystem } from './hooks/usePlan3dSystem';
 import { plan3dApi, plan3dErrorText } from './plan3dApi';
 import { jobName, systemProblem } from './plan3dLogic';
@@ -98,6 +99,8 @@ export function Plan3dHomePage() {
           Upload a floor plan PDF, check the plan that was detected in it, and walk through the house in 3D.
         </PageTitle>
       </div>
+
+      <Plan3dNotices />
 
       {builderProblem && (
         <ErrorNotice message={builderProblem}>

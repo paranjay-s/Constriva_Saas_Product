@@ -131,3 +131,17 @@ export interface Plan3dSaveRequest {
   type: 'save';
   furnish: boolean;
 }
+
+/** A long build that finished or failed (newest first), and whether the person gets emails about them. */
+export const plan3dNotificationsSchema = z.looseObject({
+  email: z.boolean(),
+  items: z.array(
+    z.looseObject({
+      job_id: z.string(),
+      outcome: z.enum(['done', 'failed']),
+      title: z.string(),
+      at: z.string(),
+    }),
+  ),
+});
+export type Plan3dNotifications = z.infer<typeof plan3dNotificationsSchema>;
