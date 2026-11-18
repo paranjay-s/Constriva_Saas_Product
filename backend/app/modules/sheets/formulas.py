@@ -17,7 +17,7 @@ from app.modules.sheets.primitives import PlanFacts, Primitives, RoomFact, ceil,
 Serial = int | str
 
 # Not built for an apartment: roof, plinth-level and site items (spec section 5).
-APARTMENT_ZERO_ITEMS: tuple[Serial, ...] = (8, 10, 20, 21, 22, 23, 26, 30, 31, 58)
+APARTMENT_ZERO_ITEMS: tuple[Serial, ...] = (8, 10, 20, 21, 22, 23, 26, 30, 31, "53b", 58)
 APARTMENT_NOTE = "Not counted for an apartment: this is a whole-building item."
 
 PERGOLA_WORDS = ("pergola", "gazebo")
@@ -90,10 +90,10 @@ def compute_items(p: Primitives, facts: PlanFacts) -> dict[Serial, ItemValue]:
         c.PLINTH_STEEL_KG_PER_M2 * p.a_ground + c.FLOOR_STEEL_KG_PER_M2 * p.a_built
     ) * c.STEEL_WASTE_FACTOR
     items[2] = ItemValue(
-        steel_kg,
+        steel_kg / 1000.0,
         (
+            Part("Weight", steel_kg, "kg", 2),
             Part("12 m rods (12 mm average)", ceil(steel_kg / c.TMT_12MM_ROD_WEIGHT_KG), "Nos"),
-            Part("Weight", steel_kg / 1000.0, "t", 2),
         ),
         "Includes 10% waste.",
     )
@@ -432,21 +432,27 @@ def compute_items(p: Primitives, facts: PlanFacts) -> dict[Serial, ItemValue]:
 
     # ----------------------------------------------------------- Group F (58-59)
     if facts.plot_perimeter is not None and facts.plot_perimeter > 0:
-        items[58] = ItemValue(facts.plot_perimeter, note="The plot perimeter that was supplied.")
-    elif p.p_site <= 0 and p.p_ext_0 <= 0:
-        # An empty plan: section 7 of the spec says every item is then 0.
-        items[58] = ItemValue(0.0)
+        hoarding_base = facts.plot_perimeter
+        hoarding_note = "The plot perimeter that was supplied, plus 5%."
     else:
-        items[58] = ItemValue(
-            max(p.p_site, p.p_ext_0 + c.HOARDING_OFFSET_M) * c.HOARDING_WASTE,
-            note="Estimated from the plan outline. Supply the plot perimeter to replace it.",
-        )
+        hoarding_base = max(p.p_site, p.p_ext_0 + c.HOARDING_OFFSET_M)
+        hoarding_note = "Estimated from the plan outline. Supply the plot perimeter to replace it."
+    items[58] = ItemValue(
+        hoarding_base * c.HOARDING_WASTE * p.has_building,
+        note=hoarding_note if p.has_building else "",
+    )
     items[59] = ItemValue(p.has_building)
 
     if facts.building_type == "apartment":
         for serial in APARTMENT_ZERO_ITEMS:
             items[serial] = ItemValue(0, note=APARTMENT_NOTE)
     return items
+
+
+def _serial_list(serials: tuple[Serial, ...]) -> str:
+    """ "8, 10 and 58" """
+    names = [str(serial) for serial in serials]
+    return f"{', '.join(names[:-1])} and {names[-1]}"
 
 
 def calculation_warnings(p: Primitives, facts: PlanFacts) -> list[str]:
@@ -469,6 +475,11 @@ def calculation_warnings(p: Primitives, facts: PlanFacts) -> list[str]:
             f"{p.a_other / p.a_in:.0%} of the indoor area has no recognised room type. "
             "Room-based quantities may be low."
         )
+    if p.n_door < p.n_bath + p.n_bed:
+        warnings.append(
+            f"Doors look under-read: the plan shows {p.n_door} doors for {p.n_bath} bathrooms "
+            f"and {p.n_bed} bedrooms. Wall quantities may be slightly high."
+        )
     if facts.openings and not p.widths_present:
         warnings.append("Opening widths are absent, so items 28 and 29 are 0.")
     if p.a_pave <= 0 and not apartment:
@@ -487,7 +498,7 @@ def calculation_warnings(p: Primitives, facts: PlanFacts) -> list[str]:
         warnings.append("The gypsum-plastered wall area was clamped to 0.")
     if apartment:
         warnings.append(
-            "Apartment: items 8, 10, 20, 21, 22, 23, 26, 30, 31 and 58 are 0. "
+            f"Apartment: items {_serial_list(APARTMENT_ZERO_ITEMS)} are 0. "
             "Composite items (such as cement, sand, bitumen and waterproofing) still include "
             "roof and plinth terms."
         )

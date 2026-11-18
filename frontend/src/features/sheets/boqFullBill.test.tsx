@@ -146,7 +146,7 @@ describe('full bill: table', () => {
       return [cells[4].textContent, cells[5].firstChild?.textContent];
     };
     expect(shown('AAC blocks')).toEqual(['pieces', '6,143']);
-    expect(shown('Steel rebar')).toEqual(['kg', '9,856.00']);
+    expect(shown('Steel rebar')).toEqual(['t', '9.86']);
     expect(shown('Cement')).toEqual(['50 kg bags', '331']);
     expect(shown('Sand')).toEqual(['m³', '28.54']);
     expect(shown('Floor tiles and skirting')).toEqual(['m²', '186.40']);
@@ -192,8 +192,8 @@ describe('full bill: table', () => {
       ['Roof tank', '1,500', 'L'],
     ]);
     expect(partsOf('Steel rebar')).toEqual([
+      ['Weight', '9,856.00', 'kg'],
       ['12 m rods (12 mm average)', '925', 'Nos'],
-      ['Weight', '9.86', 't'],
     ]);
     expect(partsOf('Cable (single core)')).toEqual([['Coils of 91.4 m', '28', 'Nos']]);
     expect(screen.getByText(/35% lighting, 40% sockets, 20% AC and heaters, 5% cooker/)).toBeDefined();

@@ -29,14 +29,14 @@ Rules that hold everywhere:
 - **Project totals come from project-level quantities**, never from adding up rooms.
 - **`ceil` is `math.ceil(round(x, 6))`** and waste is applied once, at the end of a formula.
 - **Nothing is invented.** A room or opening the plan does not show gives 0 and a warning.
-- **Apartment rule.** When `building_type` is `apartment`, items 8, 10, 20, 21, 22, 23, 26, 30, 31 and 58 are 0 with a note, and a warning says composite items still include roof and plinth terms.
+- **Apartment rule.** When `building_type` is `apartment`, items 8, 10, 20, 21, 22, 23, 26, 30, 31, 53b and 58 are 0 with a note, and a warning says composite items still include roof and plinth terms.
 - **Every number is a named constant** in `constants.py`.
 
-Optional inputs of `map_plan_to_materials` (and of `POST /sheets/boq`): `false_ceiling_share` (0 to 1, default 1) and `plot_perimeter_m` (replaces the estimated hoarding length). The BOQ page does not ask for them yet.
+Optional inputs of `map_plan_to_materials` (and of `POST /sheets/boq`): `false_ceiling_share` (0 to 1, default 1) and `plot_perimeter_m` (used for the hoarding, with 5% added, in place of the estimate from the plan outline). The BOQ page does not ask for them yet.
 
 The result also carries `derived_quantities`: every symbol of spec section 3 for this plan, for checking a quantity by hand.
 
-Warnings the calculator adds: parking under an upper floor is counted as paved outdoor area; no bathroom or kitchen detected; more than 30% of the indoor area has no recognised room type; opening widths absent (items 28 and 29 are 0); no paved outdoor rooms (items 22 and 23 are 0); the exterior wall area was capped by the net wall area; the gypsum-plastered wall area was clamped to 0; no built area.
+Warnings the calculator adds: parking under an upper floor is counted as paved outdoor area; no bathroom or kitchen detected; doors look under-read (fewer doors than bathrooms plus bedrooms); more than 30% of the indoor area has no recognised room type; opening widths absent (items 28 and 29 are 0); no paved outdoor rooms (items 22 and 23 are 0); the exterior wall area was capped by the net wall area; the gypsum-plastered wall area was clamped to 0; no built area.
 
 ## Row contract
 
@@ -54,7 +54,7 @@ Every row, in the API, the exports and the UI:
 | `quote_status` | `INCLUDED` or `EXCLUDED_FROM_QUOTE`. |
 | `note` | Free text shown in Remarks. |
 
-Rows of the seven core materials also keep that material's earlier keys (`id`, `surface_tag`, `highlight_3d`, `secondary_quantity`, `secondary_unit`, `waste_multiplier`, `details`). The rows use the spec's units (steel in kg, sand and aggregate in m³, tiles in m²); `materials_by_key` keeps the units it always had (tonnes, pieces). The calculator's earlier output keys (`project_metadata`, `geometry_summary`, `materials`, `materials_by_key`, `level_summaries`, `room_breakdown`) are unchanged; `items`, `warnings` and `derived_quantities` were added next to them.
+Rows of the seven core materials also keep that material's earlier keys (`id`, `surface_tag`, `highlight_3d`, `secondary_quantity`, `secondary_unit`, `waste_multiplier`, `details`). The rows use the spec's units (steel in tonnes with kg and rods in its breakdown, sand and aggregate in m³, tiles in m²); `materials_by_key` keeps the units it always had (tonnes, pieces). The calculator's earlier output keys (`project_metadata`, `geometry_summary`, `materials`, `materials_by_key`, `level_summaries`, `room_breakdown`) are unchanged; `items`, `warnings` and `derived_quantities` were added next to them.
 
 ## Endpoints (`/api/v1/sheets/boq`)
 

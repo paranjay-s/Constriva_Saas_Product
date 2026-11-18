@@ -155,8 +155,11 @@ def test_core_rows_agree_with_the_calculator_and_keep_the_earlier_keys(result):
     for code in ("aac_blocks", "cement", "plaster"):
         assert rows[code]["quantity"] == by_key[code]["quantity"]
     steel = rows["steel_rebar"]
-    assert (steel["unit"], steel["quantity_decimals"]) == ("kg", 2)
-    assert steel["quantity"] == pytest.approx(
+    assert (steel["unit"], steel["quantity_decimals"]) == ("t", 2)
+    assert steel["quantity"] == pytest.approx(by_key["steel_rebar"]["quantity"], abs=0.005)
+    weight = next(c for c in steel["components"] if c["label"] == "Weight")
+    assert weight["unit"] == "kg"
+    assert weight["quantity"] == pytest.approx(
         by_key["steel_rebar"]["details"]["total_steel_kg"], abs=0.05
     )
     rods = next(c for c in steel["components"] if c["label"].startswith("12 m rods"))
@@ -644,7 +647,7 @@ def test_boq_upload_takes_the_optional_user_inputs(boq_client):
     default = run()
     custom = run(false_ceiling_share="0.5", plot_perimeter_m="120")
     assert custom["18b"] == pytest.approx(default["18b"] / 2)
-    assert custom["58"] == 120 and default["58"] != 120
+    assert custom["58"] == pytest.approx(126) and default["58"] != custom["58"]
     assert {s for s in default if default[s] != custom[s]} == {"18b", "58"}
 
     for bad in ({"false_ceiling_share": "1.5"}, {"plot_perimeter_m": "-3"}):

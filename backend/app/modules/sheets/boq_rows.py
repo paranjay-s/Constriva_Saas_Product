@@ -115,7 +115,7 @@ def _item(
 CATALOG: tuple[CatalogItem, ...] = (
     # A: structure and masonry
     _item(1, "aac_blocks", "AAC blocks", "pieces", "G"),
-    _item(2, "steel_rebar", "Steel rebar", "kg", "G", 2),
+    _item(2, "steel_rebar", "Steel rebar", "t", "G", 2),
     _item(3, "cement", "Cement", "50 kg bags", "G"),
     _item(4, "sand", "Sand", "m³", "G", 2),
     _item(5, "ballast_gitti", "Coarse aggregate", "m³", "G", 2),

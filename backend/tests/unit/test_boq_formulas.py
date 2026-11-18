@@ -108,7 +108,7 @@ EXPECTED_DERIVED = {
 # serial -> expected quantity, exactly as section 8 lists it
 EXPECTED_ITEMS = {
     1: 6143,
-    2: 9856,
+    2: 9.856,
     3: 331,
     4: 28.536592,
     5: 21.90888,
@@ -204,7 +204,7 @@ def test_fixture_every_item_matches_the_spec():
 def test_fixture_breakdowns_match_the_spec():
     facts = fixture_facts()
     items = compute_items(derive_primitives(facts), facts)
-    assert parts(items[2])["12 m rods (12 mm average)"] == 925
+    assert parts(items[2]) == {"Weight": 9856.0, "12 m rods (12 mm average)": 925}
     assert round(parts(items[4])["Weight"], 2) == 46.44
     assert round(parts(items[5])["Weight"], 2) == 32.86
     assert parts(items[7])["Tiles 600 x 600 mm"] == 518
@@ -238,6 +238,36 @@ def test_a_row_that_is_zero_because_the_plan_shows_nothing_says_why():
     assert items[29].note == "Doors 1.40 m wide or more."
 
 
+def test_item_58_is_zero_without_a_building():
+    # outdoor rooms only: a site outline, but nothing built
+    lawn_only = PlanFacts(
+        levels=(LevelFact(0.0, 0.0, 0.0),),
+        rooms=(RoomFact("Lawn", "outdoor", 200.0, 60.0),),
+        openings=(),
+        a_netwall=0.0,
+        a_netwall_0=0.0,
+        site_width=20.0,
+        site_depth=10.0,
+        plot_perimeter=80.0,
+    )
+    items = compute_items(derive_primitives(lawn_only), lawn_only)
+    assert (items[58].quantity, items[58].note) == (0, "")
+    assert items[59].quantity == 0
+
+
+def test_warning_when_doors_look_under_read():
+    def warn(doors: int) -> list[str]:
+        facts = fixture_facts(openings=(OpeningFact("door", 0.9, 2.1),) * doors)
+        return calculation_warnings(derive_primitives(facts), facts)
+
+    # the fixture has 3 bathrooms and 3 bedrooms
+    assert warn(5)[0] == (
+        "Doors look under-read: the plan shows 5 doors for 3 bathrooms and 3 bedrooms. "
+        "Wall quantities may be slightly high."
+    )
+    assert not any("under-read" in w for w in warn(6))
+
+
 def test_fixture_warnings():
     facts = fixture_facts()
     assert calculation_warnings(derive_primitives(facts), facts) == [
@@ -255,7 +285,9 @@ def test_fixture_rows_units_types_and_display():
         s: format_quantity(r["quantity"], r["quantity_decimals"]) for s, r in by_serial.items()
     }
     assert (shown[1], by_serial[1]["unit"]) == ("6,143", "pieces")
-    assert (shown[2], by_serial[2]["unit"]) == ("9,856.00", "kg")
+    assert (shown[2], by_serial[2]["unit"]) == ("9.86", "t")
+    steel = {part["label"]: part for part in by_serial[2]["components"]}
+    assert (steel["Weight"]["quantity"], steel["Weight"]["unit"]) == (9856.0, "kg")
     assert (shown[3], by_serial[3]["unit"]) == ("331", "50 kg bags")
     assert (shown[4], shown[5]) == ("28.54", "21.91")  # exact value kept, shown to 2 places
     assert by_serial[4]["quantity"] == 28.536592 and by_serial[5]["quantity"] == 21.90888
@@ -374,7 +406,9 @@ def test_optional_inputs_false_ceiling_share_and_plot_perimeter():
     items = compute_items(derive_primitives(facts), facts)
     assert items["18b"].quantity == pytest.approx(1.10 * 0.5 * 133)
     assert items["18a"].quantity == pytest.approx(29.70)  # wet areas are always boarded
-    assert items[58].quantity == 120.0
+    assert items[58].quantity == pytest.approx(120.0 * 1.05)  # 1.05 applies to it too
+    supplied = fixture_facts(plot_perimeter=100.0)
+    assert compute_items(derive_primitives(supplied), supplied)[58].quantity == pytest.approx(105.0)
 
 
 def test_opening_sizes_drive_sills_curtain_wall_and_glass_doors():
@@ -477,7 +511,8 @@ def test_apartment_rule_zeroes_whole_building_items_with_a_note_and_a_warning():
     flat = fixture_facts(building_type="apartment")
     a = compute_items(derive_primitives(villa), villa)
     b = compute_items(derive_primitives(flat), flat)
-    assert set(APARTMENT_ZERO_ITEMS) == {8, 10, 20, 21, 22, 23, 26, 30, 31, 58}
+    assert set(APARTMENT_ZERO_ITEMS) == {8, 10, 20, 21, 22, 23, 26, 30, 31, "53b", 58}
+    assert a["53b"].quantity == 3  # roof rainwater outlets: a roof item, zero in a flat
     for serial in APARTMENT_ZERO_ITEMS:
         assert b[serial].quantity == 0 and "apartment" in b[serial].note
     for serial in a:
@@ -485,7 +520,7 @@ def test_apartment_rule_zeroes_whole_building_items_with_a_note_and_a_warning():
             assert b[serial] == a[serial], serial  # composite items keep roof and plinth terms
     warnings = calculation_warnings(derive_primitives(flat), flat)
     assert any(
-        w.startswith("Apartment: items 8, 10, 20, 21, 22, 23, 26, 30, 31 and 58 are 0.")
+        w.startswith("Apartment: items 8, 10, 20, 21, 22, 23, 26, 30, 31, 53b and 58 are 0.")
         and "still include roof and plinth terms" in w
         for w in warnings
     )
@@ -1071,7 +1106,7 @@ def test_core_rows_equal_the_scope_engine_for_a_drawn_plan():
     assert rows["cement"]["quantity"] == mats["cement"]["quantity"]
     assert rows["plaster"]["quantity"] == mats["plaster"]["quantity"]
     assert rows["steel_rebar"]["quantity"] == pytest.approx(
-        mats["steel_rebar"]["details"]["total_steel_kg"], abs=0.05
+        mats["steel_rebar"]["quantity"], abs=0.005
     )
     assert rows["sand"]["quantity"] == pytest.approx(mats["sand"]["secondary_quantity"], abs=0.005)
     assert rows["ballast_gitti"]["quantity"] == pytest.approx(
@@ -1105,7 +1140,7 @@ def test_calculator_inputs_false_ceiling_share_and_plot_perimeter():
     base = quantities(map_plan_to_materials(plan))
     changed = quantities(map_plan_to_materials(plan, false_ceiling_share=0.25, plot_perimeter_m=90))
     assert changed["18b"] == pytest.approx(base["18b"] * 0.25)
-    assert changed[58] == 90
+    assert changed[58] == pytest.approx(90 * 1.05)
     assert base[58] == pytest.approx((36 + 24) * 1.05)  # P_ext_0 + 24 beats P_site here
     assert {s for s in base if base[s] != changed[s]} == {"18b", 58}
 

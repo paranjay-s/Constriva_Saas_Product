@@ -47,21 +47,21 @@
       "category": "Structure and Masonry",
       "sub_category": "Reinforcement",
       "name": "Steel rebar",
-      "unit": "kg",
-      "quantity": 9856.0,
+      "unit": "t",
+      "quantity": 9.856,
       "quantity_decimals": 2,
       "components": [
+        {
+          "label": "Weight",
+          "quantity": 9856.0,
+          "unit": "kg",
+          "quantity_decimals": 2
+        },
         {
           "label": "12 m rods (12 mm average)",
           "quantity": 925,
           "unit": "Nos",
           "quantity_decimals": 0
-        },
-        {
-          "label": "Weight",
-          "quantity": 9.856,
-          "unit": "t",
-          "quantity_decimals": 2
         }
       ],
       "calc_type": "geometry",
