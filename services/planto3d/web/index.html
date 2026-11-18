@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PlanTo3D</title>
+<link rel="stylesheet" href="/web/style.css?v=2">
+</head>
+<body class="home">
+<pre id="ascii" aria-hidden="true"></pre>
+<main class="wrap">
+  <p class="brand">PlanTo3D</p>
+  <h1>Floor plan in. Walkable 3D house out.</h1>
+
+  <label class="drop" id="drop">
+    <input type="file" id="file" class="sr" accept="application/pdf,.pdf">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/></svg>
+    <b>Drop your plan PDF</b>
+    <span>or click to choose · CAD-exported PDF</span>
+  </label>
+  <p id="msg" role="status"></p>
+  <p class="links"><button class="more" id="sample">Try the sample plan</button> · <a href="/web/furniture.html">Furniture models</a></p>
+
+  <p class="steps" id="steps">Detect → Review → Build → Walk</p>
+  <section class="setup" id="setup" hidden>
+    <h2>Finish the setup</h2>
+    <ul id="checks"></ul>
+    <button class="btn" id="getmat" hidden>Download materials</button>
+    <p class="muted" id="matmsg"></p>
+  </section>
+
+  <section class="recent" id="recent" hidden>
+    <h2>Recent plans</h2>
+    <div class="jobs" id="jobs"></div>
+    <button class="more" id="more" hidden></button>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; };
+const drop = $('drop');
+async function upload(f) {
+  if (!f) return;
+  $('msg').textContent = `Uploading ${f.name}…`;
+  $('msg').className = '';
+  drop.classList.add('busy');
+  try {
+    const r = await fetch('/api/upload', { method: 'POST', body: f, headers: { 'X-Filename': encodeURIComponent(f.name) } });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error);
+    location.href = `/web/edit.html?job=${j.id}`;
+  } catch (e) {
+    $('msg').textContent = e.message || 'Upload failed. Is the server still running?';
+    $('msg').className = 'err';
+    drop.classList.remove('busy');
+    $('file').value = '';
+  }
+}
+$('file').onchange = (e) => upload(e.target.files[0]);
+$('sample').onclick = async () => {       // the made-up drawing that ships with the project
+  const pdf = await fetch('/examples/sample_plan.pdf').then((r) => r.blob());
+  upload(new File([pdf], 'sample_plan.pdf', { type: 'application/pdf' }));
+};
+['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', (e) => upload(e.dataTransfer.files[0]));
+
+// ---- system check: plans are accepted only when Blender, the PDF tools, the viewer and the materials are in place
+const FIX = {
+  blender: (c) => (c.version ? `Blender ${c.version} found, but 4.2 or newer is needed.` : 'Blender 4.2 or newer was not found. Install it from blender.org (or: snap install blender --classic), then restart the server.'),
+  pdf_tools: () => 'The PDF tools were not found. Install poppler (apt install poppler-utils, or brew install poppler).',
+  viewer: () => 'The 3D viewer library is missing. Run "npm install" in the project folder.',
+  materials: () => 'Textures and models are not downloaded yet (about 75 MB, free CC0 files from Poly Haven).',
+};
+async function checkSystem() {
+  const s = await fetch('/api/system').then((r) => r.json()), m = s.materials;
+  drop.classList.toggle('busy', !s.ready);
+  $('file').disabled = !s.ready;
+  $('setup').hidden = s.ready;
+  $('steps').textContent = s.ready ? `Detect → Review → Build → Walk · Blender ${s.blender.version} ready` : '';
+  $('checks').replaceChildren(...Object.keys(FIX).filter((k) => !s[k].ok).map((k) => el('li', '', FIX[k](s[k]))));
+  $('getmat').hidden = m.ok || m.running;
+  $('matmsg').textContent = m.running ? `Downloading… ${m.done} of ${m.total || '?'}`
+    : m.failed.length && !m.ok ? `Could not download ${m.failed.length} file${m.failed.length > 1 ? 's' : ''}. Check the connection and try again.` : '';
+  if (m.running) setTimeout(checkSystem, 1000);
+}
+$('getmat').onclick = async () => { $('getmat').hidden = true; await fetch('/api/materials', { method: 'POST' }); checkSystem(); };
+
+// ---- background: a slow field of ASCII characters (one static frame if the system asks for reduced motion)
+const pre = $('ascii'), RAMP = '      ..::--==++**##';
+let cols = 0, rows = 0, last = 0;
+function grid() {
+  const probe = document.createElement('span');
+  probe.textContent = 'M'.repeat(50);
+  pre.textContent = '';
+  pre.append(probe);
+  const cw = probe.getBoundingClientRect().width / 50;
+  cols = Math.ceil(innerWidth / cw) + 1;
+  rows = Math.ceil(innerHeight / parseFloat(getComputedStyle(pre).lineHeight)) + 1;
+}
+function frame(ms) {
+  const t = ms / 1000, cx = cols / 2, cy = rows / 2, out = [];
+  for (let y = 0; y < rows; y++) {
+    let line = '';
+    const yy = y * 1.9;                                  // characters are about 1.9 times taller than wide
+    for (let x = 0; x < cols; x++) {
+      const v = Math.sin(x * 0.11 + t * 0.6) + Math.sin(yy * 0.1 - t * 0.5) + Math.sin((x + yy) * 0.06 + t * 0.4)
+        + Math.sin(Math.hypot(x - cx, yy - cy * 1.9) * 0.09 - t * 0.7);
+      line += RAMP[Math.floor((v + 4) / 8.001 * RAMP.length)];
+    }
+    out.push(line);
+  }
+  pre.textContent = out.join('\n');
+}
+function loop(ms) {
+  if (ms - last >= 90) { last = ms; frame(ms); }         // about 11 frames a second is plenty for text
+  requestAnimationFrame(loop);
+}
+grid();
+frame(0);
+if (!matchMedia('(prefers-reduced-motion: reduce)').matches) requestAnimationFrame(loop);
+addEventListener('resize', () => { grid(); frame(last); });
+
+const STAGE = { done: ['Ready', 'ok'], failed: ['Failed', 'bad'], detected: ['Needs review', ''], building: ['Building…', ''],
+  queued: ['Queued', ''], detecting: ['Reading…', ''], uploaded: ['Reading…', ''] };
+const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+function ago(t) {            // seconds since 1970 -> "3 hours ago"; hand-made jobs have no time
+  if (!t) return '';
+  const s = t - Date.now() / 1000;
+  if (-s > 7 * 86400) return new Date(t * 1000).toLocaleDateString();
+  for (const [unit, n] of [['day', 86400], ['hour', 3600], ['minute', 60]]) if (-s >= n) return rtf.format(Math.round(s / n), unit);
+  return 'just now';
+}
+checkSystem();
+fetch('/api/jobs').then((r) => r.json()).then((jobs) => {
+  if (!jobs.length) return;
+  $('recent').hidden = false;
+  for (const j of jobs) {
+    const done = j.stage === 'done', row = el('div', 'job', '');
+    const a = el('a', 'main', '');
+    a.href = done ? `/web/view.html?job=${j.id}` : `/web/edit.html?job=${j.id}`;
+    const n = j.floors?.length;
+    a.append(el('span', 'name', j.name || j.id), el('span', 'sub', [n && `${n} floor${n > 1 ? 's' : ''}`, ago(j.updated)].filter(Boolean).join(' · ')));
+    const [label, cls] = STAGE[j.stage] || [j.stage, ''];
+    row.append(a, el('span', `chip ${cls}`, label));
+    if (done) { const e = el('a', 'edit', 'Edit'); e.href = `/web/edit.html?job=${j.id}`; row.append(e); }
+    const del = el('button', 'more del', 'Delete');
+    del.onclick = async () => {
+      if (!confirm(`Delete "${j.name || j.id}" and its 3D house? This cannot be undone.`)) return;
+      const r = await fetch(`/api/jobs/${j.id}`, { method: 'DELETE' });
+      if (r.ok) row.remove(); else alert((await r.json()).error);
+    };
+    row.append(del);
+    $('jobs').append(row);
+  }
+  if (jobs.length > 5) {
+    $('more').hidden = false;
+    $('more').textContent = `Show all ${jobs.length}`;
+    $('more').onclick = () => { $('more').textContent = $('jobs').classList.toggle('all') ? 'Show fewer' : `Show all ${jobs.length}`; };
+  }
+});
+</script>
+</body>
+</html>

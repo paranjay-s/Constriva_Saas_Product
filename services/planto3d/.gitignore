@@ -1,0 +1,6 @@
+# built houses, downloaded materials, dependencies
+/jobs/
+/assets
+/node_modules/
+__pycache__/
+*.pyc

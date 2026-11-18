@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Furniture models</title>
+<link rel="stylesheet" href="/web/style.css?v=2">
+</head>
+<body class="home">
+<main class="wrap" style="max-width:960px">
+  <p class="brand" id="brand"><a href="/" style="color:inherit;text-decoration:none">PlanTo3D</a> · <a href="/">Home</a></p>
+  <h1>Furniture models</h1>
+  <p class="muted">Each picture shows the item as houses are built with it now. Replace any of them with your own
+    <code>.glb</code> model: it is scaled to the item's footprint and stood on the floor. Model it with +Y up and its
+    front facing +Z. Houses already built keep their furniture until you build them again.</p>
+  <p id="state" class="muted" role="status"></p>
+  <div class="furn" id="list"></div>
+  <input type="file" id="file" accept=".glb,model/gltf-binary" hidden>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+if (new URLSearchParams(location.search).has('embed')) $('brand').remove();      // shown inside the review page
+const el = (tag, cls, text) => { const e = document.createElement(tag); e.className = cls; e.textContent = text; return e; };
+let target = null;
+async function load() {
+  const f = await fetch('/api/furniture').then((r) => r.json());
+  $('state').textContent = f.rendering ? 'Drawing the pictures… (about a minute)' : '';
+  $('list').replaceChildren(...f.items.map((it) => {
+    const fig = document.createElement('figure');
+    if (it.thumb) { const im = new Image(); im.src = `/thumbs/${it.fn}.png?${Date.now()}`; im.alt = it.label; fig.append(im); }
+    else fig.append(el('div', 'wait', 'Drawing…'));
+    const cap = document.createElement('figcaption');
+    const pick = el('button', 'more', it.custom ? 'Change model' : 'Use my model');
+    pick.onclick = () => { target = it.fn; $('file').click(); };
+    cap.append(el('b', '', it.label), el('span', 'chip' + (it.custom ? ' ok' : ''), it.custom ? 'Your model' : 'Built-in'), pick);
+    if (it.custom) {
+      const back = el('button', 'more', 'Back to built-in');
+      back.onclick = async () => { await fetch(`/api/furniture/${it.fn}`, { method: 'DELETE' }); load(); };
+      cap.append(back);
+    }
+    fig.append(cap);
+    return fig;
+  }));
+  if (f.rendering) setTimeout(load, 3000);
+}
+$('file').onchange = async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const r = await fetch(`/api/furniture/${target}`, { method: 'POST', body: file });
+  if (!r.ok) alert((await r.json()).error);
+  load();
+};
+load();
+</script>
+</body>
+</html>
