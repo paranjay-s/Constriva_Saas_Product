@@ -15,6 +15,7 @@ from app.modules.sheets import constants
 from app.modules.sheets.boq_export import (
     COLUMNS,
     FOOTER_TEXT,
+    breakdown,
     build_boq_pdf,
     build_boq_xlsx,
     export_filename,
@@ -29,6 +30,7 @@ from app.modules.sheets.boq_rows import (
     TOTAL_SERIALS,
     build_boq_rows,
     category_of,
+    group_sort_key,
     make_row,
     quantity_decimals,
     serial_sort_key,
@@ -309,6 +311,26 @@ def test_format_quantity_and_remarks():
     assert remarks(rows[4]) == "Allowance. Size to be confirmed."
     assert remarks(rows[5]) == "Excluded from quote."
     assert remarks(rows[1]) == ""
+    # a row's breakdown comes before its note
+    assert breakdown(rows[2]) == "Wall area: 828.46 m2"
+    assert remarks(rows[2]) == "Wall area: 828.46 m2."
+    tanks = make_row(
+        52,
+        "water_tanks",
+        "Water tanks",
+        "Nos",
+        2,
+        quote_status="EXCLUDED_FROM_QUOTE",
+        note="One ground tank and one roof tank.",
+        components=[
+            {"label": "Ground tank", "quantity": 2000, "unit": "L", "quantity_decimals": 0},
+            {"label": "Roof tank", "quantity": 1500, "unit": "L", "quantity_decimals": 0},
+        ],
+    )
+    assert remarks(tanks) == (
+        "Excluded from quote. Ground tank: 2,000 L; Roof tank: 1,500 L. "
+        "One ground tank and one roof tank."
+    )
 
 
 def test_excel_export_rows_columns_and_formatting():
@@ -368,6 +390,120 @@ def _export_args(result: dict) -> dict:
         "geometry_summary": result["geometry_summary"],
         "project_metadata": result["project_metadata"],
     }
+
+
+# ------------------------------------------------- the full bill: 64 rows in every output
+
+LETTERED = ["17a", "17b", "18a", "18b", "47a", "47b", "53a", "53b", "57a", "57b"]
+CATEGORY_BANDS = [
+    "A. Structure and Masonry",
+    "B. Civil, Finishing and Waterproofing",
+    "C. Architectural Components",
+    "D. Electrical and HVAC",
+    "E. Plumbing and Sanitary",
+    "F. Site Setup",
+]
+
+
+def _each_once(values: list) -> bool:
+    """True when equal values sit next to each other, so every group appears once."""
+    seen: set = set()
+    previous: object = object()
+    for value in values:
+        if value != previous:
+            if value in seen:
+                return False
+            seen.add(value)
+            previous = value
+    return True
+
+
+def test_group_sort_key_keeps_a_sub_category_together():
+    serials = (21, "17b", 20, 19, "18a", "17a", 8, 1, 42, 32)
+    rows = [make_row(s, f"item_{s}", f"Item {s}", "Nos", 1) for s in serials]
+    ordered = [r["serial_no"] for r in sorted(rows, key=group_sort_key)]
+    # Painting is 17, 19 and 21; Cabling and containment is 32 and 42
+    assert ordered == [1, 8, "17a", "17b", 19, 21, "18a", 20, 32, 42]
+    assert group_sort_key({"serial_no": 99})[0] == len(CATEGORY_PLAN)  # not in the plan: last
+
+
+def test_excel_export_of_the_full_bill_is_grouped_and_keeps_lettered_rows(result):
+    wb = load_workbook(io.BytesIO(build_boq_xlsx(**_export_args(result))))
+    ws = wb["BOQ"]
+    body = [[c.value for c in row] for row in ws.iter_rows(min_row=2)]
+    assert len(body) == len(result["items"]) == 64
+    serials = [row[0] for row in body]
+    assert sorted(map(str, serials)) == sorted(str(i["serial_no"]) for i in result["items"])
+    # each lettered row is a row of its own (Drainage, with 53 and 57, comes before 47)
+    assert sorted(s for s in serials if isinstance(s, str)) == LETTERED
+
+    # grouped by category, then by sub-category
+    assert list(dict.fromkeys(row[1] for row in body)) == CATEGORY_BANDS
+    assert _each_once([row[1] for row in body])
+    assert _each_once([(row[1], row[2]) for row in body])
+    civil = [row for row in body if row[1] == CATEGORY_BANDS[1]]
+    assert list(dict.fromkeys(row[2] for row in civil)) == [
+        "Roofing and waterproofing",
+        "Tiling",
+        "Stone and feature",
+        "Painting",
+        "Ceilings",
+        "External render",
+        "External works",
+    ]
+    assert [row[0] for row in civil if row[2] == "Painting"] == ["17a", "17b", 19, 21]
+    assert [row[0] for row in body if row[2] == "Drainage"] == [44, "53a", "53b", 54, "57a", "57b"]
+
+    by_serial = {str(row[0]): (number, row) for number, row in enumerate(body, start=2)}
+    line, sand = by_serial["4"]
+    assert sand[3:5] == ["Sand", "m³"] and ws.cell(row=line, column=6).number_format == "#,##0.00"
+    line, cable = by_serial["32"]
+    assert cable[3:5] == ["Cable (single core)", "LM"]
+    assert ws.cell(row=line, column=6).number_format == "#,##0"
+    assert cable[6].startswith("Coils of 91.4 m: ")
+    _, tanks = by_serial["52"]
+    assert tanks[3:6] == ["Water tanks", "Nos", 2]
+    assert tanks[6] == (
+        "Excluded from quote. Ground tank: 2,500 L; Roof tank: 2,000 L. "
+        "One ground tank and one roof tank."
+    )
+    _, sockets = by_serial["33"]
+    socket_row = next(item for item in result["items"] if item["serial_no"] == 33)
+    assert sockets[5] == sum(part["quantity"] for part in socket_row["components"])  # S + SW + DP
+    assert all(isinstance(row[5], (int, float)) for row in body)
+
+    info = {
+        row[0].value: row[1].value for row in wb["Inputs and warnings"].iter_rows() if row[0].value
+    }
+    assert info["Items"] == 64 and info["Bathrooms"] == 4 and info["Kitchens"] == 0
+    assert info["Exterior wall area (m2)"] == result["geometry_summary"]["a_exterior_wall_m2"]
+
+
+def test_pdf_export_of_the_full_bill_shows_every_row_grouped(result):
+    doc = pymupdf.open(stream=build_boq_pdf(**_export_args(result)), filetype="pdf")
+    pages = [page.get_text() for page in doc]
+    text = "\n".join(pages)
+    flat = " ".join(text.split())
+    assert "Items: 64" in flat and len(doc) >= 2
+    positions = [flat.index(band) for band in CATEGORY_BANDS]
+    assert positions == sorted(positions)  # one band per category, in order
+    assert all(flat.count(band) == 1 for band in CATEGORY_BANDS)
+    for item in result["items"]:
+        assert item["name"] in flat, item["name"]
+    lines = [line.strip() for line in text.splitlines()]
+    for serial in LETTERED:
+        assert serial in lines, serial  # a lettered row has its own S.No cell
+    assert "m²" in flat and "m³" in flat
+    assert "Ground tank: 2,500 L; Roof tank: 2,000 L" in flat
+    # Painting stays together although its serials are not consecutive
+    assert (
+        flat.index("Interior wall primer")
+        < flat.index("Ceiling paint")
+        < flat.index("Exterior paint")
+        < flat.index("MR gypsum board")
+    )
+    for number, page in enumerate(pages, start=1):
+        assert FOOTER_TEXT in page and f"Page {number} of {len(doc)}" in page
 
 
 def test_pdf_export_generates_with_header_groups_footer_and_page_numbers():
@@ -482,6 +618,13 @@ def test_boq_upload_parse_calculate_and_result(boq_client):
     assert {"items", "warnings", "geometry_summary", "project_metadata"} <= set(body)
     assert {"materials", "materials_by_key", "level_summaries", "room_breakdown"} <= set(body)
     assert len(body["items"]) == 64
+    serials = [str(item["serial_no"]) for item in body["items"]]
+    assert len(set(serials)) == 64
+    assert [s for s in serials if not s.isdigit()] == LETTERED  # lettered rows are rows
+    assert {item["category_code"] for item in body["items"]} == set("ABCDEF")
+    sub_categories = {(item["category"], item["sub_category"]) for item in body["items"]}
+    assert len(sub_categories) == sum(len(subs) for _, subs in CATEGORY_PLAN.values()) == 27
+    assert body["derived_quantities"]["N_bath"] == 4
     assert body["project_metadata"]["source_file_name"] == "My Plan.pdf"
     assert body["geometry_summary"]["bathrooms_count"] == 4
 

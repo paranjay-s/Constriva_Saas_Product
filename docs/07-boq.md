@@ -84,15 +84,20 @@ Jobs run in an in-process thread pool and live in memory for one hour, like the 
 | `boq_service.py` | PDF to result: parse, calculate, attach the source file name. |
 | `boq_jobs.py` | Background jobs and their progress events. |
 | `boq_router.py`, `boq_schemas.py` | Endpoints and their models. |
-| `boq_export.py` | PDF and Excel from rows. Columns: S.No, Category, Sub-category, Material, Unit, Quantity, Remarks. |
+| `boq_export.py` | PDF and Excel from rows. Columns: S.No, Category, Sub-category, Material, Unit, Quantity, Remarks. Rows are ordered by `group_sort_key` (in `boq_rows.py`). |
 | `export.py`, `service.py`, `router.py` | The earlier per-project cost sheet (unchanged). |
 
 ## Exports
 
-- **Excel**: sheet `BOQ` with a frozen header row, an autofilter, numeric quantity cells and set column widths; sheet `Inputs and warnings` with the project facts, the geometry inputs and the warnings.
-- **PDF**: project title, source file name, date and built area in the header; rows grouped by category; excluded items greyed and marked in Remarks; `Page X of Y`; footer "Estimated quantities from a 2D plan. Verify before procurement."
+Both files carry every row the result has (64 for a full bill), a lettered row on a line of its own. Rows are grouped by category, then sub-category, then serial number, so a sub-category whose serials are not consecutive stays together (Painting is 17a, 17b, 19, 21). The API itself returns rows in serial order; the table on the BOQ page groups them the same way.
+
+Remarks reads: "Excluded from quote" and "Allowance" when they apply, then the row's breakdown (`components`, such as `Ground tank: 2,000 L; Roof tank: 1,500 L`), then its note.
+
+- **Excel**: sheet `BOQ` with a frozen header row, an autofilter, numeric quantity cells and set column widths; sheet `Inputs and warnings` with the project facts, the geometry inputs (including the wall-model areas) and the warnings.
+- **PDF**: project title, source file name, date and built area in the header; one band per category; excluded items greyed and marked in Remarks; `Page X of Y`; footer "Estimated quantities from a 2D plan. Verify before procurement."
 
 ## Tests
 
 - `backend/tests/unit/test_boq_formulas.py`: the fixture of spec section 8 on the formula layer (every derived quantity and all 64 rows), one test per edge case of section 7, every warning, the apartment rule, and that room and level values add up to the project totals.
-- `backend/tests/unit/test_boq.py`: row contract, category plan, calculator keys, determinism, the endpoints with a fake plan parser, and both exports.
+- `backend/tests/unit/test_boq.py`: row contract, category plan, calculator keys, determinism, the endpoints with a fake plan parser, and both exports with the full 64-row bill (grouping, lettered rows, breakdowns).
+- `frontend/src/features/sheets/boqFullBill.test.tsx`: the table, filters and export request with the full bill. Its data, `boqFullBill.fixture.json`, is the spec's section 8 fixture as the API returns it. The backend writes that file and `test_the_frontend_fixture_is_the_bill_this_backend_produces` fails when it is stale; rewrite it with `BOQ_WRITE_FIXTURE=1 uv --directory backend run pytest tests/unit/test_boq_formulas.py`.

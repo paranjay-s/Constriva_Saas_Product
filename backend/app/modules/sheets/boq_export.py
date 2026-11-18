@@ -1,7 +1,9 @@
 """BOQ exports. The PDF and the Excel file are both built from the same BOQ rows.
 
 Columns of both: S.No, Category, Sub-category, Material, Unit, Quantity, Remarks.
-Remarks says when an item is excluded from the quote or is an allowance, then its note.
+Rows are grouped by category, then sub-category, then serial number; a lettered row
+("17a") is a row of its own. Remarks says when an item is excluded from the quote or is an
+allowance, then gives its breakdown (rods, coils, tank sizes...) and its note.
 
 Nothing here is specific to one building: every figure printed comes from the rows and
 the summary passed in.
@@ -22,7 +24,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfgen import canvas as pdf_canvas
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from app.modules.sheets.boq_rows import quantity_decimals, serial_sort_key
+from app.modules.sheets.boq_rows import group_sort_key, quantity_decimals
 
 COLUMNS = ("S.No", "Category", "Sub-category", "Material", "Unit", "Quantity", "Remarks")
 FOOTER_TEXT = "Estimated quantities from a 2D plan. Verify before procurement."
@@ -34,7 +36,8 @@ ALLOWANCE_REMARK = "Allowance"
 
 
 def _rows(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return sorted(items, key=lambda r: serial_sort_key(r.get("serial_no")))
+    """The rows grouped by category and sub-category, in serial order inside each."""
+    return sorted(items, key=group_sort_key)
 
 
 def _decimals(row: dict[str, Any]) -> int:
@@ -47,12 +50,27 @@ def format_quantity(value: Any, decimals: int) -> str:
     return f"{float(value or 0.0):,.{decimals}f}"
 
 
+def breakdown(row: dict[str, Any]) -> str:
+    """A row's components on one line: "Ground tank: 2,000 L; Roof tank: 1,500 L"."""
+    lines = []
+    for part in row.get("components") or []:
+        unit = str(part.get("unit") or "").strip()
+        given = part.get("quantity_decimals")
+        decimals = given if isinstance(given, int) else quantity_decimals(unit)
+        amount = format_quantity(part.get("quantity"), decimals)
+        lines.append(f"{str(part.get('label') or '').strip()}: {amount} {unit}".strip())
+    return "; ".join(lines)
+
+
 def remarks(row: dict[str, Any]) -> str:
     parts = []
     if row.get("quote_status") == "EXCLUDED_FROM_QUOTE":
         parts.append(EXCLUDED_REMARK)
     if row.get("calc_type") == "allowance":
         parts.append(ALLOWANCE_REMARK)
+    parts_text = breakdown(row)
+    if parts_text:
+        parts.append(parts_text)
     note = str(row.get("note") or "").strip()
     if note:
         parts.append(note)
@@ -155,6 +173,8 @@ def build_boq_xlsx(
         ("Levels", "levels_count"),
         ("Rooms", "rooms_count"),
         ("Bathrooms", "bathrooms_count"),
+        ("Kitchens", "kitchens_count"),
+        ("Bedrooms", "bedrooms_count"),
         ("Doors", "total_doors"),
         ("Windows", "total_windows"),
         ("Columns", "total_columns"),
@@ -162,6 +182,11 @@ def build_boq_xlsx(
         ("Plinth wall area (m2)", "a_plinth_wall_m2"),
         ("Parapet wall area (m2)", "a_parapet_wall_m2"),
         ("Total masonry area (m2)", "a_total_masonry_m2"),
+        ("Exterior wall area (m2)", "a_exterior_wall_m2"),
+        ("Interior wall area (m2)", "a_interior_wall_m2"),
+        ("Gypsum-plastered wall faces (m2)", "a_gypsum_wall_faces_m2"),
+        ("Cement plaster area (m2)", "a_cement_plaster_m2"),
+        ("Roof area (m2)", "a_roof_m2"),
         ("Wet concrete (m3)", "v_wet_concrete_m3"),
     ):
         if key in summary:
@@ -218,7 +243,8 @@ def build_boq_pdf(
     project_metadata: dict[str, Any] | None = None,
     generated_on: date | None = None,
 ) -> bytes:
-    """Header (title, source file, date, built area), rows grouped by category, footer."""
+    """Header (title, source file, date, built area), then the rows under a band per
+    category, grouped by sub-category inside it, and the footer on every page."""
     summary = geometry_summary or {}
     metadata = project_metadata or {}
     styles = getSampleStyleSheet()

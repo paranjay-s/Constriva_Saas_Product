@@ -8,6 +8,8 @@ section 7 go through the calculator (`map_plan_to_materials`) with small drawn p
 import dataclasses
 import json
 import math
+import os
+from pathlib import Path
 
 import pytest
 
@@ -912,3 +914,58 @@ def test_a_level_with_walls_but_no_rooms_uses_the_wall_outline():
     assert d["T_floor"] == 48  # no rooms, so no skirting
     assert any("estimated from the wall outline" in w for w in result["warnings"])
     assert quantities(result)[58] == pytest.approx((28 + 24) * 1.05)
+
+
+# ------------------------------------------------------------------ frontend contract
+
+# The bill the frontend tests render. It is written by this file, never by hand:
+#   BOQ_WRITE_FIXTURE=1 uv --directory backend run pytest tests/unit/test_boq_formulas.py
+FRONTEND_FIXTURE = (
+    Path(__file__).resolve().parents[3]
+    / "frontend"
+    / "src"
+    / "features"
+    / "sheets"
+    / "boqFullBill.fixture.json"
+)
+
+
+def full_bill_result() -> dict:
+    """The section 8 fixture as a BOQ result, in the shape the API returns."""
+    facts = fixture_facts()
+    p = derive_primitives(facts)
+    return {
+        "items": build_boq_rows(compute_items(p, facts)),
+        "warnings": calculation_warnings(p, facts),
+        "geometry_summary": {
+            "a_built_total_m2": round(p.a_built, 2),
+            "a_built_total_sqft": round(p.a_built * 10.7639, 2),
+            "levels_count": p.L,
+            "rooms_count": len(facts.rooms),
+            "bathrooms_count": p.n_bath,
+            "kitchens_count": p.n_kit,
+            "bedrooms_count": p.n_bed,
+            "total_doors": p.n_door,
+            "total_windows": p.n_win,
+        },
+        "project_metadata": {
+            "project_title": "Spec fixture villa",
+            "client": "NA",
+            "subject": "NA",
+            "building_type": facts.building_type,
+            "source_file_name": "spec-fixture.pdf",
+        },
+    }
+
+
+def test_the_frontend_fixture_is_the_bill_this_backend_produces():
+    if not FRONTEND_FIXTURE.parent.is_dir():
+        pytest.skip("the frontend sources are not part of this checkout")
+    expected = json.dumps(full_bill_result(), indent=2, ensure_ascii=False) + "\n"
+    if os.environ.get("BOQ_WRITE_FIXTURE") == "1":
+        FRONTEND_FIXTURE.write_text(expected, encoding="utf-8")
+    assert FRONTEND_FIXTURE.is_file(), "run once with BOQ_WRITE_FIXTURE=1 to write the fixture"
+    assert FRONTEND_FIXTURE.read_text(encoding="utf-8") == expected, (
+        "the BOQ rows changed: rewrite the fixture with BOQ_WRITE_FIXTURE=1 and check the "
+        "frontend tests"
+    )

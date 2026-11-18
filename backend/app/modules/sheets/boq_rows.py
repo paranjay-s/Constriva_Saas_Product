@@ -244,6 +244,21 @@ def serial_sort_key(serial_no: Any) -> tuple[int, str]:
     return (int(match.group(1)), match.group(2)) if match else (10**9, str(serial_no))
 
 
+def group_sort_key(row: dict[str, Any]) -> tuple[int, int, tuple[int, str]]:
+    """Order that keeps a bill grouped: category, then sub-category, then serial number.
+
+    Categories and sub-categories come in the order of `CATEGORY_PLAN`, so a sub-category
+    whose serials are not consecutive (Painting: 17, 19, 21) still stays together. A row
+    whose serial is not in the plan goes last, in serial order.
+    """
+    serial = serial_sort_key(row.get("serial_no"))
+    for category_index, (_, subs) in enumerate(CATEGORY_PLAN.values()):
+        for sub_index, serials in enumerate(subs.values()):
+            if serial[0] in serials:
+                return category_index, sub_index, serial
+    return len(CATEGORY_PLAN), 0, serial
+
+
 def category_of(serial: Any) -> tuple[str, str, str]:
     """(category_code, category, sub_category) of a serial number."""
     number = serial_number(serial)
@@ -260,9 +275,7 @@ def shown(value: Any, decimals: int) -> int | float:
     return int(round(number)) if decimals == 0 else round(number, 6)
 
 
-def component(
-    label: str, quantity: Any, unit: str, decimals: int | None = None
-) -> dict[str, Any]:
+def component(label: str, quantity: Any, unit: str, decimals: int | None = None) -> dict[str, Any]:
     decimals = quantity_decimals(unit) if decimals is None else decimals
     return {
         "label": label,
