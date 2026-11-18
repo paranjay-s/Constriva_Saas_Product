@@ -66,6 +66,8 @@ mat("court_wood", tex="laminate_floor_02", tile=2.0, tint=(0.85, 0.6, 0.38))
 mat("line_paint", (0.95, 0.95, 0.93), 0.6)
 mat("fence", (0.15, 0.17, 0.16), 0.5, alpha=0.35)
 mat("lamp_glow", (1.0, 0.85, 0.6), 0.5, emit=6.0)
+mat("sand", (0.86, 0.78, 0.6), 0.95)
+import areaspec  # noqa: E402
 
 # official court sizes (feet, length x width) and markings in fractions of them: a drawn court is marked to its own
 # size, as the proportions of the real one
@@ -696,7 +698,7 @@ for k, f in enumerate(floors):
     fl = {}
     well = [(*r, -9, 99) for r in well_prev]
     slab, voids = upper_slab(k, well) if k else ([], [])
-    water, wet_walk = [], []
+    water, wet_walk, blocked_areas, custom_objects = [], [], [], []
     for zn in f["rooms"]:
         if zn["type"] in WATER:            # built as water, not as a floor (water_parts)
             parts, deck = water_parts(zn, k)
@@ -705,6 +707,16 @@ for k, f in enumerate(floors):
             continue
         if zn["type"] == "court":          # its own surface and markings (court_parts)
             water += court_parts(zn)
+            continue
+        if zn["type"] == "custom":         # an area built from its spec (areaspec.py), or a labelled generic zone
+            spec = areaspec.spec_for(zn.get("area") or zn.get("label"))
+            for r in zn["rects"]:
+                bxs, objs, walkable = areaspec.parts(spec, r)
+                water += bxs
+                if not walkable:
+                    blocked_areas.append(r)
+                for part, ox_, oy_, rot in objs:
+                    custom_objects.append((part, ox_, oy_, rot))
             continue
         if zn["type"] == "parking":
             water += parking_parts(zn)
@@ -721,8 +733,19 @@ for k, f in enumerate(floors):
             if any(b[6] == m for b in water):
                 mesh_from_boxes(f"{m}_{k}", [b for b in water if b[6] == m])
     # the walker cannot enter water (except a dock's deck) or a lift / duct shaft
-    closed = subtract_all([(*r, 0, 1) for zn in f["rooms"] if zn["type"] in WATER | SHAFT for r in zn["rects"]],
-                          [(*q, 0, 1) for q in wet_walk])
+    closed = subtract_all([(*r, 0, 1) for zn in f["rooms"] if zn["type"] in WATER | SHAFT for r in zn["rects"]]
+                          + [(*r, 0, 1) for r in blocked_areas], [(*q, 0, 1) for q in wet_walk])
+    for part, px, py, rot in custom_objects:          # the spec's objects, from parts we already build
+        if part == "plant":
+            plant(px, py, rot)
+        elif part == "outdoor_set":
+            outdoor_set(px, py, rot)
+        elif part == "car":
+            car(px, py, rot)
+        else:                                          # bench, lamp, post, flag: simple shapes
+            dims = dict(bench=(2.5, 0.8, 1.5, "deck"), lamp=(0.3, 0.3, 9.0, "steel"), post=(0.4, 0.4, 4.0, "steel"),
+                        flag=(0.2, 0.2, 16.0, "steel"))[part]
+            mesh_from_boxes(f"{part}_{k}_{px:.0f}_{py:.0f}", [(px - dims[0] / 2, px + dims[0] / 2, py - dims[1] / 2, py + dims[1] / 2, 0, dims[2], dims[3])])
     # wall tiles to 7 ft in toilets
     # (the room's cells stop a little short of the wall face, so door holes are widened across for the tiles,
     # and edges shared by two slices of the same room are not walls)

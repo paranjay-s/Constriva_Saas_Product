@@ -10,6 +10,7 @@ python3 tests/test_doorway.py
 python3 tests/test_reader.py
 python3 tests/test_rooms.py
 python3 tests/test_openplan.py
+python3 tests/test_areas.py
 python3 detect.py examples/sample_plan.pdf /tmp/planto3d_sample.json > /dev/null
 for p in /tmp/planto3d_sample.json jobs/*/plan.json; do
   [ -f "$p" ] || continue
