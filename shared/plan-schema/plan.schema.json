@@ -1,7 +1,57 @@
 {
   "$defs": {
+    "Column": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "position": {
+          "items": {
+            "type": "number"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "Position",
+          "type": "array"
+        },
+        "width": {
+          "default": 0.23,
+          "title": "Width",
+          "type": "number"
+        },
+        "depth": {
+          "default": 0.23,
+          "title": "Depth",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "position"
+      ],
+      "title": "Column",
+      "type": "object"
+    },
     "Level": {
       "properties": {
+        "index": {
+          "default": 0,
+          "title": "Index",
+          "type": "integer"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
         "elevation": {
           "default": 0.0,
           "title": "Elevation",
@@ -11,6 +61,15 @@
           "default": 3.0,
           "title": "Wall Height",
           "type": "number"
+        },
+        "wall_height_source": {
+          "default": "default",
+          "enum": [
+            "stated",
+            "default"
+          ],
+          "title": "Wall Height Source",
+          "type": "string"
         },
         "walls": {
           "items": {
@@ -31,6 +90,13 @@
             "$ref": "#/$defs/Room"
           },
           "title": "Rooms",
+          "type": "array"
+        },
+        "columns": {
+          "items": {
+            "$ref": "#/$defs/Column"
+          },
+          "title": "Columns",
           "type": "array"
         }
       },
@@ -71,6 +137,40 @@
           "default": 0.0,
           "title": "Sill",
           "type": "number"
+        },
+        "sill_height": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sill Height"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Position"
+        },
+        "inferred": {
+          "default": false,
+          "title": "Inferred",
+          "type": "boolean"
         }
       },
       "required": [
@@ -82,6 +182,73 @@
         "height"
       ],
       "title": "Opening",
+      "type": "object"
+    },
+    "ParserInfo": {
+      "description": "Which parser run produced this plan. Lets a stored plan be matched to its PDF.",
+      "properties": {
+        "pdf_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pdf Sha256"
+        },
+        "parser_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parser Version"
+        },
+        "prompt_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Version"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        }
+      },
+      "title": "ParserInfo",
       "type": "object"
     },
     "Room": {
@@ -102,6 +269,24 @@
           "default": null,
           "title": "Name"
         },
+        "kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "indoor",
+                "semi_open",
+                "outdoor",
+                "void"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
         "polygon": {
           "items": {
             "items": {
@@ -113,6 +298,23 @@
           },
           "title": "Polygon",
           "type": "array"
+        },
+        "height_m": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Height M"
+        },
+        "is_double_height_void": {
+          "default": false,
+          "title": "Is Double Height Void",
+          "type": "boolean"
         }
       },
       "required": [
@@ -150,6 +352,39 @@
           "default": 0.2,
           "title": "Thickness",
           "type": "number"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "exterior",
+                "interior"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
+        "is_exterior": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Is Exterior"
+        },
+        "inferred": {
+          "default": false,
+          "title": "Inferred",
+          "type": "boolean"
         }
       },
       "required": [
@@ -162,6 +397,11 @@
     }
   },
   "properties": {
+    "schema_version": {
+      "default": "2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
     "version": {
       "default": 1,
       "title": "Version",
@@ -173,16 +413,76 @@
       "title": "Units",
       "type": "string"
     },
+    "building_type": {
+      "default": "other",
+      "enum": [
+        "villa",
+        "apartment",
+        "other"
+      ],
+      "title": "Building Type",
+      "type": "string"
+    },
     "scale_source": {
       "default": "assumed",
       "enum": [
-        "scale_text",
         "dimension_label",
-        "user_reference",
-        "assumed"
+        "scale_bar",
+        "stated_scale",
+        "assumed",
+        "scale_text",
+        "user_reference"
       ],
       "title": "Scale Source",
       "type": "string"
+    },
+    "project_title": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Title"
+    },
+    "subject": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Subject"
+    },
+    "client": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Client"
+    },
+    "architect": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Architect"
     },
     "levels": {
       "items": {
@@ -197,6 +497,24 @@
       },
       "title": "Confidence",
       "type": "object"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "parser": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ParserInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     }
   },
   "title": "PlanJSON",

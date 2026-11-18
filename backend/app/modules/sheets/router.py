@@ -46,8 +46,13 @@ from app.modules.sheets.schemas import (
 from app.modules.sheets.service import SheetService, DEFAULT_CONSTRUCTION_MATERIALS
 from app.modules.sheets.export import generate_sheet_csv, generate_sheet_pdf
 
+from app.modules.sheets.boq_router import router as boq_router
+
 logger = logging.getLogger("construtiva.sheets")
 router = APIRouter()
+
+# Registered first so /boq/... is never read as a /{project_id}/... route.
+router.include_router(boq_router, prefix="/boq")
 
 
 @router.get(

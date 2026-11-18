@@ -13,6 +13,8 @@ Purpose:
 
 import os
 os.environ["TESTING"] = "1"
+# Tests must not read or write the developer's real parsed-plan cache.
+os.environ["PLAN_PARSER_CACHE"] = "off"
 
 import pytest
 from unittest.mock import MagicMock

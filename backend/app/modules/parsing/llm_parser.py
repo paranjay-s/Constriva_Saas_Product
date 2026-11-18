@@ -1,490 +1,315 @@
-"""
-=============================================================================
-Construtiva 2D Blueprint LLM Parser Module
-=============================================================================
-File: app/modules/parsing/llm_parser.py
-Purpose:
-  Extracts architectural geometry from a 2D floor plan raster image using Vision LLM:
-  - Takes 300 DPI PNG bytes of an architectural blueprint.
-  - Sends to Gemini Vision with strictly typed engineering instructions.
-  - Applies a unified unit_scale once without ad-hoc per-field magnitude heuristics.
-  - Enforces explicit kind fields on walls and rooms.
-  - Tags invented elements with inferred: true.
-  - Computes confidence objectively via validate.py.
-  - Never falls back to a different building on error.
-=============================================================================
-"""
+"""PDF -> PlanJSON parser.
 
-import sys
-from pathlib import Path
-_backend_root = str(Path(__file__).resolve().parents[3])
-if _backend_root not in sys.path:
-    sys.path.insert(0, _backend_root)
+    plan = parse_plan_pdf(pdf_bytes)          # a validated PlanJSON 2.0 dict
+
+The same schema comes out whichever LLM is configured. The stages are:
+
+  1. input      each PDF page rendered to PNG at a fixed DPI, plus the PDF's own text
+                (pdf_input.py); identical for every provider
+  2. model      one `JSONLLMClient.generate_json` call (temperature 0); the prompt lives in
+                ai/prompts/parsing/plan_parser.md
+  3. extract    the reply parsed as one JSON object
+  4. validate   against `LLMPlanDraft` (llm_schema.py)
+  5. repair     up to MAX_REPAIR_ATTEMPTS more calls, each given the previous reply and
+                the exact validation errors
+  6. normalise  the deterministic normaliser (normalise.py): units, polygons, canonical
+                order, stable ids, kinds, warnings
+  7. validate   against PlanJSON
+
+A failure at any stage raises a `PlanParseError` subclass (errors.py). Partial JSON is
+never returned, and a different building is never substituted.
+
+Results are cached by the PDF's sha256 plus the parser, prompt and schema versions
+(plan_cache.py), so the same PDF always yields the same PlanJSON.
+"""
 
 import json
 import logging
 import re
-from typing import Dict, Any, List, Optional
-from app.modules.ai.llm_client import call_gemini_vision, get_gemini_api_key
-from app.modules.plans.schemas import PlanJSON
-from app.modules.parsing.validate import (
-    validate_bounding_box,
-    validate_y_axis_orientation,
-    validate_openings,
-    validate_room_wall_coverage,
-    validate_overlaps_and_gaps,
-    compute_plan_confidence,
-    deduplicate_and_merge_walls,
+from collections.abc import Sequence
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
+
+from pydantic import ValidationError
+
+from app.modules.ai.llm.json_client import (
+    JSONLLMClient,
+    JSONLLMError,
+    LLMImage,
+    LLMInvalidJSONError,
+    LLMNotConfiguredError,
+    get_json_llm,
 )
+from app.modules.parsing.errors import (
+    NoFloorPlanError,
+    ParserNotConfiguredError,
+    ParserUnavailableError,
+    PlanNormalisationError,
+    PlanOutputInvalidError,
+    PlanParseError,
+)
+from app.modules.parsing.llm_schema import DRAFT_JSON_SCHEMA, check_draft
+from app.modules.parsing.normalise import (
+    normalise_plan,
+    synthesize_interior_walls_if_missing,
+    to_metres,
+)
+from app.modules.parsing.normalise import unit_scale as drawing_unit_scale
+from app.modules.parsing.pdf_input import load_plan_pdf, sha256_of
+from app.modules.parsing.plan_cache import PlanCache, default_plan_cache, plan_cache_key
+from app.modules.parsing.settings import get_settings
+from app.modules.plans.schemas import PlanJSON
 
 logger = logging.getLogger("construtiva.parsing.llm")
 
-# Architectural prompt instructing the LLM to output valid PlanJSON
-BLUEPRINT_PARSING_PROMPT = """
-You are a senior architectural CAD and BIM vision parser AI.
-Analyze the provided high-resolution 2D architectural floor plan drawing.
+# Bump when the pipeline or the normaliser changes what a given PDF parses to.
+PARSER_VERSION = "2.0.0"
+MAX_REPAIR_ATTEMPTS = 2
+MAX_PREVIOUS_REPLY_CHARS = 60_000
 
-Extract the complete structural geometry into the following strictly typed JSON format:
-{
-  "version": 1,
-  "units": "m",
-  "scale_source": "dimension_label",
-  "project_title": "string (extract exact title from cartouche)",
-  "subject": "string (extract subject from cartouche)",
-  "client": "string (extract client name from cartouche)",
-  "levels": [
-    {
-      "elevation": 0.0,
-      "wall_height": 2.8,
-      "walls": [
-        {
-          "id": "w_001",
-          "start": [0.0, 0.0],
-          "end": [11.12, 0.0],
-          "thickness": 0.23,
-          "kind": "exterior",
-          "inferred": false
-        }
-      ],
-      "openings": [
-        {
-          "id": "door_001",
-          "wall_id": "w_001",
-          "type": "door",
-          "offset": 1.0,
-          "width": 0.9,
-          "height": 2.1,
-          "sill": 0.0,
-          "inferred": false
-        }
-      ],
-      "rooms": [
-        {
-          "id": "room_001",
-          "name": "BEDROOM 12' X 14'",
-          "kind": "indoor",
-          "polygon": [[0.0, 0.0], [3.66, 0.0], [3.66, 4.27], [0.0, 4.27]]
-        }
-      ],
-      "columns": [
-        {
-          "id": "col_001",
-          "position": [0.0, 0.0],
-          "width": 0.23,
-          "depth": 0.23
-        }
-      ]
+PROMPT_PATH = Path(__file__).resolve().parents[1] / "ai" / "prompts" / "parsing" / "plan_parser.md"
+_VERSION_LINE = re.compile(r"^<!--\s*prompt_version:\s*([\w.\-]+)\s*-->\s*\n?")
+
+__all__ = [
+    "MAX_REPAIR_ATTEMPTS",
+    "PARSER_VERSION",
+    "PlanParseError",
+    "parse",
+    "parse_blueprint_image_with_llm",
+    "parse_plan_images",
+    "parse_plan_pdf",
+    "sanitize_and_normalize_plan",
+    "synthesize_interior_walls_if_missing",
+]
+
+
+@lru_cache
+def load_prompt() -> tuple[str, str]:
+    """(prompt text, prompt version) from the one versioned prompt file."""
+    raw = PROMPT_PATH.read_text(encoding="utf-8")
+    match = _VERSION_LINE.match(raw)
+    if not match:
+        raise RuntimeError(f"{PROMPT_PATH.name} must start with a prompt_version comment.")
+    return raw[match.end() :].strip(), match.group(1)
+
+
+def prompt_version() -> str:
+    return load_prompt()[1]
+
+
+def build_client() -> JSONLLMClient:
+    """The LLM client named by the environment (PLAN_PARSER_* / LLM_PROVIDER)."""
+    settings = get_settings()
+    try:
+        return get_json_llm(
+            settings.provider(),
+            model=settings.llm_model,
+            fallback_models=settings.fallback_models(),
+            timeout_s=settings.llm_timeout_s,
+        )
+    except LLMNotConfiguredError as e:
+        raise ParserNotConfiguredError(str(e)) from e
+
+
+def _user_text(page_texts: Sequence[str]) -> str:
+    lines = [
+        f"The drawing has {len(page_texts)} page(s); the images are in page order.",
+        "Extract every floor plan into the JSON object described in your instructions.",
+    ]
+    for number, text in enumerate(page_texts, start=1):
+        if text.strip():
+            lines.append(f"\nText printed on page {number}:\n{text.strip()}")
+        else:
+            lines.append(f"\nPage {number} has no text layer; read its labels from the image.")
+    return "\n".join(lines)
+
+
+def _repair_text(user_text: str, previous_reply: str, problems: Sequence[str]) -> str:
+    listed = "\n".join(f"- {p}" for p in problems)
+    return (
+        f"{user_text}\n\n"
+        "Your previous reply could not be used.\n\n"
+        f"Previous reply:\n{previous_reply[:MAX_PREVIOUS_REPLY_CHARS]}\n\n"
+        f"Problems found:\n{listed}\n\n"
+        "Return the complete, corrected JSON object. Fix every problem listed and keep "
+        "everything that was already right."
+    )
+
+
+def parse_plan_images(
+    images: Sequence[LLMImage],
+    page_texts: Sequence[str] | None = None,
+    *,
+    client: JSONLLMClient | None = None,
+    min_rooms: int = 1,
+    pdf_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Stages 2 to 7 for already-rendered pages. Returns a PlanJSON dict or raises."""
+    if not images:
+        raise PlanParseError("There is no page image to read.")
+    client = client or build_client()
+    system_prompt, prompt_ver = load_prompt()
+    user_text = _user_text(list(page_texts) if page_texts else [""] * len(images))
+
+    # The best structurally valid reply so far, and how many scale concerns it carries.
+    draft = None
+    draft_concerns = 0
+    problems: list[str] = []
+    text = user_text
+    for attempt in range(1 + MAX_REPAIR_ATTEMPTS):
+        try:
+            reply = client.generate_json(
+                system_prompt=system_prompt,
+                images=images,
+                text=text,
+                json_schema=DRAFT_JSON_SCHEMA,
+            )
+        except LLMInvalidJSONError as e:
+            problems = [f"The reply was not a JSON object: {e}"]
+            previous = e.raw_text
+        except LLMNotConfiguredError as e:
+            raise ParserNotConfiguredError(str(e)) from e
+        except JSONLLMError as e:
+            if draft is not None:
+                break  # a usable reply is already in hand; keep it rather than fail
+            raise ParserUnavailableError(
+                "The plan could not be read because the AI service did not respond. "
+                "Please try again in a moment.",
+                details=[str(e)],
+            ) from e
+        else:
+            candidate, problems, concerns = check_draft(reply, min_rooms)
+            if candidate is not None and not candidate.floor_plan_found:
+                raise NoFloorPlanError(
+                    "No floor plan was found in this PDF. Upload a drawing that shows a "
+                    "floor plan with its rooms."
+                )
+            if candidate is not None:
+                if draft is None or len(concerns) <= draft_concerns:
+                    draft, draft_concerns = candidate, len(concerns)
+                if not concerns:
+                    break
+                problems = concerns
+            previous = json.dumps(reply, separators=(",", ":"), default=str)
+        logger.info(
+            "plan parser attempt %d/%d not accepted: %d problem(s), first: %s",
+            attempt + 1,
+            1 + MAX_REPAIR_ATTEMPTS,
+            len(problems),
+            problems[0] if problems else "",
+        )
+        text = _repair_text(user_text, previous, problems)
+
+    if draft is None:
+        raise PlanOutputInvalidError(
+            "The floor plan could not be read reliably from this drawing. "
+            "Check that the PDF shows a clear, labelled floor plan and try again.",
+            details=problems,
+        )
+
+    try:
+        plan = normalise_plan(draft.model_dump())
+    except (ValueError, ValidationError) as e:
+        raise PlanNormalisationError(
+            "The floor plan was read but could not be converted to a valid plan.",
+            details=[str(e)[:500]],
+        ) from e
+
+    kept = len(plan["levels"][0]["rooms"])
+    if kept < max(min_rooms, 1):
+        raise PlanOutputInvalidError(
+            f"Only {kept} room(s) of the floor plan could be used; at least "
+            f"{max(min_rooms, 1)} are needed.",
+            details=plan["warnings"],
+        )
+
+    plan["parser"] = {
+        "pdf_sha256": pdf_sha256,
+        "parser_version": PARSER_VERSION,
+        "prompt_version": prompt_ver,
+        "provider": getattr(client, "provider", None),
+        "model": getattr(client, "model", None),
     }
-  ]
-}
-
-Rules:
-1. Complete Extraction: You MUST extract EVERY SINGLE room drawn on the blueprint (all bedrooms, living/drawing/dining areas, kitchens, toilets, wash areas, passages, staircase, verandah, lawn, shafts). A complete dual-unit or residential floor plan contains 15 to 25 rooms and 50 to 90 walls covering the entire boundary. Do not truncate or return only one room.
-2. Title Block: Extract client, project title, and subject directly from the bottom title block cartouche. Do NOT invent fictional names or places like "Shalimar Greens".
-3. Coordinate System: Origin (0,0) at the top-left boundary, X increases rightwards across plot width, Y increases downwards across plot length.
-4. Measurements: All measurements in meters (m). 1 foot = 0.3048 m, 1 inch = 0.0254 m.
-5. Walls:
-   - Must specify start [x1, y1] and end [x2, y2].
-   - kind must be explicitly "exterior" for outer boundary walls (thickness ~0.23m) or "interior" for dividers (~0.12m).
-6. Rooms:
-   - kind must be explicitly "indoor", "semi_open", "outdoor", or "void".
-   - Polygons must be closed loops without self-intersections.
-7. Openings:
-   - type must be "door" or "window".
-   - offset is the distance along host wall from start to the opening.
-8. Columns:
-   - Map all structural columns (blue squares) at their centerline position [x, y].
-9. Multiple Floor Plans: If the blueprint drawing contains multiple floor plans side-by-side or stacked (e.g. 'GROUND FLOOR PLAN' on the left and 'FIRST FLOOR PLAN' on the right), extract ONLY the primary GROUND FLOOR PLAN for Level 0 within its own boundary. All coordinates must be strictly within that single floor plan (0 <= X <= plot_width, 0 <= Y <= plot_length). Do NOT include rooms from adjacent floor plans.
-10. Return ONLY valid JSON.
-"""
+    try:
+        validated = PlanJSON.model_validate(plan).model_dump()
+    except ValidationError as e:
+        raise PlanNormalisationError(
+            "The floor plan was read but could not be converted to a valid plan.",
+            details=[str(e)[:500]],
+        ) from e
+    logger.info(
+        "plan parsed: %d level(s), %d room(s) on level 0, %d warning(s), model %s",
+        len(validated["levels"]),
+        kept,
+        len(validated["warnings"]),
+        validated["parser"]["model"],
+    )
+    return validated
 
 
-def determine_unit_scale(raw_plan: Dict[str, Any]) -> float:
+def parse_plan_pdf(
+    pdf_bytes: bytes,
+    *,
+    client: JSONLLMClient | None = None,
+    min_rooms: int = 1,
+    cache: PlanCache | None = None,
+    max_pages: int | None = None,
+) -> dict[str, Any]:
+    """PDF bytes -> PlanJSON dict. Raises a PlanParseError subclass on any failure.
+
+    `min_rooms` is the fewest rooms the lowest floor must have. A cached plan with fewer
+    rooms than that is not accepted; the PDF is parsed again.
     """
-    Decides unit_scale once for the whole drawing and applies it uniformly.
-    No per-field magnitude heuristics.
+    cache = cache if cache is not None else default_plan_cache()
+    key = plan_cache_key(sha256_of(pdf_bytes), PARSER_VERSION, prompt_version())
+    cached = cache.get(key) if pdf_bytes else None
+    if cached and len(cached["levels"][0]["rooms"]) >= max(min_rooms, 1):
+        logger.info("plan cache hit %s", key[:12])
+        return cached
+
+    pdf = load_plan_pdf(pdf_bytes, max_pages or get_settings().max_pages)
+    plan = parse_plan_images(
+        [LLMImage(page.png) for page in pdf.pages],
+        [page.text for page in pdf.pages],
+        client=client,
+        min_rooms=min_rooms,
+        pdf_sha256=pdf.sha256,
+    )
+    if pdf.skipped_pages:
+        plan["warnings"].append(
+            f"Only the first {len(pdf.pages)} of {pdf.page_count} pages were read."
+        )
+    cache.put(key, plan)
+    return plan
+
+
+parse = parse_plan_pdf
+
+
+# ------------------------------------------------------------------ earlier entry points
+
+
+def parse_blueprint_image_with_llm(png_bytes: bytes, min_rooms: int = 6) -> dict[str, Any]:
+    """One rendered page -> PlanJSON. Kept for callers that already hold an image.
+
+    `min_rooms` defaults to 6, the blueprint import's threshold; the material finder
+    passes 1 so small plans are accepted.
     """
-    units = (raw_plan.get("units") or "m").lower()
-    if units in ("ft", "feet", "'"):
-        return 0.3048
-    if units in ("in", "inch", "inches", '"'):
-        return 0.0254
-    return 1.0
+    return parse_plan_images([LLMImage(png_bytes)], [""], min_rooms=min_rooms)
+
+
+def sanitize_and_normalize_plan(raw_plan: dict[str, Any]) -> dict[str, Any]:
+    """Model output (or any plan-shaped dict) -> validated PlanJSON. See normalise.py."""
+    return normalise_plan(raw_plan)
+
+
+def determine_unit_scale(raw_plan: dict[str, Any]) -> float:
+    """Metres per drawing unit, decided once for the whole drawing."""
+    return drawing_unit_scale(raw_plan.get("units")) or 1.0
 
 
 def parse_numeric_length(val: Any, unit_scale: float = 1.0) -> float:
-    """
-    Parses a numeric or string dimension into meters using the drawing-wide unit_scale.
-    """
-    if isinstance(val, (int, float)):
-        return round(float(val) * unit_scale, 3)
-
-    if isinstance(val, str):
-        val = val.strip()
-        # Handle imperial strings like 12'6"
-        m = re.match(r"^(\d+)['\′](?:(\d+)[\"″])?$", val)
-        if m:
-            ft = float(m.group(1))
-            inch = float(m.group(2)) if m.group(2) else 0.0
-            return round(ft * 0.3048 + inch * 0.0254, 3)
-        try:
-            return round(float(val) * unit_scale, 3)
-        except ValueError:
-            return 0.0
-
-    return 0.0
-
-
-def synthesize_interior_walls_if_missing(walls: List[Dict[str, Any]], rooms: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Ensures every boundary between adjacent indoor rooms has a partition wall (0.12m),
-    and boundary bordering outside has an exterior wall (0.23m).
-    """
-    interior_count = sum(1 for w in walls if w.get("kind") == "interior")
-    if interior_count >= 8 and len(walls) >= 15:
-        return walls
-
-    result_walls = list(walls)
-    wall_id_set = set(w["id"] for w in walls)
-    existing_segs = []
-    for w in walls:
-        p1 = w.get("start", [0, 0])
-        p2 = w.get("end", [0, 0])
-        existing_segs.append((min(p1[0], p2[0]), min(p1[1], p2[1]), max(p1[0], p2[0]), max(p1[1], p2[1])))
-
-    def is_covered(x1: float, y1: float, x2: float, y2: float) -> bool:
-        is_h = abs(y1 - y2) < 0.08
-        is_v = abs(x1 - x2) < 0.08
-        for ex1, ey1, ex2, ey2 in existing_segs:
-            if is_h and abs(ey1 - ey2) < 0.08 and abs(y1 - ey1) < 0.18:
-                overlap = max(0, min(x2, ex2) - max(x1, ex1))
-                if overlap > 0.35:
-                    return True
-            elif is_v and abs(ex1 - ex2) < 0.08 and abs(x1 - ex1) < 0.18:
-                overlap = max(0, min(y2, ey2) - max(y1, ey1))
-                if overlap > 0.35:
-                    return True
-        return False
-
-    from collections import defaultdict
-    h_groups = defaultdict(list)
-    v_groups = defaultdict(list)
-
-    for r in rooms:
-        pts = r.get("polygon", [])
-        if len(pts) < 3:
-            continue
-        rid = r.get("id", "")
-        kind = r.get("kind", "indoor")
-        is_out = kind in ("outdoor", "void")
-        n = len(pts)
-        for i in range(n):
-            p1 = pts[i]
-            p2 = pts[(i + 1) % n]
-            x1, y1 = round(float(p1[0]), 2), round(float(p1[1]), 2)
-            x2, y2 = round(float(p2[0]), 2), round(float(p2[1]), 2)
-            if abs(x1 - x2) < 0.05 and abs(y1 - y2) < 0.05:
-                continue
-            if abs(y1 - y2) < 0.08:
-                h_groups[round((y1 + y2) / 2, 1)].append({
-                    "start": (min(x1, x2), (y1 + y2) / 2),
-                    "end": (max(x1, x2), (y1 + y2) / 2),
-                    "room_id": rid,
-                    "is_outdoor": is_out,
-                })
-            elif abs(x1 - x2) < 0.08:
-                v_groups[round((x1 + x2) / 2, 1)].append({
-                    "start": ((x1 + x2) / 2, min(y1, y2)),
-                    "end": ((x1 + x2) / 2, max(y1, y2)),
-                    "room_id": rid,
-                    "is_outdoor": is_out,
-                })
-
-    counter = 1
-    for _, segs in h_groups.items():
-        xs = sorted(list(set([s["start"][0] for s in segs] + [s["end"][0] for s in segs])))
-        for i in range(len(xs) - 1):
-            xa, xb = xs[i], xs[i + 1]
-            if xb - xa < 0.25:
-                continue
-            mid = (xa + xb) / 2
-            matching = [s for s in segs if s["start"][0] <= mid and s["end"][0] >= mid]
-            if not matching or all(m["is_outdoor"] for m in matching):
-                continue
-            y_mean = sum(m["start"][1] for m in matching) / len(matching)
-            if is_covered(xa, y_mean, xb, y_mean):
-                continue
-            r_ids = list(set([m["room_id"] for m in matching]))
-            is_interior = len(r_ids) > 1 and not any(m["is_outdoor"] for m in matching)
-            wid = f"w_syn_h_{counter}"
-            counter += 1
-            if wid not in wall_id_set:
-                wall_id_set.add(wid)
-                result_walls.append({
-                    "id": wid,
-                    "start": [round(xa, 2), round(y_mean, 2)],
-                    "end": [round(xb, 2), round(y_mean, 2)],
-                    "thickness": 0.12 if is_interior else 0.23,
-                    "height": 2.8,
-                    "kind": "interior" if is_interior else "exterior",
-                    "type": "interior" if is_interior else "exterior",
-                    "length": round(xb - xa, 2),
-                    "inferred": True,
-                    "rooms": r_ids,
-                })
-                existing_segs.append((xa, y_mean, xb, y_mean))
-
-    for _, segs in v_groups.items():
-        ys = sorted(list(set([s["start"][1] for s in segs] + [s["end"][1] for s in segs])))
-        for i in range(len(ys) - 1):
-            ya, yb = ys[i], ys[i + 1]
-            if yb - ya < 0.25:
-                continue
-            mid = (ya + yb) / 2
-            matching = [s for s in segs if s["start"][1] <= mid and s["end"][1] >= mid]
-            if not matching or all(m["is_outdoor"] for m in matching):
-                continue
-            x_mean = sum(m["start"][0] for m in matching) / len(matching)
-            if is_covered(x_mean, ya, x_mean, yb):
-                continue
-            r_ids = list(set([m["room_id"] for m in matching]))
-            is_interior = len(r_ids) > 1 and not any(m["is_outdoor"] for m in matching)
-            wid = f"w_syn_v_{counter}"
-            counter += 1
-            if wid not in wall_id_set:
-                wall_id_set.add(wid)
-                result_walls.append({
-                    "id": wid,
-                    "start": [round(x_mean, 2), round(ya, 2)],
-                    "end": [round(x_mean, 2), round(yb, 2)],
-                    "thickness": 0.12 if is_interior else 0.23,
-                    "height": 2.8,
-                    "kind": "interior" if is_interior else "exterior",
-                    "type": "interior" if is_interior else "exterior",
-                    "length": round(yb - ya, 2),
-                    "inferred": True,
-                    "rooms": r_ids,
-                })
-                existing_segs.append((x_mean, ya, x_mean, yb))
-
-    return result_walls
-
-
-def sanitize_and_normalize_plan(raw_plan: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Sanitizes LLM output:
-    1. Applies drawing-wide unit_scale.
-    2. Enforces explicit kinds ('exterior' | 'interior' for walls, 'indoor' | 'semi_open' | 'outdoor' | 'void' for rooms).
-    3. Merges duplicate walls and updates opening offsets.
-    4. Computes confidence from validators instead of defaulting to 0.90.
-    """
-    unit_scale = determine_unit_scale(raw_plan)
-
-    levels = raw_plan.get("levels", [])
-    if not levels:
-        raise ValueError("PlanJSON is missing 'levels'.")
-
-    lvl = levels[0]
-    raw_walls = lvl.get("walls", [])
-    raw_openings = lvl.get("openings", [])
-    raw_rooms = lvl.get("rooms", [])
-    raw_columns = lvl.get("columns", [])
-
-    # Normalize walls
-    normalized_walls: List[Dict[str, Any]] = []
-    for w in raw_walls:
-        w_id = str(w.get("id", f"w_{len(normalized_walls)}"))
-        p1 = [parse_numeric_length(w["start"][0], unit_scale), parse_numeric_length(w["start"][1], unit_scale)]
-        p2 = [parse_numeric_length(w["end"][0], unit_scale), parse_numeric_length(w["end"][1], unit_scale)]
-        th = parse_numeric_length(w.get("thickness", 0.20), unit_scale)
-
-        explicit_kind = w.get("kind")
-        if explicit_kind not in ("exterior", "interior"):
-            # Assign explicitly based on position
-            explicit_kind = "exterior" if (p1[0] <= 0.05 or p2[0] <= 0.05 or p1[1] <= 0.05 or p2[1] <= 0.05) else "interior"
-
-        normalized_walls.append({
-            "id": w_id,
-            "start": p1,
-            "end": p2,
-            "thickness": th,
-            "kind": explicit_kind,
-            "inferred": bool(w.get("inferred", False)),
-        })
-
-    # Normalize openings
-    normalized_openings: List[Dict[str, Any]] = []
-    for op in raw_openings:
-        op_id = str(op.get("id", f"op_{len(normalized_openings)}"))
-        op_type = "door" if op.get("type") == "door" else "window"
-        normalized_openings.append({
-            "id": op_id,
-            "wall_id": str(op.get("wall_id")),
-            "type": op_type,
-            "offset": parse_numeric_length(op.get("offset", 0.0), unit_scale),
-            "width": parse_numeric_length(op.get("width", 1.0), unit_scale),
-            "height": parse_numeric_length(op.get("height", 2.1 if op_type == "door" else 1.2), unit_scale),
-            "sill": parse_numeric_length(op.get("sill", 0.0), unit_scale),
-            "inferred": bool(op.get("inferred", False)),
-        })
-
-    # Deduplicate walls and reproject opening offsets
-    clean_walls, clean_openings = deduplicate_and_merge_walls(normalized_walls, normalized_openings)
-
-    # Compute bounding box of building walls to filter rogue out-of-bounds rooms
-    if clean_walls:
-        w_min_x = min([w["start"][0] for w in clean_walls] + [w["end"][0] for w in clean_walls])
-        w_max_x = max([w["start"][0] for w in clean_walls] + [w["end"][0] for w in clean_walls])
-        w_min_y = min([w["start"][1] for w in clean_walls] + [w["end"][1] for w in clean_walls])
-        w_max_y = max([w["start"][1] for w in clean_walls] + [w["end"][1] for w in clean_walls])
-    else:
-        w_min_x, w_max_x = 0.0, 12.0
-        w_min_y, w_max_y = 0.0, 18.0
-
-    wall_margin = 0.20
-
-    # Filter rogue rooms that lie outside the main building walls boundary
-    # (e.g. from adjacent plans on a multi-plan sheet or stray displaced geometry)
-    normalized_rooms: List[Dict[str, Any]] = []
-    for r in raw_rooms:
-        r_id = str(r.get("id", f"room_{len(normalized_rooms)}"))
-        poly = [[parse_numeric_length(pt[0], unit_scale), parse_numeric_length(pt[1], unit_scale)] for pt in r.get("polygon", [])]
-        if len(poly) < 3:
-            continue
-
-        # Check center of polygon: must be inside the building walls footprint
-        cx = sum(p[0] for p in poly) / len(poly)
-        cy = sum(p[1] for p in poly) / len(poly)
-        if cx < (w_min_x - wall_margin) or cx > (w_max_x + wall_margin) or cy < (w_min_y - wall_margin) or cy > (w_max_y + wall_margin):
-            logger.info(f"Filtered out rogue room '{r.get('name')}' at ({cx:.1f}, {cy:.1f}) outside plot boundary.")
-            continue
-
-        name = r.get("name") or "Room"
-        lower_name = name.lower()
-        explicit_kind = r.get("kind")
-
-        # Explicitly categorize outdoor and semi-open architectural spaces
-        if any(k in lower_name for k in ["lawn", "garden", "backyard", "yard"]):
-            explicit_kind = "outdoor"
-        elif any(k in lower_name for k in ["park", "car", "driveway", "garage", "porch", "verandah", "veranda", "stair", "balcony", "terrace", "patio", "deck", "sitout", "wash"]):
-            explicit_kind = "semi_open"
-        elif any(k in lower_name for k in ["shaft", "duct", "open", "void"]):
-            explicit_kind = "void"
-        elif explicit_kind not in ("indoor", "semi_open", "outdoor", "void"):
-            explicit_kind = "indoor"
-
-        normalized_rooms.append({
-            "id": r_id,
-            "name": name,
-            "kind": explicit_kind,
-            "polygon": poly,
-        })
-
-    # Ensure complete interior partition walls separating every room
-    complete_walls = synthesize_interior_walls_if_missing(clean_walls, normalized_rooms)
-
-    # Normalize columns
-    normalized_columns: List[Dict[str, Any]] = []
-    for col in raw_columns:
-        c_id = str(col.get("id", f"col_{len(normalized_columns)}"))
-        pos = [parse_numeric_length(col["position"][0], unit_scale), parse_numeric_length(col["position"][1], unit_scale)]
-        normalized_columns.append({
-            "id": c_id,
-            "position": pos,
-            "width": parse_numeric_length(col.get("width", 0.23), unit_scale),
-            "depth": parse_numeric_length(col.get("depth", 0.23), unit_scale),
-        })
-
-    assembled_plan = {
-        "version": 1,
-        "units": "m",
-        "scale_source": raw_plan.get("scale_source", "dimension_label"),
-        "project_title": raw_plan.get("project_title"),
-        "subject": raw_plan.get("subject"),
-        "client": raw_plan.get("client"),
-        "architect": raw_plan.get("architect"),
-        "levels": [
-            {
-                "elevation": float(lvl.get("elevation", 0.0)),
-                "wall_height": float(lvl.get("wall_height", 2.8)),
-                "walls": complete_walls,
-                "openings": clean_openings,
-                "rooms": normalized_rooms,
-                "columns": normalized_columns,
-            }
-        ],
-    }
-
-    # Objectively compute confidence from the validator suite
-    assembled_plan["confidence"] = compute_plan_confidence(assembled_plan)
-
-    # Validate against official Pydantic schema
-    validated = PlanJSON(**assembled_plan)
-    return validated.model_dump()
-
-
-def parse_blueprint_image_with_llm(png_bytes: bytes, min_rooms: int = 6) -> Dict[str, Any]:
-    """
-    Main function for Task 1:
-    Calls the Vision LLM with the blueprint image to extract PlanJSON.
-    Never falls back to a different building on failure; raises an error.
-
-    min_rooms: fewest rooms accepted as a complete plan (default 6, unchanged for the
-    PDF import). The material finder passes 1 so small 1-2 BHK plans are accepted.
-    """
-    api_key = get_gemini_api_key()
-    if not api_key:
-        raise ValueError("GEMINI_API_KEY is not configured in the environment.")
-
-    logger.info(f"Sending blueprint PNG ({len(png_bytes)} bytes) to Gemini Vision...")
-    plan_json = call_gemini_vision(
-        prompt=BLUEPRINT_PARSING_PROMPT,
-        image_bytes=png_bytes,
-        mime_type="image/png",
-        model="gemini-3.5-flash-lite",
-    )
-
-    if not isinstance(plan_json, dict) or "levels" not in plan_json:
-        raise ValueError("Vision LLM failed to return a valid PlanJSON structure with 'levels'.")
-
-    # Sanitize, dedupe, validate, and compute objective confidence
-    sanitized = sanitize_and_normalize_plan(plan_json)
-
-    # Check completeness: by default a complete multi-room blueprint must have at least 6 rooms
-    rooms = sanitized.get("levels", [{}])[0].get("rooms", [])
-    if len(rooms) < max(min_rooms, 1):
-        raise ValueError(
-            f"Vision LLM returned incomplete blueprint extraction with only {len(rooms)} room(s). Minimum {max(min_rooms, 1)} rooms required for a valid floor plan."
-        )
-
-    # Reject if placeholder snippet was echoed
-    if any(r.get("id") == "room_lawn" and "10'8" in (r.get("name") or "") for r in rooms):
-        raise ValueError("Vision LLM echoed placeholder room from prompt instead of extracting the blueprint.")
-
-    # Check orientation
-    orient_res = validate_y_axis_orientation(sanitized)
-    if not orient_res["passed"]:
-        logger.warning(f"Plan orientation issue detected: {orient_res}")
-
-    logger.info(f"Successfully parsed and verified PlanJSON from Gemini Vision ({len(rooms)} rooms).")
-    return sanitized
+    """A number or a feet-and-inches string as metres; 0.0 when it cannot be read."""
+    metres = to_metres(val, unit_scale)
+    return metres if metres is not None else 0.0

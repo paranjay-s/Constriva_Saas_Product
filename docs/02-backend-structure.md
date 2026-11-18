@@ -51,9 +51,9 @@ One folder per feature. Every module uses the same file names, so you always kno
 |---|---|
 | `projects` | A user has many projects. Create, list, archive. |
 | `files` | Issues presigned S3 URLs, records uploaded files (`kind`, `storage_key`, `mime_type`, `size`). |
-| `plans` | Stores plans and their versions. Owns the plan JSON model (`PlanJSON`) and applies edit operations (add wall, resize room, add door) to produce a new version. `export_schema.py` writes the JSON Schema of `PlanJSON` for the frontend types. |
+| `plans` | Stores plans and their versions. Owns the plan JSON model (`PlanJSON`, schema 2.0, see [plan-json.md](plan-json.md)) and applies edit operations (add wall, resize room, add door) to produce a new version. `room_kind.py` holds the room `kind` rules shared by the parser and the material calculator. `export_schema.py` writes the JSON Schema of `PlanJSON` for the frontend types. |
 | `parsing` | Turns an uploaded PDF into a plan JSON. See [04-parsing-module.md](04-parsing-module.md). |
-| `sheets` | Computes material quantities from a plan version (`calculator.py`) and exports them (`export.py`: PDF report, xlsx). Marks sheets stale when the plan changes. |
+| `sheets` | Computes material quantities from a plan version and exports them. Marks sheets stale when the plan changes. See [07-boq.md](07-boq.md) for the BOQ flow (`llm_mapper.py`, `constants.py`, `boq_*.py`). |
 | `materials` | Material catalogue and prices (prices have history, so old reports stay correct). |
 | `ai` | Chat, conversations and messages. `chat.py` turns a request into structured edit operations; `edit_ops.py` defines them; `material_agent/` is the Material Finder (photo -> identified materials, quantities computed in Python from the person's own space; no money anywhere, see `docs/material-agent/PLAN.md`); `llm_client.py` is the provider-neutral LLM wrapper; `prompts/` holds prompt files. |
 | `loan` | Placeholder for the bank-loan document extraction (design pending). |

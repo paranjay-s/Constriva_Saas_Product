@@ -5,11 +5,21 @@
  * and run json-schema-to-typescript to regenerate this file.
  */
 
+export type SchemaVersion = string;
 export type Version = number;
 export type Units = "m";
-export type ScaleSource = "scale_text" | "dimension_label" | "user_reference" | "assumed";
+export type BuildingType = "villa" | "apartment" | "other";
+export type ScaleSource =
+  "dimension_label" | "scale_bar" | "stated_scale" | "assumed" | "scale_text" | "user_reference";
+export type ProjectTitle = string | null;
+export type Subject = string | null;
+export type Client = string | null;
+export type Architect = string | null;
+export type Index = number;
+export type Name = string | null;
 export type Elevation = number;
 export type WallHeight = number;
+export type WallHeightSource = "stated" | "default";
 export type Id = string;
 /**
  * @minItems 2
@@ -22,6 +32,9 @@ export type Start = [number, number];
  */
 export type End = [number, number];
 export type Thickness = number;
+export type Kind = ("exterior" | "interior") | null;
+export type IsExterior = boolean | null;
+export type Inferred = boolean;
 export type Walls = Wall[];
 export type Id1 = string;
 export type WallId = string;
@@ -30,27 +43,60 @@ export type Offset = number;
 export type Width = number;
 export type Height = number;
 export type Sill = number;
+export type SillHeight = number | null;
+export type Position = [number, number] | null;
+export type Inferred1 = boolean;
 export type Openings = Opening[];
 export type Id2 = string;
-export type Name = string | null;
+export type Name1 = string | null;
+export type Kind1 = ("indoor" | "semi_open" | "outdoor" | "void") | null;
 export type Polygon = [number, number][];
+export type HeightM = number | null;
+export type IsDoubleHeightVoid = boolean;
 export type Rooms = Room[];
+export type Id3 = string;
+/**
+ * @minItems 2
+ * @maxItems 2
+ */
+export type Position1 = [number, number];
+export type Width1 = number;
+export type Depth = number;
+export type Columns = Column[];
 export type Levels = Level[];
+export type Warnings = string[];
+export type PdfSha256 = string | null;
+export type ParserVersion = string | null;
+export type PromptVersion = string | null;
+export type Provider = string | null;
+export type Model = string | null;
 
 export interface PlanJSON {
+  schema_version?: SchemaVersion;
   version?: Version;
   units?: Units;
+  building_type?: BuildingType;
   scale_source?: ScaleSource;
+  project_title?: ProjectTitle;
+  subject?: Subject;
+  client?: Client;
+  architect?: Architect;
   levels?: Levels;
   confidence?: Confidence;
+  warnings?: Warnings;
+  parser?: ParserInfo | null;
   [k: string]: unknown;
 }
 export interface Level {
+  index?: Index;
+  name?: Name;
   elevation?: Elevation;
   wall_height?: WallHeight;
+  wall_height_source?: WallHeightSource;
   walls?: Walls;
   openings?: Openings;
   rooms?: Rooms;
+  columns?: Columns;
   [k: string]: unknown;
 }
 export interface Wall {
@@ -58,6 +104,9 @@ export interface Wall {
   start: Start;
   end: End;
   thickness?: Thickness;
+  kind?: Kind;
+  is_exterior?: IsExterior;
+  inferred?: Inferred;
   [k: string]: unknown;
 }
 export interface Opening {
@@ -68,14 +117,38 @@ export interface Opening {
   width: Width;
   height: Height;
   sill?: Sill;
+  sill_height?: SillHeight;
+  position?: Position;
+  inferred?: Inferred1;
   [k: string]: unknown;
 }
 export interface Room {
   id: Id2;
-  name?: Name;
+  name?: Name1;
+  kind?: Kind1;
   polygon: Polygon;
+  height_m?: HeightM;
+  is_double_height_void?: IsDoubleHeightVoid;
+  [k: string]: unknown;
+}
+export interface Column {
+  id: Id3;
+  position: Position1;
+  width?: Width1;
+  depth?: Depth;
   [k: string]: unknown;
 }
 export interface Confidence {
   [k: string]: number;
+}
+/**
+ * Which parser run produced this plan. Lets a stored plan be matched to its PDF.
+ */
+export interface ParserInfo {
+  pdf_sha256?: PdfSha256;
+  parser_version?: ParserVersion;
+  prompt_version?: PromptVersion;
+  provider?: Provider;
+  model?: Model;
+  [k: string]: unknown;
 }

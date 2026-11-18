@@ -1,0 +1,662 @@
+"""The PDF -> PlanJSON pipeline, with a fake LLM client. No network is used."""
+
+import copy
+import json
+from pathlib import Path
+
+import httpx
+import pymupdf
+import pytest
+
+from app.modules.ai.llm.gemini_json import GeminiJSONClient
+from app.modules.ai.llm.json_client import (
+    LLMImage,
+    LLMInvalidJSONError,
+    LLMNotConfiguredError,
+    LLMRequestRejectedError,
+    LLMUnavailableError,
+    extract_json_object,
+    get_json_llm,
+)
+from app.modules.parsing import llm_parser
+from app.modules.parsing.errors import (
+    NoFloorPlanError,
+    ParserNotConfiguredError,
+    ParserUnavailableError,
+    PdfInputError,
+    PlanOutputInvalidError,
+    PlanParseError,
+)
+from app.modules.parsing.llm_parser import (
+    MAX_REPAIR_ATTEMPTS,
+    PARSER_VERSION,
+    load_prompt,
+    parse_plan_images,
+    parse_plan_pdf,
+)
+from app.modules.parsing.pdf_input import RENDER_DPI, effective_dpi, load_plan_pdf
+from app.modules.parsing.plan_cache import FilePlanCache, NullPlanCache, plan_cache_key
+from app.modules.plans.schemas import SCHEMA_VERSION, PlanJSON
+
+EXTRACTED_PLAN = Path(__file__).resolve().parents[2] / "extracted_plan.json"
+IMAGES = [LLMImage(b"not-a-real-png")]
+
+
+class FakeLLM:
+    """Replays scripted replies. A reply that is an exception is raised instead."""
+
+    provider = "fake"
+    model = "fake-1"
+
+    def __init__(self, *replies):
+        self.replies = list(replies)
+        self.calls: list[dict] = []
+
+    def generate_json(self, *, system_prompt, images, text, json_schema=None):
+        self.calls.append(
+            {
+                "system_prompt": system_prompt,
+                "images": images,
+                "text": text,
+                "json_schema": json_schema,
+            }
+        )
+        reply = self.replies.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return copy.deepcopy(reply)
+
+
+def good_reply() -> dict:
+    return {
+        "units": "m",
+        "building_type": "villa",
+        "scale_source": "dimension_label",
+        "project_title": "Test House",
+        "levels": [
+            {
+                "index": 0,
+                "name": "Ground Floor",
+                "wall_height": None,
+                "wall_height_source": "default",
+                "rooms": [
+                    {
+                        "id": "r1",
+                        "name": "BEDROOM",
+                        "kind": "indoor",
+                        "polygon": [[0, 0], [4, 0], [4, 5], [0, 5]],
+                    },
+                    {
+                        "id": "r2",
+                        "name": "KITCHEN",
+                        "kind": "indoor",
+                        "polygon": [[4, 0], [8, 0], [8, 5], [4, 5]],
+                    },
+                ],
+                "walls": [
+                    {
+                        "id": "w1",
+                        "start": [0, 0],
+                        "end": [8, 0],
+                        "thickness": 0.23,
+                        "kind": "exterior",
+                    },
+                    {
+                        "id": "w2",
+                        "start": [8, 0],
+                        "end": [8, 5],
+                        "thickness": 0.23,
+                        "kind": "exterior",
+                    },
+                    {
+                        "id": "w3",
+                        "start": [8, 5],
+                        "end": [0, 5],
+                        "thickness": 0.23,
+                        "kind": "exterior",
+                    },
+                    {
+                        "id": "w4",
+                        "start": [0, 5],
+                        "end": [0, 0],
+                        "thickness": 0.23,
+                        "kind": "exterior",
+                    },
+                    {
+                        "id": "w5",
+                        "start": [4, 0],
+                        "end": [4, 5],
+                        "thickness": 0.115,
+                        "kind": "interior",
+                    },
+                ],
+                "openings": [
+                    {
+                        "id": "o1",
+                        "wall_id": "w5",
+                        "type": "door",
+                        "offset": 2.5,
+                        "width": 0.9,
+                        "height": 2.1,
+                        "sill": 0,
+                    }
+                ],
+                "columns": [],
+            }
+        ],
+    }
+
+
+def broken_reply() -> dict:
+    reply = good_reply()
+    reply["levels"][0]["openings"][0]["wall_id"] = "w99"
+    return reply
+
+
+def make_pdf(pages: int = 1, text: str = "BEDROOM 12' X 14'") -> bytes:
+    doc = pymupdf.open()
+    for _ in range(pages):
+        page = doc.new_page(width=420, height=297)
+        page.insert_text((60, 80), text, fontsize=11)
+        page.draw_rect(pymupdf.Rect(40, 40, 380, 260))
+    data = doc.tobytes()
+    doc.close()
+    return data
+
+
+# ------------------------------------------------------------------- valid output
+
+
+def test_valid_output_becomes_plan_json():
+    llm = FakeLLM(good_reply())
+    plan = parse_plan_images(IMAGES, ["BEDROOM"], client=llm)
+    PlanJSON.model_validate(plan)
+    assert plan["schema_version"] == SCHEMA_VERSION
+    assert plan["units"] == "m"
+    assert plan["building_type"] == "villa"
+    assert plan["warnings"] == []
+    level = plan["levels"][0]
+    assert [r["id"] for r in level["rooms"]] == ["L0-R01", "L0-R02"]
+    assert level["openings"][0]["wall_id"] in {w["id"] for w in level["walls"]}
+    assert plan["parser"] == {
+        "pdf_sha256": None,
+        "parser_version": PARSER_VERSION,
+        "prompt_version": load_prompt()[1],
+        "provider": "fake",
+        "model": "fake-1",
+    }
+    assert len(llm.calls) == 1
+
+
+def test_the_model_gets_the_prompt_file_the_page_text_and_the_schema():
+    llm = FakeLLM(good_reply())
+    parse_plan_images(IMAGES, ["BEDROOM 12' X 14'"], client=llm)
+    call = llm.calls[0]
+    assert call["system_prompt"] == load_prompt()[0]
+    assert "prompt_version" not in call["system_prompt"]
+    assert "BEDROOM 12' X 14'" in call["text"]
+    assert call["images"] == IMAGES
+    assert "levels" in call["json_schema"]["properties"]
+
+
+def test_same_model_output_gives_identical_plan_json():
+    first = parse_plan_images(IMAGES, [""], client=FakeLLM(good_reply()))
+    second = parse_plan_images(IMAGES, [""], client=FakeLLM(good_reply()))
+    assert json.dumps(first, sort_keys=True) == json.dumps(second, sort_keys=True)
+
+
+# ------------------------------------------------------------ invalid, then repaired
+
+
+def test_invalid_output_is_repaired_with_the_validation_errors():
+    llm = FakeLLM(broken_reply(), good_reply())
+    plan = parse_plan_images(IMAGES, [""], client=llm)
+    assert len(plan["levels"][0]["openings"]) == 1
+    assert len(llm.calls) == 2
+    repair = llm.calls[1]["text"]
+    assert "'w99' is not the id of a wall in this level" in repair
+    assert '"wall_id":"w99"' in repair  # the previous reply is sent back
+    assert "corrected JSON object" in repair
+
+
+def test_a_reply_that_is_not_json_is_repaired_too():
+    llm = FakeLLM(
+        LLMInvalidJSONError("The model reply is not a JSON object.", "Sure! Here is"), good_reply()
+    )
+    plan = parse_plan_images(IMAGES, [""], client=llm)
+    assert plan["levels"][0]["rooms"]
+    assert "not a JSON object" in llm.calls[1]["text"]
+    assert "Sure! Here is" in llm.calls[1]["text"]
+
+
+def test_schema_errors_are_reported_with_their_path():
+    wrong_type = good_reply()
+    wrong_type["levels"][0]["walls"][0]["start"] = ["12'6\"", 0]
+    llm = FakeLLM(wrong_type, good_reply())
+    parse_plan_images(IMAGES, [""], client=llm)
+    assert "levels[0].walls[0].start[0]" in llm.calls[1]["text"]
+
+
+def test_too_few_rooms_is_sent_back_for_repair():
+    sparse = good_reply()
+    sparse["levels"][0]["rooms"] = sparse["levels"][0]["rooms"][:1]
+    llm = FakeLLM(sparse, good_reply())
+    plan = parse_plan_images(IMAGES, [""], client=llm, min_rooms=2)
+    assert len(plan["levels"][0]["rooms"]) == 2
+    assert "only 1 usable room(s)" in llm.calls[1]["text"]
+
+
+def test_placeholder_names_from_the_prompt_are_rejected():
+    echoed = good_reply()
+    echoed["levels"][0]["rooms"][0]["name"] = "<room label as printed, with its dimension text>"
+    llm = FakeLLM(echoed, good_reply())
+    parse_plan_images(IMAGES, [""], client=llm)
+    assert "placeholder" in llm.calls[1]["text"]
+
+
+# -------------------------------------------------------------- unrecoverable output
+
+
+def test_unrecoverable_output_raises_a_typed_error_and_returns_nothing():
+    llm = FakeLLM(broken_reply(), broken_reply(), broken_reply())
+    with pytest.raises(PlanOutputInvalidError) as caught:
+        parse_plan_images(IMAGES, [""], client=llm)
+    error = caught.value
+    assert error.code == "llm_output_invalid"
+    assert any("'w99' is not the id of a wall" in d for d in error.details)
+    assert error.to_dict()["code"] == "llm_output_invalid"
+    assert isinstance(error, PlanParseError) and isinstance(error, ValueError)
+    assert len(llm.calls) == 1 + MAX_REPAIR_ATTEMPTS  # first try + 2 repairs, no more
+
+
+def test_missing_levels_is_unrecoverable():
+    llm = FakeLLM({"rooms": []}, {"levels": []}, {"levels": "none"})
+    with pytest.raises(PlanOutputInvalidError):
+        parse_plan_images(IMAGES, [""], client=llm)
+
+
+def test_provider_outage_raises_parser_unavailable():
+    with pytest.raises(ParserUnavailableError) as caught:
+        parse_plan_images(IMAGES, [""], client=FakeLLM(LLMUnavailableError("HTTP 503")))
+    assert caught.value.code == "llm_unavailable"
+    assert caught.value.details == ["HTTP 503"]
+
+
+def test_missing_key_raises_parser_not_configured():
+    with pytest.raises(ParserNotConfiguredError) as caught:
+        parse_plan_images(IMAGES, [""], client=FakeLLM(LLMNotConfiguredError("No Gemini API key.")))
+    assert caught.value.code == "llm_not_configured"
+
+
+def test_no_images_is_an_error():
+    with pytest.raises(PlanParseError):
+        parse_plan_images([], [], client=FakeLLM(good_reply()))
+
+
+# --------------------------------------------------------------- scale and no plan
+
+
+def mis_scaled_reply() -> dict:
+    """Rooms drawn at a fraction of the sizes their labels state."""
+    reply = good_reply()
+    level = reply["levels"][0]
+    level["rooms"] = [
+        {
+            "id": "r1",
+            "name": "BEDROOM 12' X 14'",
+            "kind": "indoor",
+            "polygon": [[0, 0], [2, 0], [2, 2], [0, 2]],
+        },
+        {
+            "id": "r2",
+            "name": "KITCHEN 10' X 10'",
+            "kind": "indoor",
+            "polygon": [[2, 0], [4, 0], [4, 2], [2, 2]],
+        },
+        {
+            "id": "r3",
+            "name": "LIVING 15' X 20'",
+            "kind": "indoor",
+            "polygon": [[4, 0], [8, 0], [8, 3], [4, 3]],
+        },
+    ]
+    return reply
+
+
+def well_scaled_reply() -> dict:
+    reply = good_reply()
+    level = reply["levels"][0]
+    level.update({"overall_width": 11.28, "overall_depth": 6.1})
+    level["rooms"] = [
+        {
+            "id": "r1",
+            "name": "BEDROOM 12' X 14'",
+            "kind": "indoor",
+            "polygon": [[0, 0], [3.66, 0], [3.66, 4.27], [0, 4.27]],
+        },
+        {
+            "id": "r2",
+            "name": "KITCHEN 10' X 10'",
+            "kind": "indoor",
+            "polygon": [[3.66, 0], [6.71, 0], [6.71, 3.05], [3.66, 3.05]],
+        },
+        {
+            "id": "r3",
+            "name": "LIVING 15' X 20'",
+            "kind": "indoor",
+            "polygon": [[6.71, 0], [11.28, 0], [11.28, 6.1], [6.71, 6.1]],
+        },
+    ]
+    level["walls"] = [
+        {"id": "w1", "start": [0, 0], "end": [11.28, 0], "kind": "exterior"},
+        {"id": "w2", "start": [11.28, 0], "end": [11.28, 6.1], "kind": "exterior"},
+        {"id": "w3", "start": [11.28, 6.1], "end": [0, 6.1], "kind": "exterior"},
+        {"id": "w4", "start": [0, 6.1], "end": [0, 0], "kind": "exterior"},
+    ]
+    level["openings"] = []
+    return reply
+
+
+def test_a_mis_scaled_plan_is_sent_back_with_the_evidence():
+    llm = FakeLLM(mis_scaled_reply(), well_scaled_reply())
+    plan = parse_plan_images(IMAGES, [""], client=llm)
+    assert len(llm.calls) == 2
+    assert "rooms are drawn at about" in llm.calls[1]["text"]
+    assert "Convert each printed dimension to metres" in llm.calls[1]["text"]
+    assert plan["warnings"] == []
+    areas = sorted(
+        round(r["polygon"][2][0] * r["polygon"][2][1] - 0, 1)
+        for r in plan["levels"][0]["rooms"][:1]
+    )
+    assert areas == [15.6]  # 12' x 14' in m2
+
+
+def test_a_plan_that_stays_mis_scaled_is_kept_with_warnings_not_dropped():
+    llm = FakeLLM(mis_scaled_reply(), mis_scaled_reply(), mis_scaled_reply())
+    plan = parse_plan_images(IMAGES, [""], client=llm)
+    assert len(llm.calls) == 1 + MAX_REPAIR_ATTEMPTS
+    assert len(plan["levels"][0]["rooms"]) == 3
+    assert sum("but its label states" in w for w in plan["warnings"]) == 3
+
+
+def test_extent_must_match_the_reported_overall_size():
+    wrong = well_scaled_reply()
+    wrong["levels"][0].update({"overall_width": 20.0, "overall_depth": 12.0})
+    llm = FakeLLM(wrong, well_scaled_reply())
+    parse_plan_images(IMAGES, [""], client=llm)
+    assert "the overall size you reported is 20.00 x 12.00 m" in llm.calls[1]["text"]
+
+
+def test_an_outage_during_a_scale_repair_keeps_the_reply_already_in_hand():
+    llm = FakeLLM(mis_scaled_reply(), LLMUnavailableError("HTTP 503"))
+    plan = parse_plan_images(IMAGES, [""], client=llm)
+    assert len(plan["levels"][0]["rooms"]) == 3 and plan["warnings"]
+
+
+def test_each_level_is_moved_to_its_own_origin():
+    shifted = good_reply()
+    level = shifted["levels"][0]
+    for room in level["rooms"]:
+        room["polygon"] = [[x + 11.2, y + 0.8] for x, y in room["polygon"]]
+    for wall in level["walls"]:
+        wall["start"] = [wall["start"][0] + 11.2, wall["start"][1] + 0.8]
+        wall["end"] = [wall["end"][0] + 11.2, wall["end"][1] + 0.8]
+    moved = parse_plan_images(IMAGES, [""], client=FakeLLM(shifted))
+    plain = parse_plan_images(IMAGES, [""], client=FakeLLM(good_reply()))
+    assert moved["levels"] == plain["levels"]
+    assert moved["levels"][0]["rooms"][0]["polygon"][0] == [0.0, 0.0]
+
+
+def test_a_pdf_without_a_floor_plan_is_reported_at_once():
+    llm = FakeLLM({"floor_plan_found": False, "levels": []})
+    with pytest.raises(NoFloorPlanError) as caught:
+        parse_plan_images(IMAGES, [""], client=llm)
+    assert caught.value.code == "no_floor_plan"
+    assert len(llm.calls) == 1  # nothing to repair
+
+
+def test_blank_pages_never_reach_the_model(tmp_path):
+    doc = pymupdf.open()
+    doc.new_page()
+    blank = doc.tobytes()
+    doc.close()
+    llm = FakeLLM(good_reply())
+    with pytest.raises(PdfInputError, match="blank"):
+        parse_plan_pdf(blank, client=llm, cache=FilePlanCache(tmp_path))
+    assert llm.calls == []
+
+
+# ---------------------------------------------------------------- old-schema JSON
+
+
+def test_old_schema_reply_is_accepted_and_upgraded():
+    """A model (or an older prompt) that answers in the 1.x shape still parses."""
+    old = json.loads(EXTRACTED_PLAN.read_text(encoding="utf-8"))
+    assert "schema_version" not in old and "index" not in old["levels"][0]
+    plan = parse_plan_images(IMAGES, [""], client=FakeLLM(old), min_rooms=6)
+    PlanJSON.model_validate(plan)
+    assert plan["schema_version"] == SCHEMA_VERSION
+    level = plan["levels"][0]
+    assert level["index"] == 0 and level["wall_height_source"] == "default"
+    assert len(level["rooms"]) == len(old["levels"][0]["rooms"])
+    assert all(w["is_exterior"] is (w["kind"] == "exterior") for w in level["walls"])
+    assert all(o["sill_height"] == o["sill"] for o in level["openings"])
+    assert plan["client"] == "SMT. GEETA GAUD"
+
+
+# ------------------------------------------------------------------- PDF and cache
+
+
+def test_pdf_input_renders_pages_and_reads_text():
+    pdf = load_plan_pdf(make_pdf(pages=2), max_pages=4)
+    assert pdf.page_count == 2 and len(pdf.pages) == 2 and pdf.skipped_pages == 0
+    page = pdf.pages[0]
+    assert page.png.startswith(b"\x89PNG") and page.dpi == RENDER_DPI
+    assert (page.width_px, page.height_px) == (1750, 1238)
+    assert page.text == "BEDROOM 12' X 14'"
+    assert len(pdf.sha256) == 64
+
+
+def test_pdf_input_is_identical_for_identical_bytes():
+    data = make_pdf()
+    first, second = load_plan_pdf(data), load_plan_pdf(data)
+    assert first.sha256 == second.sha256
+    assert first.pages[0].png == second.pages[0].png and first.pages[0].text == second.pages[0].text
+
+
+def test_large_sheets_are_scaled_by_a_fixed_rule():
+    assert effective_dpi(595, 842) == RENDER_DPI  # A4
+    assert effective_dpi(1191, 842) == RENDER_DPI  # A3
+    assert effective_dpi(2384, 1684) < RENDER_DPI  # A1
+    assert effective_dpi(2384, 1684) == effective_dpi(1684, 2384)
+
+
+@pytest.mark.parametrize("data", [b"", b"this is not a pdf"])
+def test_bad_pdf_raises_pdf_input_error(data):
+    with pytest.raises(PdfInputError) as caught:
+        load_plan_pdf(data)
+    assert caught.value.code == "invalid_pdf"
+
+
+def test_parse_plan_pdf_runs_the_whole_pipeline(tmp_path):
+    llm = FakeLLM(good_reply())
+    data = make_pdf()
+    plan = parse_plan_pdf(data, client=llm, cache=FilePlanCache(tmp_path))
+    assert plan["parser"]["pdf_sha256"] == load_plan_pdf(data).sha256
+    assert llm.calls[0]["images"][0].data.startswith(b"\x89PNG")
+    assert "BEDROOM 12' X 14'" in llm.calls[0]["text"]
+
+
+def test_same_pdf_is_parsed_once_and_then_served_from_the_cache(tmp_path):
+    cache = FilePlanCache(tmp_path)
+    data = make_pdf()
+    llm = FakeLLM(good_reply())
+    first = parse_plan_pdf(data, client=llm, cache=cache)
+    again = parse_plan_pdf(data, client=FakeLLM(), cache=cache)  # would fail if it called the model
+    assert again == first
+    assert len(llm.calls) == 1
+    assert len(list(tmp_path.glob("*.json"))) == 1
+
+
+def test_cache_key_changes_with_parser_prompt_and_schema_versions():
+    key = plan_cache_key("abc", "2.0.0", "2.0.0")
+    assert key.startswith("abc.") and f"schema-{SCHEMA_VERSION}" in key
+    assert plan_cache_key("abc", "2.0.1", "2.0.0") != key
+    assert plan_cache_key("abc", "2.0.0", "2.0.1") != key
+    assert plan_cache_key("abd", "2.0.0", "2.0.0") != key
+
+
+def test_a_new_parser_version_does_not_reuse_old_cache_entries(tmp_path, monkeypatch):
+    cache = FilePlanCache(tmp_path)
+    data = make_pdf()
+    parse_plan_pdf(data, client=FakeLLM(good_reply()), cache=cache)
+    monkeypatch.setattr(llm_parser, "PARSER_VERSION", "9.9.9")
+    llm = FakeLLM(good_reply())
+    plan = parse_plan_pdf(data, client=llm, cache=cache)
+    assert len(llm.calls) == 1 and plan["parser"]["parser_version"] == "9.9.9"
+
+
+def test_a_failed_parse_is_not_cached(tmp_path):
+    cache = FilePlanCache(tmp_path)
+    with pytest.raises(PlanOutputInvalidError):
+        parse_plan_pdf(
+            make_pdf(), client=FakeLLM(broken_reply(), broken_reply(), broken_reply()), cache=cache
+        )
+    assert list(tmp_path.glob("*")) == []
+
+
+def test_a_cached_plan_with_too_few_rooms_is_parsed_again(tmp_path):
+    cache = FilePlanCache(tmp_path)
+    data = make_pdf()
+    sparse = good_reply()
+    sparse["levels"][0]["rooms"] = sparse["levels"][0]["rooms"][:1]
+    parse_plan_pdf(data, client=FakeLLM(sparse), cache=cache, min_rooms=1)
+    llm = FakeLLM(good_reply())
+    plan = parse_plan_pdf(data, client=llm, cache=cache, min_rooms=2)
+    assert len(llm.calls) == 1 and len(plan["levels"][0]["rooms"]) == 2
+
+
+def test_unread_pages_are_reported(tmp_path):
+    plan = parse_plan_pdf(
+        make_pdf(pages=3), client=FakeLLM(good_reply()), cache=NullPlanCache(), max_pages=2
+    )
+    assert "Only the first 2 of 3 pages were read." in plan["warnings"]
+
+
+def test_corrupt_cache_entry_is_ignored(tmp_path):
+    cache = FilePlanCache(tmp_path)
+    (tmp_path / "bad.json").write_text("{not json", encoding="utf-8")
+    assert cache.get("bad") is None
+    assert cache.get("missing") is None
+
+
+# ------------------------------------------------------- provider-neutral interface
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"a": 1}',
+        '```json\n{"a": 1}\n```',
+        'Here you go:\n{"a": 1}\nHope it helps.',
+        '  {"a": 1}  ',
+    ],
+)
+def test_extract_json_object(text):
+    assert extract_json_object(text) == {"a": 1}
+
+
+@pytest.mark.parametrize("text", ["", "no json here", "[1, 2, 3]", '{"a": '])
+def test_extract_json_object_rejects_non_objects(text):
+    with pytest.raises(LLMInvalidJSONError) as caught:
+        extract_json_object(text)
+    assert caught.value.raw_text == text.strip()
+
+
+def test_unknown_provider_is_reported():
+    with pytest.raises(LLMNotConfiguredError, match="Unsupported LLM provider"):
+        get_json_llm("no-such-provider")
+
+
+def gemini(handler, **kwargs) -> GeminiJSONClient:
+    return GeminiJSONClient(
+        api_key="test-key", transport=httpx.MockTransport(handler), sleep=lambda _s: None, **kwargs
+    )
+
+
+def gemini_answer(text: str, finish: str = "STOP") -> httpx.Response:
+    body = {"candidates": [{"content": {"parts": [{"text": text}]}, "finishReason": finish}]}
+    return httpx.Response(200, json=body)
+
+
+def test_gemini_adapter_sends_a_neutral_request_at_temperature_zero():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["key"] = request.headers.get("x-goog-api-key")
+        seen["body"] = json.loads(request.content)
+        return gemini_answer('{"levels": []}')
+
+    client = gemini(handler, model="model-a")
+    out = client.generate_json(
+        system_prompt="SYSTEM",
+        images=[LLMImage(b"png-bytes")],
+        text="USER",
+        json_schema={"type": "object"},
+    )
+    assert out == {"levels": []}
+    assert "model-a:generateContent" in seen["url"]
+    assert "test-key" not in seen["url"] and seen["key"] == "test-key"  # key only in the header
+    body = seen["body"]
+    assert body["generationConfig"] == {"temperature": 0, "response_mime_type": "application/json"}
+    assert body["system_instruction"]["parts"][0]["text"].startswith("SYSTEM")
+    assert '{"type":"object"}' in body["system_instruction"]["parts"][0]["text"]
+    parts = body["contents"][0]["parts"]
+    assert parts[0]["inline_data"]["mime_type"] == "image/png" and parts[-1] == {"text": "USER"}
+
+
+def test_gemini_adapter_falls_back_to_the_next_model():
+    tried = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        tried.append(str(request.url).split("/models/")[1].split(":")[0])
+        return httpx.Response(404) if len(tried) == 1 else gemini_answer('{"ok": true}')
+
+    client = gemini(handler, model="retired-model", fallback_models=["next-model"])
+    assert client.generate_json(system_prompt="s", images=[], text="t") == {"ok": True}
+    assert tried == ["retired-model", "next-model"]
+    assert client.model == "next-model"
+
+
+def test_gemini_adapter_reports_an_outage():
+    client = gemini(lambda request: httpx.Response(503), model="m", fallback_models=[])
+    with pytest.raises(LLMUnavailableError):
+        client.generate_json(system_prompt="s", images=[], text="t")
+
+
+def test_gemini_adapter_reports_a_rejected_request():
+    client = gemini(
+        lambda request: httpx.Response(400, json={"error": "bad"}), model="m", fallback_models=[]
+    )
+    with pytest.raises(LLMRequestRejectedError):
+        client.generate_json(system_prompt="s", images=[], text="t")
+
+
+def test_gemini_adapter_reports_a_cut_off_reply_as_invalid_json():
+    client = gemini(
+        lambda request: gemini_answer('{"levels": [', "MAX_TOKENS"), model="m", fallback_models=[]
+    )
+    with pytest.raises(LLMInvalidJSONError) as caught:
+        client.generate_json(system_prompt="s", images=[], text="t")
+    assert caught.value.raw_text == '{"levels": ['
+
+
+def test_gemini_adapter_without_a_key_is_not_configured(monkeypatch):
+    for name in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr("app.core.config.settings.gemini_api_key", "")
+    monkeypatch.setattr("app.core.config.settings.llm_api_key", "")
+    client = GeminiJSONClient(transport=httpx.MockTransport(lambda r: httpx.Response(500)))
+    with pytest.raises(LLMNotConfiguredError):
+        client.generate_json(system_prompt="s", images=[], text="t")

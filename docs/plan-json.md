@@ -64,6 +64,31 @@ Units are in meters (`"m"`). Coordinates on 2D floor plans are `(x, y)` where `y
 }
 ```
 
+## 1a. Schema 2.0 fields
+
+The model is defined once, in `backend/app/modules/plans/schemas.py` (`SCHEMA_VERSION = "2.0"`). Schema 2.0 only adds fields. No 1.x key was renamed or removed, so a 1.x document still validates and every reader of 1.x keys still finds them.
+
+| Where | Field | Meaning |
+|---|---|---|
+| plan | `schema_version` | `"2.0"` |
+| plan | `building_type` | `villa`, `apartment` or `other` |
+| plan | `scale_source` | adds `scale_bar` and `stated_scale`; the 1.x values `scale_text` and `user_reference` stay valid |
+| plan | `warnings` | plain-language warnings, e.g. implausible scale |
+| plan | `parser` | which parser run produced the plan: PDF sha256, parser, prompt and model |
+| level | `index`, `name` | position from the lowest floor (0) and the floor's printed title |
+| level | `wall_height_source` | `stated` when the drawing gives the height, else `default` |
+| room | `height_m`, `is_double_height_void` | per-room ceiling height, when it differs from the level |
+| wall | `is_exterior` | mirrors `kind` (`exterior` / `interior`); the model keeps the two in step |
+| opening | `sill_height` | mirrors `sill`; the model keeps the two in step |
+| opening | `position` | centre of the opening on its wall, derived from the wall and `offset` |
+
+Notes:
+
+- `wall_height` holds `2.8` when the drawing states no height (`wall_height_source: "default"`). The 3D viewer draws walls at that height; the material calculator uses its own standard ceiling height (3.35 m) instead.
+- `offset` is measured along the wall from its `start` to the centre of the opening.
+- Parser output uses stable ids: `L0-R01` (room), `L0-W01` (wall), `L0-O01` (opening), `L0-C01` (column), where the first number is the level index.
+- A room `type` code for the material calculator is **not** written yet. The 3D adapter (`viewer3d/adapter/normalizePlan.ts`) reads `room.type` as its own lowercase room type, so that key cannot carry a second vocabulary without changing the 3D output. The key to use is an open decision.
+
 ## 2. Internal Target `Plan` Type (`frontend/src/viewer3d/types.ts`)
 
 Units are strictly in **METERS**, coordinates map to Three.js world space:

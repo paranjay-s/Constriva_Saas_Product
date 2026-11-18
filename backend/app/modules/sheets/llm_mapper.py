@@ -26,71 +26,54 @@ import json
 import logging
 from typing import Dict, Any, List, Optional, Tuple
 
+from app.modules.plans.room_kind import is_open_void_label
+from app.modules.sheets.boq_rows import build_boq_rows, count_bathrooms
+from app.modules.sheets.constants import (  # noqa: F401  (re-exported)
+    CEMENT_BAGS_PER_M3,
+    CEMENT_WASTE_FACTOR,
+    CFT_PER_M3,
+    DEFAULT_WALL_HEIGHT_M,
+    DOOR_OPENING_AREA_M2,
+    DRY_VOLUME_MULTIPLIER,
+    EXTERNAL_WET_WALL_SHARE,
+    EXT_PLASTER_CEMENT_BAGS_PER_M2,
+    EXT_PLASTER_SAND_THICKNESS_M,
+    FLOOR_STEEL_KG_PER_M2,
+    GITTI_BULK_DENSITY_TONS_M3,
+    GITTI_WASTE_FACTOR,
+    GYPSUM_BAG_WEIGHT_KG,
+    GYPSUM_CEILING_THICKNESS_M,
+    GYPSUM_DENSITY_KG_M3,
+    GYPSUM_WALL_THICKNESS_M,
+    GYPSUM_WASTE_FACTOR,
+    INDIA_BRICKS_PER_M2,
+    INTERNAL_DRY_WALL_SHARE,
+    M20_TOTAL_PARTS,
+    MASONRY_WASTE_FACTOR,
+    MIN_NET_WALL_RATIO,
+    MORTAR_CEMENT_BAGS_PER_M2,
+    MORTAR_SAND_THICKNESS_M,
+    PARAPET_HEIGHT_M,
+    PARSER_FALLBACK_WALL_HEIGHT_M,
+    PLINTH_STEEL_KG_PER_M2,
+    PLINTH_WALL_FACTOR,
+    RCC_STRUCTURAL_MULTIPLIER,
+    SAND_BULK_DENSITY_TONS_M3,
+    SAND_WASTE_FACTOR,
+    SHARED_WALL_REDUCTION_FACTOR,
+    SKIRTING_HEIGHT_M,
+    SLAB_THICKNESS_M,
+    STANDARD_TILE_AREA_M2,
+    STEEL_WASTE_FACTOR,
+    TILE_BEDDING_SCREED_THICKNESS_M,
+    TILE_WASTE_HERRINGBONE,
+    TILE_WASTE_STANDARD,
+    TMT_12MM_ROD_WEIGHT_KG,
+    UAE_AAC_BLOCK_AREA_M2,
+    WINDOW_OPENING_AREA_M2,
+)
+
 logger = logging.getLogger("construtiva.sheets.llm_mapper")
-
-# =============================================================================
-# 1. LOCKED-IN ENGINEERING CONSTANTS (UAE + THEKEDAAR CALIBRATED)
-# =============================================================================
-DEFAULT_WALL_HEIGHT_M = 3.35          # 11 ft standard ceiling height (3.35 m)
-PARSER_FALLBACK_WALL_HEIGHT_M = 2.80  # Default emitted by 2D parser when height is unstated
-SHARED_WALL_REDUCTION_FACTOR = 0.72   # Deduplicates shared internal walls across adjacent rooms
-
-DOOR_OPENING_AREA_M2 = 1.89           # Standard 0.9m x 2.1m door opening area
-WINDOW_OPENING_AREA_M2 = 1.44         # Standard 1.2m x 1.2m window opening area
-MIN_NET_WALL_RATIO = 0.50             # Net wall area floor (at least 50% of gross wall area)
-
-PLINTH_WALL_FACTOR = 0.25             # 25% of ground floor net wall area for substructure plinth masonry
-PARAPET_HEIGHT_M = 1.00               # 1.0m high roof terrace boundary parapet wall
-
-# Concrete Constants (4.5-inch / 0.115m slab + 35% for beams, columns & footings)
-SLAB_THICKNESS_M = 0.115
-RCC_STRUCTURAL_MULTIPLIER = 1.35      # 0.115 * 1.35 = 0.15525 m3 wet concrete per m2 built area
-DRY_VOLUME_MULTIPLIER = 1.54          # Converts wet concrete volume to dry mix volume
-M20_TOTAL_PARTS = 5.5                 # M20 nominal mix (1 : 1.5 : 3 -> 5.5 total parts)
-
-# 1. Masonry Constants
-UAE_AAC_BLOCK_AREA_M2 = 0.12          # 600mm x 200mm standard UAE AAC block
-INDIA_BRICKS_PER_M2 = 55.0            # Reference Indian clay/fly-ash bricks per m2 of wall
-MASONRY_WASTE_FACTOR = 1.05           # 5% breakage & cutting waste
-
-# 2. Steel / Rebar Constants
-PLINTH_STEEL_KG_PER_M2 = 34.0         # Substructure/plinth steel per m2 of ground footprint
-FLOOR_STEEL_KG_PER_M2 = 22.0          # Superstructure slab/beam/column steel per m2 of floor area
-STEEL_WASTE_FACTOR = 1.10             # 10% lapping, bending & cutting waste
-TMT_12MM_ROD_WEIGHT_KG = 10.656       # 0.888 kg/m * 12m standard UAE TMT bar
-
-# 3. Cement Constants (50kg OPC/SRC Bags)
-CEMENT_BAGS_PER_M3 = 28.8             # 1,440 kg/m3 bulk density / 50 kg per bag
-MORTAR_CEMENT_BAGS_PER_M2 = 0.10      # Thin-bed AAC adhesive / blockwork mortar
-EXT_PLASTER_CEMENT_BAGS_PER_M2 = 0.14 # 18mm external/wet area cement plaster
-CEMENT_WASTE_FACTOR = 1.05            # 5% handling waste
-
-# 4. Sand Constants (Washed Marine/Crushed Sand)
-MORTAR_SAND_THICKNESS_M = 0.012
-EXT_PLASTER_SAND_THICKNESS_M = 0.018
-TILE_BEDDING_SCREED_THICKNESS_M = 0.025
-SAND_BULK_DENSITY_TONS_M3 = 1.55
-SAND_WASTE_FACTOR = 1.05
-CFT_PER_M3 = 35.315                   # 1 m3 = 35.315 cubic feet
-
-# 5. Ballast / Gitti Constants (10mm/20mm Crushed Gabbro)
-GITTI_BULK_DENSITY_TONS_M3 = 1.50
-GITTI_WASTE_FACTOR = 1.05
-
-# 6. Plaster Constants (65% Internal Dry Gypsum / 35% External & Wet Cement)
-INTERNAL_DRY_WALL_SHARE = 0.65
-EXTERNAL_WET_WALL_SHARE = 0.35
-GYPSUM_WALL_THICKNESS_M = 0.012       # 12mm internal wall gypsum plaster
-GYPSUM_CEILING_THICKNESS_M = 0.006    # 6mm ceiling gypsum plaster
-GYPSUM_WASTE_FACTOR = 1.15            # 15% application & mixing waste
-GYPSUM_DENSITY_KG_M3 = 1000.0
-GYPSUM_BAG_WEIGHT_KG = 30.0           # Standard 30kg ready-mix gypsum bag
-
-# 7. Tile Constants (600x600mm UAE Porcelain)
-SKIRTING_HEIGHT_M = 0.10              # 10cm (0.10m) wall skirting
-STANDARD_TILE_AREA_M2 = 0.36          # 600mm x 600mm = 0.36 m2 per tile
-TILE_WASTE_STANDARD = 1.05            # 5% straight lay waste
-TILE_WASTE_HERRINGBONE = 1.15         # 15% herringbone / diagonal pattern waste
 
 
 # =============================================================================
@@ -172,7 +155,8 @@ def _classify_room_kind(room: Dict[str, Any]) -> str:
         return "outdoor"
     if any(k in name for k in ("verandah", "veranda", "balcony", "stair", "terrace", "sitout")):
         return "semi_open"
-    if any(k in name for k in ("shaft", "open", "void", "duct", "ots")):
+    # "open" alone must not match: "Open Kitchen" is a room. See plans/room_kind.py.
+    if any(k in name for k in ("shaft", "void", "duct", "ots")) or is_open_void_label(name):
         return "void"
     return "indoor"
 
@@ -190,8 +174,14 @@ def _resolve_room_height_m(
     elif isinstance(global_height_override_m, (int, float)) and float(global_height_override_m) > 1.5:
         base_h = float(global_height_override_m)
     else:
-        lvl_h = float(level.get("wall_height", DEFAULT_WALL_HEIGHT_M))
-        if use_standard_11ft_default and abs(lvl_h - PARSER_FALLBACK_WALL_HEIGHT_M) < 0.05:
+        lvl_h = float(level.get("wall_height") or DEFAULT_WALL_HEIGHT_M)
+        source = level.get("wall_height_source")
+        if source == "stated":
+            # Schema 2.0: the drawing states this height, so it is used as given.
+            base_h = lvl_h if lvl_h > 1.5 else DEFAULT_WALL_HEIGHT_M
+        elif use_standard_11ft_default and (
+            source == "default" or abs(lvl_h - PARSER_FALLBACK_WALL_HEIGHT_M) < 0.05
+        ):
             base_h = DEFAULT_WALL_HEIGHT_M
         else:
             base_h = lvl_h if lvl_h > 1.5 else DEFAULT_WALL_HEIGHT_M
@@ -552,6 +542,9 @@ def map_plan_to_materials(
     num_levels = len(levels)
     level_summaries: List[Dict[str, Any]] = []
     room_breakdown: List[Dict[str, Any]] = []
+    warnings: List[str] = [str(w) for w in (plan.get("warnings") or []) if isinstance(w, str)]
+    built_rooms_count = 0
+    bathrooms_count = 0
 
     a_ground = 0.0
     a_built_total = 0.0
@@ -601,6 +594,8 @@ def map_plan_to_materials(
                 lvl_skirting_area += r_skirting
                 lvl_built_room_ids.append(r_id)
                 all_built_room_ids.append(r_id)
+                built_rooms_count += 1
+                bathrooms_count += count_bathrooms(r.get("name"))
 
             lvl_room_records.append({
                 "raw_room": r,
@@ -617,8 +612,22 @@ def map_plan_to_materials(
                 "r_skirting": r_skirting,
             })
 
+        lvl_label = lvl.get("name") or f"Level {lvl_idx + 1}"
+        if (
+            global_ceiling_height_m is None
+            and use_standard_11ft_default
+            and lvl.get("wall_height_source") != "stated"
+            and abs(float(lvl.get("wall_height") or PARSER_FALLBACK_WALL_HEIGHT_M) - PARSER_FALLBACK_WALL_HEIGHT_M) < 0.05
+        ):
+            warnings.append(
+                f"{lvl_label}: the drawing states no ceiling height; {DEFAULT_WALL_HEIGHT_M} m was assumed."
+            )
+
         # Fallback if a level has walls but 0 rooms
         if lvl_built_area <= 0.0 and walls:
+            warnings.append(
+                f"{lvl_label}: no usable rooms were found; areas were estimated from the wall outline."
+            )
             xs = [float(pt[0]) * unit_scale for w in walls for pt in (w["start"], w["end"])]
             ys = [float(pt[1]) * unit_scale for w in walls for pt in (w["start"], w["end"])]
             lvl_built_area = (max(xs) - min(xs)) * (max(ys) - min(ys))
@@ -641,6 +650,11 @@ def map_plan_to_materials(
             lvl_gross_wall_area - lvl_openings_area,
             MIN_NET_WALL_RATIO * lvl_gross_wall_area,
         )
+        if lvl_gross_wall_area > 0 and lvl_openings_area > (1.0 - MIN_NET_WALL_RATIO) * lvl_gross_wall_area:
+            warnings.append(
+                f"{lvl_label}: openings exceed {int((1.0 - MIN_NET_WALL_RATIO) * 100)}% of the wall area; "
+                "the net wall area was held at the minimum."
+            )
 
         if lvl_idx == 0:
             a_ground = lvl_built_area
@@ -765,6 +779,11 @@ def map_plan_to_materials(
         scope_room_ids=all_built_room_ids,
     )
 
+    if a_built_total <= 0.0:
+        warnings.append("No built area was found in the plan, so every quantity is zero.")
+    seen_warnings: set = set()
+    warnings = [w for w in warnings if not (w in seen_warnings or seen_warnings.add(w))]
+
     return {
         "project_metadata": {
             "project_title": plan.get("project_title") or "NA",
@@ -774,6 +793,8 @@ def map_plan_to_materials(
             "units": "m",
             "scale_source": plan.get("scale_source", "dimension_label"),
             "levels_count": num_levels,
+            "building_type": plan.get("building_type") or "other",
+            "schema_version": plan.get("schema_version") or "1.0",
         },
         "geometry_summary": {
             "a_ground_m2": round(a_ground, 2),
@@ -789,7 +810,12 @@ def map_plan_to_materials(
             "total_doors": total_doors_all_levels,
             "total_windows": total_windows_all_levels,
             "total_columns": total_columns_all_levels,
+            "levels_count": num_levels,
+            "rooms_count": built_rooms_count,
+            "bathrooms_count": bathrooms_count,
         },
+        "items": build_boq_rows(project_materials_by_key),
+        "warnings": warnings,
         "materials": list(project_materials_by_key.values()),
         "materials_by_key": project_materials_by_key,
         "level_summaries": level_summaries,

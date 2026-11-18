@@ -12,6 +12,7 @@ import { WorkspacePage } from '../features/plan-viewer/WorkspacePage';
 import { AiGeneratorPage } from '../features/chat/AiGeneratorPage';
 import { LegacyAiGeneratorPage } from '../features/chat/LegacyAiGeneratorPage';
 import { MaterialFinderPage } from '../features/materials';
+import { BoqPage } from '../features/sheets';
 import { LoanAnalysisPage } from '../features/loan/LoanAnalysisPage';
 
 export const router = createBrowserRouter([
@@ -60,6 +61,10 @@ export const router = createBrowserRouter([
       {
         path: '/materials/analyse',
         element: <MaterialFinderPage />,
+      },
+      {
+        path: '/boq',
+        element: <BoqPage />,
       },
       {
         path: '/projects/loan-analysis',

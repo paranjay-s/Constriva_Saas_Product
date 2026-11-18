@@ -161,7 +161,7 @@ export const HomePage: React.FC = () => {
 
           {/* Action 3: BOQ Sheets */}
           <div
-            onClick={() => navigate('/projects/options')}
+            onClick={() => navigate('/boq')}
             className="arch-glass arch-glass-hover p-6 rounded-2xl flex flex-col justify-between cursor-pointer group"
           >
             <div>
@@ -172,14 +172,14 @@ export const HomePage: React.FC = () => {
                 Pillar 03 // Quantities
               </span>
               <h2 className="font-display font-medium text-lg text-white group-hover:text-[#fff1e2] transition-colors">
-                BOQ Sheets (PDF)
+                BOQ Raw Materials
               </h2>
               <p className="text-xs text-white/70 mt-2 leading-relaxed">
-                Automated itemized material schedules with spatial 3D highlighting and downloadable PDFs.
+                Upload a floor plan PDF to get an itemised material schedule you can search, filter and download as PDF or Excel.
               </p>
             </div>
             <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-[#C5A77B]">
-              <span>Cost Sheets</span>
+              <span>Upload PDF</span>
               <ArrowRightIcon size={14} className="group-hover:translate-x-1 transition-transform" />
             </div>
           </div>

@@ -403,7 +403,7 @@ export const ImportPlanPage: React.FC = () => {
                 rightIcon={<ArrowRightIcon size={16} />}
                 className="w-full max-w-md"
               >
-                Open 3D Workspace & Cost Sheet
+                Open 3D Workspace
               </Button>
 
               <button

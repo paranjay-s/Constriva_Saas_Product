@@ -163,6 +163,12 @@ export const TrashIcon: React.FC<IconProps> = ({ className = 'w-5 h-5', size = 2
   </svg>
 );
 
+export const ChevronRightIcon: React.FC<IconProps> = ({ className = 'w-5 h-5', size = 20, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+    <polyline points="9 6 15 12 9 18" />
+  </svg>
+);
+
 // Aliases
 export const IconArrowLeft = ArrowLeftIcon;
 export const IconArrowRight = ArrowRightIcon;

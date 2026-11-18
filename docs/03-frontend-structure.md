@@ -44,9 +44,9 @@ features/<name>/
 | `auth` | Sign in, sign up, session handling. |
 | `projects` | Project list and project dashboard. |
 | `files` | Upload flow: ask the API for a presigned URL, upload straight to S3, then start parsing. |
-| `plan-viewer` | The 3D viewer (see below). |
+| `plan-viewer` | The 3D viewer (see below). `WorkspacePage.tsx` shows the viewer full width; material quantities live on the BOQ page, not here. |
 | `plan-editor` | 2D editing on top of the original PDF. |
-| `sheets` | Material sheet table with editable rows and export buttons. |
+| `sheets` | The BOQ page (`/boq`): upload a plan PDF, follow progress, then an interactive material table with search, filters, grouping and PDF / Excel export. Also the earlier per-project sheet API client. See [07-boq.md](07-boq.md). |
 | `chat` | Chat panel; sends messages and applies returned edit operations. |
 | `loan` | Loan document upload and results (pending design). |
 | `reports` | Report generation and download. |

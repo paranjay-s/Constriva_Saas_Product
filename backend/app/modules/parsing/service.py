@@ -22,9 +22,13 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from app.core.supabase import get_supabase_client, upload_to_storage, ensure_storage_buckets
 from app.modules.parsing.pdf_to_image import convert_pdf_page_to_png
-from app.modules.parsing.llm_parser import parse_blueprint_image_with_llm
+from app.modules.parsing.errors import PlanParseError
+from app.modules.parsing.llm_parser import parse_plan_pdf
 
 logger = logging.getLogger("construtiva.parsing")
+
+# Fewest rooms the lowest floor must have for an imported blueprint to count as complete.
+BLUEPRINT_MIN_ROOMS = 6
 
 # Load verified plan from extracted_plan.json as singleton default
 DEFAULT_VERIFIED_PLAN: Dict[str, Any] = {}
@@ -103,46 +107,6 @@ class ParsingService:
         """
         supabase = get_supabase_client()
         ensure_storage_buckets()
-
-        # -------------------------------------------------------------
-        # STEP 0: Fast Cache Check (Instant Retrieval for Existing Files)
-        # -------------------------------------------------------------
-        import hashlib
-        import json
-        from pathlib import Path
-        file_hash = hashlib.sha256(pdf_bytes).hexdigest()
-        cache_dir = Path("backend/.tmp/plan_cache")
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        cache_file = cache_dir / f"{file_hash}.json"
-
-        if cache_file.exists():
-            try:
-                with open(cache_file, "r", encoding="utf-8") as f:
-                    cached_data = json.load(f)
-                if cached_data.get("final_result"):
-                    if not job_id:
-                        job_id = str(uuid.uuid4())
-                        supabase.table("jobs").insert({
-                            "id": job_id,
-                            "project_id": project_id,
-                            "user_id": user_id,
-                            "type": "parse_plan",
-                            "status": "running",
-                            "progress": 20,
-                            "step": "Found verified architectural cache...",
-                        }).execute()
-
-                    cls.update_job_progress(
-                        job_id=job_id,
-                        step="Instantly loaded cached architectural geometry (<50ms)...",
-                        progress=100,
-                        status="done",
-                        result=cached_data["final_result"],
-                    )
-                    logger.info(f"Instant cache hit for {filename} (hash {file_hash[:8]}).")
-                    return cached_data["return_val"]
-            except Exception as cache_read_err:
-                logger.warning(f"Could not read plan cache: {cache_read_err}")
 
         if not job_id:
             job_id = str(uuid.uuid4())
@@ -234,9 +198,11 @@ class ParsingService:
         cls.update_job_progress(job_id, "Detecting structural wall centerlines and openings...", 75)
         
         try:
-            extracted_plan = parse_blueprint_image_with_llm(png_bytes)
+            # Reads the plan cache first: the same PDF bytes always give the same PlanJSON.
+            extracted_plan = parse_plan_pdf(pdf_bytes, min_rooms=BLUEPRINT_MIN_ROOMS)
         except Exception as err:
-            logger.warning(f"Vision LLM parsing unavailable ({err}). Synthesizing calibrated CAD plan from architectural template.")
+            reason = f"{err.code}: {err}" if isinstance(err, PlanParseError) else str(err)
+            logger.warning(f"Vision LLM parsing unavailable ({reason}). Synthesizing calibrated CAD plan from architectural template.")
             from app.modules.ai.floorplan_generator import create_architectural_template, build_plan_json_from_template
             is_rental = any(k in filename.lower() for k in ("alt", "sf", "rent", "opt", "smt", "geeta", "working", "dual", "2bhk", "plan", "blueprint"))
             template = create_architectural_template(
@@ -304,19 +270,6 @@ class ParsingService:
             status="done",
             result=final_result,
         )
-
-        # Save to fast cache for instant re-upload
-        try:
-            return_val = {
-                "plan_id": plan_id,
-                "plan_data": extracted_plan,
-                "pdf_storage_key": pdf_storage_key,
-                "png_storage_key": png_storage_key,
-            }
-            with open(cache_file, "w", encoding="utf-8") as f:
-                json.dump({"final_result": final_result, "return_val": return_val}, f)
-        except Exception as cache_save_err:
-            logger.warning(f"Could not persist plan to fast cache: {cache_save_err}")
 
         logger.info(f"Pipeline finished for {filename} (Plan ID: {plan_id}, Project ID: {project_id})")
         return {

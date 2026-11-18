@@ -65,11 +65,16 @@ describe('Constriva Frontend - 9 Core Required Pages', () => {
     expect(screen.getByText(/process architectural plan/i)).toBeDefined();
   });
 
-  it('renders Route 6: /projects/3d-workspace (3D Model & BOQ Material Estimate)', () => {
+  it('renders Route 6: /projects/3d-workspace (3D Model only: the material sheet lives at /boq)', () => {
     renderWithProviders(<WorkspacePage />);
-    expect(screen.getByText(/bill of materials/i)).toBeDefined();
-    expect(screen.getByText(/total estimated material cost/i)).toBeDefined();
     expect(screen.getByTestId('mock-3d-plan-viewer')).toBeDefined();
+    expect(screen.getByRole('toolbar', { name: /3d workspace controls/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /options/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /loan/i })).toBeDefined();
+    // no material panel, no sheet exports, no mobile 3D / BOQ switcher
+    expect(screen.queryByText(/bill of materials/i)).toBeNull();
+    expect(screen.queryByText(/boq/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /csv|pdf/i })).toBeNull();
   });
 
   it('renders Route 7: /projects/ai-generator (AI Floor Plan Generator)', () => {
