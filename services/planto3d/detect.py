@@ -976,12 +976,33 @@ def detect_page(page):
     out = []
     for f in floors:
         f["walls"] = close_corners(f["walls"], T)
-        out.append(detect_floor(f, T, s, phr, PEN, hatch_all, A, BL, CUTS))
+        out.append(detect_floor(f, T, s, phr, PEN, hatch_all, A, BL, CUTS, page["fills"]))
     out.sort(key=lambda f: f["_x"])
     return dict(T=T, scale=s, scale_source=scale_src, scale_estimates=est, floors=out)
 
 
-def detect_floor(f, T, s, phr, lines, hatch, A, zone_lines, cuts=()):
+def blue(col):
+    """a water colour: clearly blue-cyan (hue 170-230 degrees) and not grey"""
+    if not isinstance(col, tuple):
+        return False
+    r, g, b = (c / 255 for c in col[:3])
+    hi, lo = max(r, g, b), min(r, g, b)
+    if hi - lo < 0.12 or hi < 0.35:
+        return False
+    h = (60 * ((g - b) / (hi - lo)) % 360 if hi == r else 60 * ((b - r) / (hi - lo)) + 120 if hi == g
+         else 60 * ((r - g) / (hi - lo)) + 240)
+    return 170 <= h <= 230
+
+
+def in_poly(x, y, poly):
+    inside_ = False
+    for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1]):
+        if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
+            inside_ = not inside_
+    return inside_
+
+
+def detect_floor(f, T, s, phr, lines, hatch, A, zone_lines, cuts=(), fills=()):
     b, walls = f["bbox"], f["walls"]
     ops = [o for o in openings(walls, lines, A, T, s, zone_lines) if inside(((o["rect"][0] + o["rect"][1]) / 2,
                                                                   (o["rect"][2] + o["rect"][3]) / 2), b)]
@@ -1056,8 +1077,15 @@ def detect_floor(f, T, s, phr, lines, hatch, A, zone_lines, cuts=()):
                                     ((o["rect"][0] + o["rect"][1]) / 2, o["rect"][3] + 1.5 * C),
                                     (o["rect"][0] - 1.5 * C, (o["rect"][2] + o["rect"][3]) / 2),
                                     (o["rect"][1] + 1.5 * C, (o["rect"][2] + o["rect"][3]) / 2)))
-            # a door into it makes it a lobby; ducts are walled all round
-            seeds = [(0, 0, "yard" if edge else "passage" if door else "duct" if area < 12 else "room", None)]
+            # a door into it makes it a lobby; ducts are walled all round; a region filled with water blue is water
+            # (a pool drawn without a name)
+            xs0, xs1, ys0, ys1 = min(xs), max(xs) + C, min(ys), max(ys) + C
+            wet = [poly for poly, col in fills if blue(col) and len(poly) >= 3 and min(q[0] for q in poly) < xs1
+                   and max(q[0] for q in poly) > xs0 and min(q[1] for q in poly) < ys1 and max(q[1] for q in poly) > ys0]
+            sample = cells[::max(1, len(cells) // 200)]
+            water = bool(wet) and area >= 20 and sum(any(in_poly(ox + (i + 0.5) * C, oy + (j + 0.5) * C, q) for q in wet)
+                                                     for i, j in sample) >= 0.6 * len(sample)
+            seeds = [(0, 0, "pool" if water else "yard" if edge else "passage" if door else "duct" if area < 12 else "room", None)]
         groups = {}
         for pc, idx in fine_parts(cells, [cell_of(sd[0], sd[1]) for sd in seeds], lcells) if seeds[0][3] or len(seeds) > 1 \
                 else [(cells, [0])]:
