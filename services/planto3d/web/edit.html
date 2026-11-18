@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Review Plan</title>
-<link rel="stylesheet" href="/web/style.css?v=2">
+<link rel="stylesheet" href="style.css?v=2">
 <style>
   body { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
   header { display: flex; gap: 10px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
@@ -33,12 +33,14 @@
   @keyframes drawhouse { 0% { stroke-dashoffset: 100; } 55%, 72% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }
   @media (prefers-reduced-motion: reduce) { #bspin path { animation: none; } }
   #wait { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); flex-direction: column; gap: 10px; padding: 16px; text-align: center; }
+  /* ?embed: the page that frames this one starts the build and shows its progress */
+  .embed #home, .embed #back, .embed #quality, .embed #build, .embed #furnrow, .embed #buildbox { display: none !important; }
   @media (max-width: 760px) { main { flex-direction: column; } aside { width: auto; max-height: 45vh; border-left: 0; border-top: 1px solid var(--line); } }
 </style>
 </head>
 <body>
 <header>
-  <a href="/" title="Back to the home page">Home</a>
+  <a href="../" id="home" title="Back to the home page">Home</a>
   <h2 id="title">Review</h2>
   <div class="tabs" id="tabs"></div>
   <span class="muted" id="scale"></span>
@@ -51,7 +53,7 @@
 </header>
 <main>
   <div id="stage"><canvas id="cv"></canvas>
-    <div id="wait"><b id="wmsg">Reading the drawing…</b><div class="bar" style="width:260px"><i id="wbar"></i></div><a href="/" id="back" hidden>Upload another file</a></div>
+    <div id="wait"><b id="wmsg">Reading the drawing…</b><div class="bar" style="width:260px"><i id="wbar"></i></div><a href="../" id="back" hidden>Upload another file</a></div>
   </div>
   <aside>
     <div>
@@ -69,7 +71,7 @@
     <div id="props"></div>
     <div>
       <h3>Furniture</h3>
-      <label title="Untick to build empty rooms: walls, floors, doors, windows and lights only"><input type="checkbox" id="furn" checked> Furnish the rooms</label>
+      <label id="furnrow" title="Untick to build empty rooms: walls, floors, doors, windows and lights only"><input type="checkbox" id="furn" checked> Furnish the rooms</label>
       <button class="btn ghost" id="models" type="button" style="margin-top:8px;width:100%">Change furniture models</button>
     </div>
     <div>
@@ -95,6 +97,6 @@
   <form method="dialog" style="position:absolute;right:10px;top:8px"><button class="btn ghost">Close</button></form>
   <iframe id="modelsframe" title="Furniture models" style="width:100%;height:100%;border:0"></iframe>
 </dialog>
-<script type="module" src="/web/edit.js"></script>
+<script type="module" src="edit.js"></script>
 </body>
 </html>

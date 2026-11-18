@@ -1,0 +1,129 @@
+"""HTTP client of the private PlanTo3D service. The only code that talks to it.
+
+PlanTo3D listens on 127.0.0.1 (PLAN3D_SERVICE_URL) and is never called from a browser.
+Its own API is plain HTTP with JSON bodies and `{"error": "..."}` on failure.
+"""
+
+import logging
+from typing import Any
+from urllib.parse import quote
+
+import httpx
+
+from app.modules.plan3d.settings import get_settings
+
+logger = logging.getLogger("construtiva.plan3d.client")
+
+
+class Plan3dError(Exception):
+    """PlanTo3D refused a request. `status` and `message` are safe to pass to the user."""
+
+    def __init__(self, status: int, message: str) -> None:
+        super().__init__(message)
+        self.status = status
+        self.message = message
+
+
+class Plan3dUnavailable(Plan3dError):
+    """The service cannot be reached."""
+
+    def __init__(self, detail: str = "") -> None:
+        super().__init__(
+            503, "The 3D builder is not running right now. Please try again in a moment."
+        )
+        self.detail = detail
+
+
+def _error_message(response: httpx.Response) -> str:
+    try:
+        body = response.json()
+    except ValueError:
+        body = None
+    if isinstance(body, dict) and isinstance(body.get("error"), str):
+        return body["error"]
+    return f"The 3D builder answered with an error ({response.status_code})."
+
+
+class Plan3dClient:
+    def __init__(self, http: httpx.AsyncClient) -> None:
+        self.http = http
+
+    async def _json(self, method: str, path: str, **kwargs: Any) -> Any:
+        try:
+            response = await self.http.request(method, path, **kwargs)
+        except httpx.HTTPError as e:
+            logger.warning("PlanTo3D %s %s failed: %s", method, path, type(e).__name__)
+            raise Plan3dUnavailable(type(e).__name__) from e
+        if response.status_code >= 400:
+            raise Plan3dError(response.status_code, _error_message(response))
+        try:
+            return response.json()
+        except ValueError as e:
+            raise Plan3dError(502, "The 3D builder sent an unreadable answer.") from e
+
+    async def system(self) -> dict[str, Any]:
+        return await self._json("GET", "/api/system")
+
+    async def upload(self, pdf_bytes: bytes, filename: str) -> str:
+        """Hand a PDF to PlanTo3D, which starts detecting at once. Returns its job id."""
+        body = await self._json(
+            "POST",
+            "/api/upload",
+            content=pdf_bytes,
+            headers={
+                "X-Filename": quote(filename or "plan.pdf"),
+                "Content-Type": "application/pdf",
+            },
+        )
+        return str(body["id"])
+
+    async def sample_pdf(self) -> bytes:
+        try:
+            response = await self.http.get("/examples/sample_plan.pdf")
+        except httpx.HTTPError as e:
+            raise Plan3dUnavailable(type(e).__name__) from e
+        if response.status_code != 200:
+            raise Plan3dError(502, "The sample plan is missing from the 3D builder.")
+        return response.content
+
+    async def job(self, job_id: str) -> dict[str, Any] | None:
+        """PlanTo3D's status of a job, or None when it no longer has it."""
+        try:
+            return await self._json("GET", f"/api/jobs/{job_id}")
+        except Plan3dError as e:
+            if e.status == 404:
+                return None
+            raise
+
+    async def build(self, job_id: str, quality: str) -> None:
+        await self._json("POST", f"/api/jobs/{job_id}/build", json={"quality": quality})
+
+    async def export(self, job_id: str) -> str:
+        """Pack the Blender file. Returns its path on the service (/jobs/<id>/house_blender.zip)."""
+        body = await self._json("POST", f"/api/jobs/{job_id}/export", timeout=960.0)
+        return str(body["url"])
+
+    async def delete(self, job_id: str) -> None:
+        try:
+            await self._json("DELETE", f"/api/jobs/{job_id}")
+        except Plan3dError as e:
+            if e.status != 404:  # already gone on the service is fine
+                raise
+
+
+_client: Plan3dClient | None = None
+
+
+def get_plan3d_client() -> Plan3dClient:
+    """The shared client (a FastAPI dependency, replaced by a fake transport in tests)."""
+    global _client
+    if _client is None:
+        settings = get_settings()
+        _client = Plan3dClient(
+            httpx.AsyncClient(
+                base_url=settings.service_url.rstrip("/"),
+                timeout=httpx.Timeout(settings.timeout_s, connect=5.0),
+                follow_redirects=False,
+            )
+        )
+    return _client

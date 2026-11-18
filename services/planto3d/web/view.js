@@ -4,11 +4,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import * as walk from '/web/walk.js';
+import * as walk from './walk.js';
 
 const $ = (id) => document.getElementById(id);
 const job = new URLSearchParams(location.search).get('job');
-const base = `/jobs/${job}/`;
+const base = `../jobs/${job}/`;
 const WALK = 1.5, RUN = 3.0;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -25,7 +25,7 @@ const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 4
 const env = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
 
 const meta = await fetch(base + 'meta.json').then((r) => r.json());
-const draco = new DRACOLoader().setDecoderPath('/three/examples/jsm/libs/draco/');
+const draco = new DRACOLoader().setDecoderPath('../three/examples/jsm/libs/draco/');
 const gltf = await new GLTFLoader().setDRACOLoader(draco).loadAsync(base + 'house.glb', (e) => {
   if (e.total) $('status').textContent = `Loading model… ${Math.round(100 * e.loaded / e.total)}%`;
 });
@@ -286,7 +286,7 @@ function toggleRec() {
     const blob = new Blob(chunks, { type: REC_TYPE });
     if (REC_TYPE.includes('mp4')) return save(blob, 'mp4');
     $('rec').textContent = 'Converting…';      // this browser records WebM: the server turns it into MP4
-    fetch('/api/mp4', { method: 'POST', body: blob }).then((r) => (r.ok ? r.blob() : Promise.reject()))
+    fetch('../api/mp4', { method: 'POST', body: blob }).then((r) => (r.ok ? r.blob() : Promise.reject()))
       .then((mp4) => save(mp4, 'mp4'), () => save(blob, 'webm'))        // (no ffmpeg on the server: keep the WebM)
       .finally(() => { $('rec').textContent = 'Record'; });
   };
@@ -299,10 +299,10 @@ $('blend').onclick = async () => {        // the server packs the textures into 
   b.disabled = true;
   b.textContent = 'Preparing…';
   try {
-    const r = await fetch(`/api/jobs/${job}/export`, { method: 'POST' }), j = await r.json();
+    const r = await fetch(`../api/jobs/${job}/export`, { method: 'POST' }), j = await r.json();
     if (!r.ok) throw new Error(j.error);
     const a = document.createElement('a');
-    a.href = j.url;
+    a.href = '..' + j.url;        // the server answers /jobs/…: keep it under this page's own prefix
     a.download = 'house-blender.zip';
     a.click();
   } catch (e) { alert(e.message || 'Could not prepare the Blender file.'); }

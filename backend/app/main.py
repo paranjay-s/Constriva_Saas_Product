@@ -107,6 +107,12 @@ def create_app() -> FastAPI:
         except ModuleNotFoundError as e:
             logger.warning(f"Could not mount module '{name}': {e}")
 
+    # The 3D gateway to the private PlanTo3D service. Its folder cannot be called "3d".
+    from app.modules.plan3d.router import router as plan3d_router
+
+    app.include_router(plan3d_router, prefix="/api/v1/3d", tags=["3D"])
+    logger.info("Mounted router: /api/v1/3d")
+
     @app.get("/health", summary="Health Check")
     async def health() -> dict[str, str]:
         """Simple health check endpoint."""

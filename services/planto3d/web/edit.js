@@ -1,6 +1,11 @@
 // Review screen: the detected plan drawn over the PDF page; fix walls / openings / room types, then build.
 const $ = (id) => document.getElementById(id);
 const job = new URLSearchParams(location.search).get('job');
+// ?embed: framed by another site's page, which has its own build options and progress. This page then only reviews
+// the plan, tells its host what happens (postMessage, source 'planto3d') and saves the plan when the host asks.
+const EMBED = new URLSearchParams(location.search).has('embed') && parent !== window;
+const tell = (m) => EMBED && parent.postMessage({ source: 'planto3d', job, ...m }, '*');
+if (EMBED) document.body.classList.add('embed');
 const cv = $('cv'), g = cv.getContext('2d');
 const TYPES = ['bedroom', 'toilet', 'kitchen', 'living', 'dining', 'puja', 'wash', 'store', 'study', 'passage',
   'balcony', 'garden', 'open', 'parking', 'yard', 'stair', 'room', 'duct', 'dress'];
@@ -13,7 +18,7 @@ let view = { k: 10, ox: 40, oy: 600 };
 
 // ---------------------------------------------------------------- loading / polling
 async function poll() {
-  const st = await fetch(`/api/jobs/${job}`).then((r) => r.json());
+  const st = await fetch(`../api/jobs/${job}`).then((r) => r.json());
   $('title').textContent = st.name || 'Review';
   if (['uploaded', 'detecting'].includes(st.stage)) {
     $('wmsg').textContent = st.message || 'Reading the drawing…';
@@ -21,13 +26,14 @@ async function poll() {
     return setTimeout(poll, 700);
   }
   if (st.stage === 'failed' && !plan) {
-    $('wmsg').textContent = st.message; $('wmsg').className = 'err'; $('back').hidden = false; return;
+    $('wmsg').textContent = st.message; $('wmsg').className = 'err'; $('back').hidden = false;
+    return tell({ type: 'failed', message: st.message });
   }
-  if (!plan) await load();
+  if (!plan) { await load(); tell({ type: 'ready', floors: plan.floors.length }); }
   buildStatus(st);
 }
 async function load() {
-  plan = await fetch(`/jobs/${job}/plan.json`).then((r) => r.json());
+  plan = await fetch(`../jobs/${job}/plan.json`).then((r) => r.json());
   $('wait').style.display = 'none';
   plan.floors.forEach((f, i) => {
     const b = document.createElement('button');
@@ -37,7 +43,7 @@ async function load() {
   });
   for (const p of new Set(plan.floors.map((f) => f.page || 1))) {
     const im = new Image();
-    im.src = `/jobs/${job}/page-${p}.png`;
+    im.src = `../jobs/${job}/page-${p}.png`;
     im.onload = draw;
     img[p] = im;
   }
@@ -76,9 +82,9 @@ function buildStatus(st) {
   $('bmsg').textContent = st.stage === 'failed' ? `Failed: ${st.message}` : [step, took].filter(Boolean).join(' · ');
   $('bmsg').className = st.stage === 'failed' ? 'err' : 'muted';
   $('open').hidden = st.stage !== 'done';
-  $('open').href = `/web/view.html?job=${job}`;
+  $('open').href = `view.html?job=${job}`;
   $('build').disabled = ['queued', 'building'].includes(st.stage);
-  if (['queued', 'building'].includes(st.stage)) setTimeout(() => fetch(`/api/jobs/${job}`).then((r) => r.json()).then(buildStatus), 1500);
+  if (['queued', 'building'].includes(st.stage)) setTimeout(() => fetch(`../api/jobs/${job}`).then((r) => r.json()).then(buildStatus), 1500);
 }
 
 // ---------------------------------------------------------------- geometry helpers
@@ -321,14 +327,24 @@ addEventListener('resize', draw);
 $('build').onclick = async () => {
   $('build').disabled = true;
   plan.furnish = $('furn').checked;
-  let r = await fetch(`/api/jobs/${job}/plan`, { method: 'POST', body: JSON.stringify(plan) });
-  if (r.ok) r = await fetch(`/api/jobs/${job}/build`, { method: 'POST', body: JSON.stringify({ quality: $('quality').value}) });
+  let r = await fetch(`../api/jobs/${job}/plan`, { method: 'POST', body: JSON.stringify(plan) });
+  if (r.ok) r = await fetch(`../api/jobs/${job}/build`, { method: 'POST', body: JSON.stringify({ quality: $('quality').value}) });
   const j = await r.json();
   if (!r.ok) { alert(j.error); $('build').disabled = false; return; }
   buildStatus({ stage: 'queued', progress: 0, message: 'Queued' });
 };
 poll();
+if (EMBED) addEventListener('message', async (e) => {         // only the page that frames this one is listened to
+  if (e.source !== parent || !e.data || e.data.source !== 'planto3d-host' || e.data.type !== 'save') return;
+  if (!plan) return tell({ type: 'saved', ok: false, error: 'The plan is not loaded yet.' });
+  plan.furnish = e.data.furnish !== false;
+  $('furn').checked = plan.furnish;
+  try {
+    const r = await fetch(`../api/jobs/${job}/plan`, { method: 'POST', body: JSON.stringify(plan) });
+    tell({ type: 'saved', ok: r.ok, error: r.ok ? null : (await r.json()).error });
+  } catch { tell({ type: 'saved', ok: false, error: 'The plan could not be saved.' }); }
+});
 $('models').onclick = () => {           // the furniture page, inside this one: replace a model, then build
-  $('modelsframe').src = '/web/furniture.html?embed';
+  $('modelsframe').src = 'furniture.html?embed';
   $('modelsdlg').showModal();
 };

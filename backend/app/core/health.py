@@ -5,6 +5,8 @@ Checks, without changing any data:
   admin_client  the shared admin client still uses the service key (not a user session)
   auth          Supabase Auth answers and its signing keys can be loaded (token checks)
   ai            a Gemini API key is configured
+  planto3d      the private 3D service answers and has Blender, the PDF tools, the viewer
+                library and the materials (its own GET /api/system)
 
 Open it before a client meeting: every check should say "ok".
 """
@@ -62,6 +64,26 @@ def _ai() -> str:
     return "ok"
 
 
+def _planto3d() -> str:
+    import httpx
+
+    from app.modules.plan3d.settings import get_settings
+
+    try:
+        url = get_settings().service_url.rstrip("/") + "/api/system"
+        system = httpx.get(url, timeout=70).json()
+    except httpx.HTTPError as e:
+        raise RuntimeError(f"the 3D service is not reachable ({type(e).__name__})") from e
+    missing = [
+        name
+        for name in ("blender", "pdf_tools", "viewer", "materials")
+        if not (system.get(name) or {}).get("ok")
+    ]
+    if missing:
+        raise RuntimeError("the 3D service is missing: " + ", ".join(missing))
+    return f"ok (Blender {(system.get('blender') or {}).get('version') or '?'})"
+
+
 async def deep_health() -> dict:
     checks = {}
     for name, fn in (
@@ -69,6 +91,7 @@ async def deep_health() -> dict:
         ("admin_client", _admin_client),
         ("auth", _auth),
         ("ai", _ai),
+        ("planto3d", _planto3d),
     ):
         checks[name] = await run_in_threadpool(_check, fn)
     ok = all(c["status"] == "ok" for c in checks.values())

@@ -20,6 +20,7 @@ import catalog, detect, fetch_assets, vector  # noqa: E402
 
 os.makedirs(JOBS, exist_ok=True)
 builds = queue.Queue()
+waiting = []                    # ids of queued jobs, first to be built first: a job's place in it is its queue position
 lock = threading.Lock()
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json",
          ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".glb": "model/gltf-binary",
@@ -190,6 +191,9 @@ def builder():
     while True:
         jid, quality = builds.get()
         d = jdir(jid)
+        with lock:
+            if jid in waiting:
+                waiting.remove(jid)
         try:
             t0 = time.time()
             status(jid, stage="building", progress=1, message="Starting Blender", started=t0, eta_total=estimate(jid, quality))
@@ -297,6 +301,8 @@ class H(BaseHTTPRequestHandler):
             if st and st.get("stage") == "building" and st.get("started"):      # counted here: the viewer's clock may differ
                 left = st["started"] + st["eta_total"] - time.time()
                 st["eta_left"] = max(0, round(min(left, 15) if st.get("progress", 0) >= 92 else left))   # 92 = exporting, the last step
+            if st and st.get("stage") == "queued" and m.group(1) in waiting:    # counted here: it changes as builds finish
+                st["queue_position"] = waiting.index(m.group(1)) + 1
             return self.send(200 if st else 404, st or {"error": "no such job"})
         if p == "/api/system":
             return self.send(200, system())
@@ -397,6 +403,8 @@ class H(BaseHTTPRequestHandler):
                 q = json.loads(self.body() or b"{}").get("quality", "high")
                 q = q if q in ("draft", "high") else "high"
                 status(jid, stage="queued", progress=0, message=f"Waiting for the 3D builder ({builds.qsize()} ahead)")
+                with lock:
+                    waiting.append(jid)
                 builds.put((jid, q))
                 return self.send(200, {"ok": True})
             self.send(404, {"error": "not found"})
