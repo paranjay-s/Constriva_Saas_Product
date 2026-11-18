@@ -38,6 +38,8 @@ Rows of the seven core materials also keep that material's earlier keys (`id`, `
 | `GET /jobs/{job_id}/result` | The BOQ once the job is done (`409` before, or when it failed). |
 | `POST /export/pdf`, `POST /export/xlsx` | Body: `items`, `warnings`, `geometry_summary`, `project_metadata` of a result. Returns the file. |
 
+Every BOQ endpoint uses the same authentication as the project endpoints: the app's one dependency, `get_current_user`. A valid Bearer token identifies the user; an expired or invalid token gets `401`. A job belongs to the user who started it, and anyone else gets `404`. `tests/unit/test_boq_auth.py` pins this.
+
 A failed job carries the parser's `error_code` (see [04-parsing-module.md](04-parsing-module.md)) and message. No other plan is ever used in place of one that could not be read.
 
 Jobs run in an in-process thread pool and live in memory for one hour, like the floor plan and material finder jobs. This needs a single API worker.
