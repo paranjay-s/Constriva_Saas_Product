@@ -32,7 +32,7 @@ Cross-cutting infrastructure. Nothing here knows about floor plans.
 | `db.py` | Async SQLAlchemy engine, session dependency and the declarative `Base` that every module's models inherit from. |
 | `redis.py` | Shared Redis connection (used by Celery, pub/sub and rate limits). |
 | `storage.py` | S3 helper: create presigned upload and download URLs, read and write objects. Works with MinIO locally. |
-| `logging.py` | Structured logging setup. |
+| `logging.py` | `setup_logging()`: sends the app's own loggers (`construtiva.*`) to stderr at `LOG_LEVEL` (default INFO) when the API server starts. uvicorn configures only its own loggers, so without it the app's INFO lines, such as the one line per plan parse, would not be printed. |
 
 ### Authentication
 

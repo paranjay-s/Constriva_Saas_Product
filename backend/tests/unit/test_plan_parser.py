@@ -566,7 +566,7 @@ def test_a_new_parser_version_builds_the_plan_again_without_calling_the_model(
     assert plan["levels"] == first["levels"]
     # what the model call cost is kept with the plan; this run cost nothing
     assert (plan["parser"]["input_tokens"], plan["parser"]["attempts"]) == (1200, 1)
-    line = next(r.getMessage() for r in caplog.records if "plan parse:" in r.getMessage())
+    line = [r.getMessage() for r in caplog.records if "plan parse:" in r.getMessage()][-1]
     assert "cache_hit=reply" in line and "input_tokens=0" in line and "attempts=0" in line
     # the rebuilt plan is stored, so the next upload is a plain plan-cache hit
     assert parse_plan_pdf(data, client=FakeLLM(), cache=cache) == plan

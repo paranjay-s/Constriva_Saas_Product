@@ -49,6 +49,9 @@ async def lifespan(app: FastAPI):
     Application lifespan context manager:
     Initializes Supabase Storage buckets on startup.
     """
+    from app.core.logging import setup_logging
+
+    setup_logging()
     logger.info("Initializing Construtiva FastAPI backend...")
     # Fail at startup, with one message naming the variable, when the plan parser's
     # provider, model or key is missing or unknown (PLAN_PARSER_LLM_*).

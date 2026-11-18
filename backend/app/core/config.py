@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     # CORS
     frontend_origin: str = "http://localhost:5173"
 
+    # Level of the app's own log lines ("construtiva.*"): DEBUG, INFO, WARNING or ERROR.
+    log_level: str = "INFO"
+
     # Demo access. Off by default: every request must carry a Supabase access token.
     # When AUTH_ALLOW_DEMO_USER is true, a request with no token acts as the one dedicated
     # demo profile named by AUTH_DEMO_USER_ID (the UUID of a profile created for demos).
