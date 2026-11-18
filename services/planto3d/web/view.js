@@ -188,6 +188,8 @@ floors.forEach((f, i) => {
 
 // ---- map (M): the storey you are on from above, with room names, stairs, and where you stand and look
 const map = $('map'), mg = map.getContext('2d');
+// water (pool, water body, dock) is blue on the map and in the top view (web/rooms.json kinds)
+const WATER = new Set(['pool', 'water', 'dock']);
 const OUTSIDE = new Set(['open', 'garden', 'yard', 'balcony', 'parking']);
 const roomName = (r) => (r.label || r.type).split(/\s+/).filter((w) => !/\d/.test(w)).join(' ').toUpperCase() || r.type.toUpperCase();   // without the size
 let mapBig = false;
@@ -209,7 +211,8 @@ function drawMap(lv) {
   mg.save();
   if (f.floor) { mg.beginPath(); [...f.floor, ...(f.stairs || []).map((s) => s.rect)].forEach((r) => mg.rect(X(r[0]), Y(r[3]), (r[1] - r[0]) * k, (r[3] - r[2]) * k)); mg.clip(); }
   for (const r of f.rooms) {
-    mg.fillStyle = r === here ? 'rgba(224, 122, 72, .5)' : OUTSIDE.has(r.type) ? 'rgba(120, 170, 110, .22)' : 'rgba(255, 255, 255, .13)';
+    mg.fillStyle = r === here ? 'rgba(224, 122, 72, .5)' : WATER.has(r.type) ? 'rgba(74, 163, 223, .75)'
+      : OUTSIDE.has(r.type) ? 'rgba(120, 170, 110, .22)' : 'rgba(255, 255, 255, .13)';
     r.rects.forEach(box);
   }
   mg.restore();
