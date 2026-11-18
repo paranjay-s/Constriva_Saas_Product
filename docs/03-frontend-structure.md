@@ -1,6 +1,6 @@
 # 03 Frontend structure
 
-React 19 + Vite + TypeScript. Server state uses TanStack Query, UI state uses zustand, 3D uses React Three Fiber.
+React 19 + Vite + TypeScript. Server state uses TanStack Query, UI state uses zustand. The 3D houses are PlanTo3D's own pages, framed in iframes.
 
 ```
 frontend/
@@ -43,35 +43,26 @@ features/<name>/
 |---|---|
 | `auth` | Sign in, sign up, session handling. |
 | `projects` | Project list and project dashboard. |
-| `files` | Upload flow: ask the API for a presigned URL, upload straight to S3, then start parsing. |
-| `plan-viewer` | The 3D viewer (see below). `WorkspacePage.tsx` shows the viewer full width; material quantities live on the BOQ page, not here. |
-| `plan-editor` | 2D editing on top of the original PDF. |
+| `files` | The plan upload checks every upload screen shares: the size and page limits from the API and the client-side PDF check. |
+| `plan3d` | The 2D-to-3D flow (`/3d`): upload, detection, review, options, build progress, walkthrough, downloads and the furniture models page. See below and [08-3d.md](08-3d.md). |
 | `sheets` | The BOQ page (`/boq`): upload a plan PDF, follow progress, then an interactive material table with search, filters, grouping and PDF / Excel export. Also the earlier per-project sheet API client. See [07-boq.md](07-boq.md). |
 | `chat` | Chat panel; sends messages and applies returned edit operations. |
 | `loan` | Loan document upload and results (pending design). |
 | `reports` | Report generation and download. |
 
-## `plan-viewer`
+## `plan3d`
 
-```
-plan-viewer/
-├── PlanViewer.tsx     canvas, lights, orbit controls, camera presets (top, front, isometric)
-├── builders/          pure functions: plan JSON in, Three.js geometry out
-│   ├── buildWalls.ts      merges wall footprints, extrudes, cuts openings
-│   ├── buildFloors.ts     room polygons to floor meshes
-│   └── buildOpenings.ts   door and window frames
-└── controls/          view toggles (hide roof, hide walls), wall-height input
-```
+The pages do not draw 3D themselves. They call the gateway (`/api/v1/3d`) and frame PlanTo3D's own pages:
 
-Rule: **the scene is a pure function of the plan JSON.** When the plan changes, the viewer rebuilds geometry. No server round trip is needed for an edit, and no mesh is stored.
+| Step | What our page shows |
+|---|---|
+| Upload | PDF drop zone with the shared limits, "Try the sample plan", and the user's jobs |
+| Detect | Progress while PlanTo3D reads the drawing |
+| Review | PlanTo3D's review page in an iframe (fix walls, doors, windows, rooms, scale) |
+| Options | Furniture on or off, and the quality: Low, Medium, High |
+| Build | Stage, percent, time left, queue position |
+| Walkthrough | PlanTo3D's walkthrough in an iframe, the Blender file download, the furniture models page, delete |
 
-## `plan-editor`
+An iframe cannot send the session's Bearer token, so its URL comes from `POST /api/v1/3d/jobs/{id}/embed` and carries a short-lived signed token. Our page and the review page talk with `postMessage`: we ask it to save the reviewed plan, then start the build ourselves.
 
-```
-plan-editor/
-├── PlanEditor.tsx     PDF page as an underlay with the detected plan drawn over it (react-konva)
-└── tools/             drag wall endpoints, add or remove openings, set scale by two clicks
-```
-
-Low-confidence elements from the plan JSON are highlighted so the user knows what to verify first. Every edit creates a new plan version through the API.
-
+The earlier in-browser viewer (`viewer3d`, `plan-viewer`, `plan-editor`) was removed.

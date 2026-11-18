@@ -53,7 +53,7 @@ def test_there_are_protected_operations_to_check():
     assert len(PROTECTED) > 40
     paths = {path for _, path in PROTECTED}
     assert "/api/v1/projects" in paths and "/api/v1/sheets/boq" in paths
-    assert "/api/v1/parsing/process" in paths
+    assert "/api/v1/3d/jobs" in paths
 
 
 @pytest.mark.parametrize(("method", "path"), PROTECTED)

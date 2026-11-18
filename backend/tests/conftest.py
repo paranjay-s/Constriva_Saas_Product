@@ -119,11 +119,7 @@ def fake_db(monkeypatch):
 
     def install(**tables: list[dict]) -> FakeDb:
         db = FakeDb(**tables)
-        for module in (
-            "app.modules.parsing.router",
-            "app.modules.plans.router",
-            "app.modules.projects.service",
-        ):
+        for module in ("app.modules.plans.router", "app.modules.projects.service"):
             monkeypatch.setattr(f"{module}.get_supabase_client", lambda: db)
         return db
 

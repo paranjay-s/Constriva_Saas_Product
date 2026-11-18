@@ -128,7 +128,7 @@ Rules for the two version numbers:
 - Raise `PARSER_VERSION` whenever the checks, the normaliser or a rule would change what a given reply turns into.
 - Raise the prompt's `prompt_version` line whenever what is sent to the model changes: the prompt text, the wire schema (`WIRE_JSON_SCHEMA`) or the page rendering (`RENDER_DPI`, `MAX_IMAGE_SIDE_PX`). A test pins a fingerprint of those to the prompt version, so the change cannot be made without it.
 
-Two cases still call the model for a PDF it has seen: the stored reply no longer passes the checks, or it has fewer rooms than the caller needs (the 2D-to-3D import asks for six, the BOQ for one). Only the reply and the plan are cached, never project, user or plan-row ids. A failed parse is not cached.
+Two cases still call the model for a PDF it has seen: the stored reply no longer passes the checks, or it has fewer rooms than the caller asks for (the BOQ asks for one). Only the reply and the plan are cached, never project, user or plan-row ids. A failed parse is not cached.
 
 ## Errors
 
@@ -149,7 +149,7 @@ All subclass `PlanParseError` (`errors.py`), which carries a stable `code`, a us
 
 ## Upload limits
 
-Both upload flows (the 2D-to-3D import and the BOQ) accept a plan through the same check, `read_plan_upload` in `service.py`, before anything else happens:
+Every plan upload (the BOQ, and the 3D gateway before a plan reaches PlanTo3D) goes through the same check, `read_plan_upload` in `service.py`, before anything else happens:
 
 1. the file name ends in `.pdf`;
 2. the size is within `PLAN_PARSER_MAX_PDF_MB` (default 20);
@@ -162,7 +162,6 @@ A rejected upload gets a clear message (`413` for size, `400` otherwise), create
 
 No flow substitutes another plan for one that could not be read.
 
-- **2D-to-3D import**: the job ends as `failed`, `step` holds the user-facing message and `result.error` the typed error. The import screen shows the message with "Try again" and "Choose another file". Nothing is saved to the project. A Celery worker does not retry a typed parse failure, because a retry would repeat the model calls.
 - **BOQ**: the job fails with the same error code and message.
 - **Material finder plan upload**: the chat says the plan could not be read and asks for the room size.
 
@@ -170,8 +169,8 @@ No flow substitutes another plan for one that could not be read.
 
 | File | Purpose |
 |---|---|
-| `router.py` | `POST /parsing/process` (upload and start), `GET /parsing/stream/{task_id}` (SSE progress), `GET /parsing/{project_id}/plan`. |
-| `service.py` | The blueprint import used by the 2D-to-3D flow: stores the PDF and its raster, calls `parse_plan_pdf`, saves the plan row, reports job progress. When the parser fails the job is marked `failed` with the typed error (`result.error.code` and message) and no plan row is written. |
+| `router.py` | `GET /parsing/upload-limits` (the limits, for the upload screens) and `POST /parsing/pdf-to-image` (one page as a PNG). |
+| `service.py` | `read_plan_upload` and `upload_limits`: the one check every plan upload goes through. |
 | `llm_parser.py` | The pipeline above. `parse_plan_pdf`, `parse_plan_images`, and the earlier entry points kept for existing callers. |
 | `pdf_input.py` | The upload check (`check_plan_pdf`) and PDF to page images and text. |
 | `llm_schema.py` | `WIRE_JSON_SCHEMA` (what the model is asked for), `LLMPlanDraft` (the validator) and the draft checks. |
@@ -180,7 +179,7 @@ No flow substitutes another plan for one that could not be read.
 | `errors.py` | Typed parser errors. |
 | `settings.py` | `PLAN_PARSER_*` settings and their validation (`resolve_llm_config`). |
 | `validate.py` | Geometric validators and the confidence score. |
-| `pdf_to_image.py` | Single-page rasteriser used for the stored preview image. |
+| `pdf_to_image.py` | Single-page rasteriser, used by the material finder and `/parsing/pdf-to-image`. |
 
 ## Tests
 

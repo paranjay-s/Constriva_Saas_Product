@@ -11,3 +11,10 @@ dist/
 .uv-cache/
 .uv-python/
 
+# never committed: client drawings, reference screenshots, PlanTo3D's jobs and assets
+sample_test_pdfs/
+docs/reference/
+services/planto3d/jobs/
+services/planto3d/assets/
+services/planto3d/node_modules/
+

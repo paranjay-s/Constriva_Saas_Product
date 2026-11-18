@@ -1,12 +1,12 @@
 """Upload safety and cost control: both plan upload flows turn away anything that is not
-a PDF within the size and page limits, before a job, a stored file or a model call exists.
+a PDF within the size and page limits, before a job, a stored file, a model call or a 3D
+build exists.
 """
 
+import httpx
 import pymupdf
 import pytest
 
-from app.modules.parsing import router as parsing_router
-from app.modules.parsing import service as parsing_service
 from app.modules.parsing.errors import (
     FileTooLargeError,
     NotAPdfError,
@@ -18,11 +18,13 @@ from app.modules.parsing.llm_parser import parse_plan_pdf
 from app.modules.parsing.pdf_input import check_plan_pdf, load_plan_pdf
 from app.modules.parsing.plan_cache import NullPlanCache
 from app.modules.parsing.settings import PlanParserSettings, get_settings
+from app.modules.plan3d.client import Plan3dClient, get_plan3d_client
+from app.modules.plan3d.store import MemoryJobStore, get_job_store
 from app.modules.sheets.boq_jobs import BoqJobManager, get_boq_jobs
 from app.modules.sheets.boq_router import get_pdf_parser
 
 BOQ = "/api/v1/sheets/boq"
-IMPORT = "/api/v1/parsing/process"
+IMPORT = "/api/v1/3d/jobs"  # the 2D-to-3D flow: the plan goes to the PlanTo3D service
 
 
 def pdf(pages: int = 1) -> bytes:
@@ -141,11 +143,16 @@ def guarded(client, monkeypatch):
 
     app.dependency_overrides[get_pdf_parser] = lambda: boq_parser
     app.dependency_overrides[get_boq_jobs] = lambda: BoqJobManager()
-    monkeypatch.setattr(
-        parsing_router, "ensure_project_exists", lambda *a, **k: reached.append("project")
+
+    def planto3d(request: httpx.Request) -> httpx.Response:
+        reached.append("3D service")
+        raise AssertionError("PlanTo3D reached")
+
+    http = httpx.AsyncClient(
+        base_url="http://planto3d.test", transport=httpx.MockTransport(planto3d)
     )
-    monkeypatch.setattr(parsing_router, "get_supabase_client", lambda: reached.append("database"))
-    monkeypatch.setattr(parsing_service, "parse_plan_pdf", lambda *a, **k: reached.append("parser"))
+    app.dependency_overrides[get_plan3d_client] = lambda: Plan3dClient(http)
+    app.dependency_overrides[get_job_store] = lambda: MemoryJobStore()
     client.reached = reached
     return client
 
@@ -178,7 +185,7 @@ def test_both_flows_enforce_the_size_limit(guarded, url, monkeypatch):
     response = post(guarded, url, "plan.pdf", pdf() + b"\n" * 4096)
     assert response.status_code == 413
     assert "largest file accepted" in response.json()["detail"]
-    assert guarded.reached == []  # no project, no job, no stored file, no model call
+    assert guarded.reached == []  # no job, no model call, nothing sent to the 3D service
 
 
 @pytest.mark.parametrize("url", [BOQ, IMPORT])

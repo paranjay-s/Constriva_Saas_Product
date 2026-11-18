@@ -23,7 +23,6 @@ celery_app = Celery(
     broker=settings.redis_url,
     backend=settings.redis_url,
     include=[
-        "app.workers.tasks.parse_plan",
         "app.workers.tasks.build_report",
         "app.workers.tasks.extract_loan",
     ],
@@ -32,7 +31,6 @@ celery_app = Celery(
 celery_app.conf.update(
     task_default_queue="default",
     task_routes={
-        "app.workers.tasks.parse_plan.*": {"queue": "parsing"},
         "app.workers.tasks.build_report.*": {"queue": "reports"},
         "app.workers.tasks.extract_loan.*": {"queue": "default"},
     },

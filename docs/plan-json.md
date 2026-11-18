@@ -1,6 +1,6 @@
 # Plan JSON Data Contract
 
-This document specifies the input PlanJSON format derived from architectural drawings in Constriva and how it maps to our internal framework-free `Plan` type in `frontend/src/viewer3d/types.ts`.
+This document specifies the PlanJSON format derived from architectural drawings in Constriva. The plan parser writes it and the material calculator (BOQ) reads it. The 3D houses are built by the PlanTo3D service from the PDF itself ([08-3d.md](08-3d.md)), not from PlanJSON.
 
 ## 1. Input PlanJSON Format (Source Schema)
 
@@ -86,66 +86,10 @@ The model is defined once, in `backend/app/modules/plans/schemas.py` (`SCHEMA_VE
 
 Notes:
 
-- `wall_height` holds `2.8` when the drawing states no height (`wall_height_source: "default"`). The 3D viewer draws walls at that height; the material calculator uses its own standard ceiling height (3.35 m) instead.
+- `wall_height` holds `2.8` when the drawing states no height (`wall_height_source: "default"`). The material calculator uses its own standard ceiling height (3.35 m) instead.
 - `offset` is measured along the wall from its `start` to the centre of the opening.
 - Parser output uses stable ids: `L0-R01` (room), `L0-W01` (wall), `L0-O01` (opening), `L0-C01` (column), where the first number is the level index.
-- `boq_type` and `type` are different keys with different owners. `boq_type` is written by the parser's normaliser from the keyword rules in `backend/app/modules/plans/room_types.py` (section 2 of [materials_formula_spec.md](materials_formula_spec.md)); the rules win, and the parser model's own answer is used only when they return `OTHER`. `type` belongs to the 3D adapter (`viewer3d/adapter/normalizePlan.ts`), which reads it as its own lowercase room type. Nothing in the parser or the calculator reads, writes or changes `type`.
-- `boq_kind` and `kind` are different keys too. `kind` is what the 3D code reads (`PlanViewer.tsx`, `buildFloors.ts`) and the BOQ never changes it. `boq_kind` is derived next to it by the same module (section 2.1 of the spec), so a covered parking area can be semi-open in 3D and paved outdoor area in the bill.
+- `boq_type` and `type` are different keys with different owners. `boq_type` is written by the parser's normaliser from the keyword rules in `backend/app/modules/plans/room_types.py` (section 2 of [materials_formula_spec.md](materials_formula_spec.md)); the rules win, and the parser model's own answer is used only when they return `OTHER`. `type` is a key earlier plans carry for the 3D viewer that has since been removed. Nothing in the parser or the calculator reads, writes or changes `type`.
+- `boq_kind` and `kind` are different keys too. `kind` is the room's kind as drawn, and the BOQ never changes it. `boq_kind` is derived next to it by the same module (section 2.1 of the spec), so a covered parking area can be semi-open as drawn and paved outdoor area in the bill.
 - A plan stored before `boq_kind` or `boq_type` existed still calculates: the calculator derives both from the room's `kind` and name when a key is missing.
 - Keys this schema does not define are kept when a stored plan is validated or upgraded, so keys other readers own (`room.type`, `wall.height`, `level.furniture`) survive.
-
-## 2. Internal Target `Plan` Type (`frontend/src/viewer3d/types.ts`)
-
-Units are strictly in **METERS**, coordinates map to Three.js world space:
-- Plan `(x, y)` -> Three.js World `(x, 0, z)` with Y-up.
-
-```ts
-export type RoomType =
-  | 'bedroom' | 'living' | 'drawing' | 'dining' | 'kitchen' | 'toilet' | 'wash'
-  | 'puja' | 'parking' | 'balcony' | 'terrace' | 'store' | 'utility'
-  | 'passage' | 'stairs' | 'other';
-
-export interface Vec2 { x: number; y: number }
-
-export interface Wall {
-  id: string;
-  a: Vec2; b: Vec2;
-  thickness: number;
-  height: number;
-  kind: 'exterior' | 'interior';
-}
-
-export interface Opening {
-  id: string;
-  wallId: string;
-  kind: 'door' | 'window' | 'slider' | 'arch';
-  offset: number; // m from wall start to opening center
-  width: number;
-  height: number;
-  sill: number;
-}
-
-export interface Room {
-  id: string;
-  type: RoomType;
-  label?: string;
-  polygon: Vec2[];
-  dims?: { w: number; d: number };
-}
-
-export interface FurnitureItem {
-  type: string;
-  position: Vec2;
-  rotation: number;
-  size: { w: number; d: number; h: number };
-}
-
-export interface Plan {
-  walls: Wall[];
-  openings: Opening[];
-  rooms: Room[];
-  furniture?: FurnitureItem[];
-  meta: { sourceUnit: 'ft' | 'm' | 'mm' };
-}
-```
-

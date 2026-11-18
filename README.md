@@ -157,7 +157,27 @@ Open **3 separate terminal windows**:
   uv --directory backend run celery -A app.workers.celery_app:celery_app worker -Q default,parsing,reports --loglevel=info
   ```
 
-*This worker handles heavy background tasks: PDF parsing, geometry extraction, and report building.*
+*This worker handles heavy background tasks such as report building.*
+
+---
+
+### Terminal 2b — 3D Service (PlanTo3D)
+> 📍 **Directory:** `Repository Root`
+
+The 2D-to-3D flow needs the private PlanTo3D service. First time only (installs Blender, poppler, Node and ffmpeg if missing, and downloads about 75 MB of CC0 materials):
+
+```bash
+scripts/setup_planto3d.sh
+```
+
+Then, in its own terminal:
+
+```bash
+scripts/run_planto3d.sh        # http://127.0.0.1:8080, never exposed: browsers reach it through /api/v1/3d
+```
+
+Until the `plan3d_jobs` table exists in the database (see [docs/08-3d.md](docs/08-3d.md)), start the API with `PLAN3D_STORE=memory`.
+`GET /health/deep` on the API reports whether the 3D service is ready.
 
 ---
 

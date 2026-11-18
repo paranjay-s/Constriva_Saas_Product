@@ -19,7 +19,6 @@ Browser           FastAPI                Redis              Celery worker
 | File | Purpose |
 |---|---|
 | `celery_app.py` | Celery configuration: Redis broker, queues, retry defaults, task time limits. |
-| `tasks/parse_plan.py` | Loads the PDF from S3, runs `parsing.service`, saves a plan version, updates the job. |
 | `tasks/build_report.py` | Builds the material report (PDF) or spreadsheet and stores it in S3. |
 | `tasks/extract_loan.py` | Placeholder for loan document extraction. |
 
@@ -28,7 +27,7 @@ Browser           FastAPI                Redis              Celery worker
 | Queue | Used for | Notes |
 |---|---|---|
 | `default` | Light jobs | Small, fast tasks. |
-| `parsing` | PDF parsing, image processing, model inference | Heavy. Can run on its own machine or GPU later. |
+| `parsing` | Reserved for heavy plan work | No task uses it now: the plan parser runs inside BOQ jobs, and 3D builds run in the PlanTo3D service. |
 | `reports` | Report and export generation | Independent from parsing so one cannot starve the other. |
 
 The worker image installs the same dependencies as the API. If the segmentation model grows heavy, build a separate image for the `parsing` queue that adds the `ml` extra.

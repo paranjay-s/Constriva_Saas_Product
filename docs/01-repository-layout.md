@@ -10,7 +10,9 @@ The repository is a monorepo with three code areas (`backend`, `frontend`, `shar
 ├── .env.example         every config key the project reads (no real values)
 ├── docs/                this documentation
 ├── backend/             FastAPI app, Celery workers, migrations, tests
-├── frontend/            React app and the 3D viewer
+├── frontend/            React app
+├── services/planto3d/   PlanTo3D: the private 3D service (vendored with git subtree)
+├── scripts/             set up and run the 3D service
 └── shared/plan-schema/  JSON Schema of the plan, shared by both sides
 ```
 
@@ -32,7 +34,7 @@ The commands to run the frontend, backend, worker and Docker services are in the
 
 ## Why this shape
 
-1. **One plan format.** Everything (parser, editor, 3D viewer, material sheets) depends on the plan JSON, so it lives in one place and is shared.
+1. **One plan format.** The parser and the material sheets depend on the plan JSON, so it lives in one place and is shared.
 2. **Modules by feature.** Both backend and frontend are organised by feature (projects, plans, parsing, sheets...), not by technical layer, so a feature's code stays together.
 3. **Heavy work is isolated.** Anything slow runs in Celery workers, which are built from the same backend code but run as a separate process.
 
