@@ -25,7 +25,7 @@ async function poll() {
     $('wbar').style.width = (st.progress || 5) + '%';
     return setTimeout(poll, 700);
   }
-  if (st.stage === 'failed' && !plan) {
+  if (st.stage === 'failed' && !plan && !(st.floors || []).length) {      // the detection failed: there is no plan to show
     $('wmsg').textContent = st.message; $('wmsg').className = 'err'; $('back').hidden = false;
     return tell({ type: 'failed', message: st.message });
   }

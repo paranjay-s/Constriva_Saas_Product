@@ -56,3 +56,13 @@ WebGL then never starts, the walkthrough stays on "Loading…" and the test fail
 recording step.
 
 What: the backend is `gl-egl` on Linux and `metal` on macOS, or whatever `ANGLE` is set to.
+
+## 6. A plan whose build failed can be opened for review again (web/edit.js)
+
+Why: a freshly loaded review page treated every failed job as a failed detection and never
+loaded the plan. After a failed build, or a build interrupted by a server restart (whose
+message is "press Build again"), the plan could not be opened to build it again.
+
+What: the page stops with the failure message only when the job has no detected floors
+(`status.floors` is set when detection succeeds and is kept afterwards). Otherwise it loads
+the plan as usual.
