@@ -16,7 +16,7 @@ from typing import Any
 
 logger = logging.getLogger("construtiva.plan3d.areas")
 
-PROMPT_VERSION = "areas-1"
+PROMPT_VERSION = "areas-2"
 CACHE = Path(__file__).resolve().parents[3] / ".tmp" / "area_cache"
 SURFACES = ["concrete", "asphalt", "grass", "turf", "sand", "gravel", "wood_deck", "stone", "tile",
             "rubber",
@@ -31,6 +31,61 @@ Coordinates u, v are fractions 0-1 of the area's bounding box; sizes are metres.
 only the listed surfaces and parts. Keep markings to what a person would see painted on
 the ground (at most 40). Answer with JSON only."""
 
+_UV = {"type": "array", "items": {"type": "number"}, "description": "[u, v], each 0-1"}
+SPEC: dict[str, Any] = {
+    "type": "object",
+    "description": "only when type is 'new': how to build the area (services/planto3d/areaspec.py)",
+    "properties": {
+        "type": {"type": "string", "description": "short snake_case name, e.g. helipad"},
+        "name": {"type": "string"},
+        "description": {"type": "string"},
+        "surface": {"type": "string", "enum": SURFACES},
+        "edge": {"type": "string", "enum": ["none", "kerb", "low_wall", "fence", "railing"]},
+        "height": {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": ["flat", "raised", "recessed"]},
+                "value_m": {"type": "number", "description": "0-3"},
+            },
+            "required": ["mode", "value_m"],
+        },
+        "walkable": {"type": "boolean"},
+        "markings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string", "enum": ["line", "circle", "arc", "text"]},
+                    "from": _UV,
+                    "to": _UV,
+                    "centre": _UV,
+                    "radius": {"type": "number", "description": "fraction of the shorter side"},
+                    "start_deg": {"type": "number"},
+                    "end_deg": {"type": "number"},
+                    "width_m": {"type": "number"},
+                    "at": _UV,
+                    "text": {"type": "string", "description": "A-Z and 0-9 only"},
+                    "size_m": {"type": "number"},
+                },
+                "required": ["kind"],
+            },
+        },
+        "objects": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "part": {"type": "string", "enum": PARTS},
+                    "at": _UV,
+                    "rot": {"type": "number", "description": "degrees"},
+                },
+                "required": ["part", "at"],
+            },
+        },
+    },
+    "required": ["type", "name", "surface", "edge", "height", "walkable", "markings", "objects"],
+}
+
 SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -42,17 +97,7 @@ SCHEMA: dict[str, Any] = {
                     "label": {"type": "string"},
                     "type": {"type": "string", "description": "one of the given types, or 'new'"},
                     "confidence": {"type": "number"},
-                    "spec": {
-                        "type": "object",
-                        "description": (
-                            "only for 'new': {type, name, description, surface, "
-                            "edge (none|kerb|low_wall|fence|railing), "
-                            "height {mode flat|raised|recessed, value_m}, walkable, "
-                            "markings [{kind line|circle|arc|text, from, to, centre, radius, "
-                            "start_deg, end_deg, width_m, at, text (A-Z 0-9), size_m}], "
-                            "objects [{part, at, rot}]}"
-                        ),
-                    },
+                    "spec": SPEC,
                 },
                 "required": ["label", "type", "confidence"],
             },
