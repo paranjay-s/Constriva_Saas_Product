@@ -40,7 +40,7 @@ from app.core.security import AuthenticatedUser, clean_uuid, get_current_user
 from app.core.signed_token import TokenError
 from app.modules.ai.floorplan import service as floorplan_service
 from app.modules.parsing.service import read_plan_upload
-from app.modules.plan3d import fallback, service
+from app.modules.plan3d import fallback, notify, service
 from app.modules.plan3d.client import (
     Plan3dClient,
     Plan3dError,
@@ -54,6 +54,7 @@ from app.modules.plan3d.schemas import (
     FromFloorplan,
     JobCreated,
     JobStatus,
+    NotificationSettings,
     SystemStatus,
 )
 from app.modules.plan3d.store import JobStore, get_job_store
@@ -247,6 +248,7 @@ async def _status(row: dict[str, Any], planto3d: Plan3dClient, ai: fallback.AiRe
     """The job's status; when PlanTo3D's detector has failed, the other readers start."""
     job_id = row["id"]
     found = await planto3d.job(job_id)
+    notify.observe(job_id, found)
     if fallback.detector_failed(found):
         name = row.get("name") or str((found or {}).get("name") or "plan.pdf")
         fallback.start(job_id, name, str((found or {}).get("message") or ""), planto3d, ai)
@@ -274,11 +276,24 @@ async def build_job(
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, service.CINEMA_UNAVAILABLE)
     try:
         await planto3d.build(job_id, service_quality)
+        notify.watch(job_id, user.id, getattr(user, "email", "") or "", payload.quality)
+        notify.start_poller(planto3d)
         await run_in_threadpool(store.set_quality, job_id, payload.quality)
         row["quality"] = payload.quality
         return service.job_status(row, await planto3d.job(job_id))
     except Plan3dError as e:
         raise _http_error(e) from e
+
+
+@router.get("/notifications", summary="The user's build notifications, newest first")
+async def notifications(user: User) -> dict:
+    return {"email": notify.email_on(user.id), "items": notify.events(user.id)}
+
+
+@router.put("/notifications/settings", summary="Turn build emails on or off")
+async def notification_settings(payload: NotificationSettings, user: User) -> dict:
+    notify.set_email(user.id, payload.email)
+    return {"email": notify.email_on(user.id)}
 
 
 @router.post("/jobs/{job_id}/export", response_model=ExportReady, summary="Pack the Blender file")

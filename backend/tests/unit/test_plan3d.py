@@ -488,7 +488,8 @@ def test_a_bad_or_expired_token_is_refused_before_planto3d(client, planto3d):
     assert len(planto3d.requests) == before
 
 
-def test_a_token_reaches_its_own_job_and_nothing_else(client, planto3d):
+def test_a_token_reaches_its_own_job_and_nothing_else(client, planto3d, monkeypatch):
+    monkeypatch.setattr(get_settings(), "allow_furniture_changes", True)  # (off by default)
     mine = upload(client, "mine.pdf")
     other = upload(client, "other.pdf")
     base = embed(client, mine)["base_url"]
@@ -621,4 +622,4 @@ def test_the_page_proxy_is_the_only_gateway_route_without_bearer_auth():
         if not any(d.call is get_current_user for d in route.dependant.dependencies)
     )
     assert open_routes == ["/embed/{token}/{path:path}"]
-    assert len(router.routes) == 12
+    assert len(router.routes) == 14

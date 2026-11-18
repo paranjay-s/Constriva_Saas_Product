@@ -10,8 +10,9 @@ PLAN3D_EMBED_TOKEN_TTL_S      lifetime of such a token in seconds (default 3600)
 PLAN3D_STORE                  "supabase" (the plan3d_jobs table, default) or "memory"
                               (lost at restart; for local work before the migration is run)
 PLAN3D_TIMEOUT_S              timeout of a call to the service (default 30)
-PLAN3D_ALLOW_FURNITURE_CHANGES  let signed-in users replace furniture models (default true).
-                              PlanTo3D keeps one set of models for everyone.
+PLAN3D_ALLOW_FURNITURE_CHANGES  let signed-in users replace furniture models (default
+                              false: PlanTo3D keeps one set of models for everyone until
+                              models are per user).
 PLAN3D_FRAME_ANCESTORS        extra origins allowed to frame the pages, comma separated.
                               FRONTEND_ORIGIN is always allowed.
 """
@@ -36,7 +37,7 @@ class Plan3dSettings(BaseSettings):
     embed_token_ttl_s: int = 3600
     store: str = "supabase"
     timeout_s: float = 30.0
-    allow_furniture_changes: bool = True
+    allow_furniture_changes: bool = False
     frame_ancestors: str = ""
 
 

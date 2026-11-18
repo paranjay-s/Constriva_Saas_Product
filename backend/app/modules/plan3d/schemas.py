@@ -58,6 +58,12 @@ class JobStatus(BaseModel):
     notice: str = ""  # what the person should check, from the reader
 
 
+class NotificationSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: bool
+
+
 class FromFloorplan(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
