@@ -1,0 +1,13 @@
+{
+  "name": "planto3d",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Floor plan PDF in, furnished walkable 3D house out. No AI model: geometry, rules and Blender.",
+  "scripts": {
+    "start": "./run.sh",
+    "test": "tests/run_all.sh"
+  },
+  "dependencies": {
+    "three": "0.170.0"
+  }
+}

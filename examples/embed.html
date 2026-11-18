@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- Minimal integration: your page uploads a plan to a PlanTo3D server, builds it and shows the walkthrough in an iframe.
+     Start the server with --cors set to your site's origin (or * while trying this file from disk):
+       ./run.sh --cors '*'            then open this file in a browser. -->
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PlanTo3D embed example</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 960px; margin: 32px auto; padding: 0 16px; }
+  iframe { width: 100%; aspect-ratio: 16 / 9; border: 1px solid #ccc; border-radius: 10px; }
+  #state { color: #555; }
+</style>
+<h1>Your site + PlanTo3D</h1>
+<p><input type="file" id="file" accept="application/pdf"> <span id="state">Choose a CAD-exported plan PDF (try sample_plan.pdf).</span></p>
+<iframe id="tour" hidden allow="fullscreen" title="3D walkthrough"></iframe>
+<script>
+const SERVER = 'http://127.0.0.1:8080';                       // where PlanTo3D runs
+const say = (t) => { document.getElementById('state').textContent = t; };
+const api = (path, opts) => fetch(SERVER + path, opts).then(async (r) => {
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error);
+  return j;
+});
+const until = async (id, stages) => {                         // poll the job until it reaches one of the stages
+  for (;;) {
+    const st = await api(`/api/jobs/${id}`);
+    if (st.stage === 'failed') throw new Error(st.message);
+    if (stages.includes(st.stage)) return st;
+    say(st.eta_left != null ? `Building… about ${st.eta_left} s left` : st.message || 'Working…');
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+};
+document.getElementById('file').onchange = async (e) => {
+  try {
+    say('Uploading…');
+    const { id } = await api('/api/upload', { method: 'POST', body: e.target.files[0], headers: { 'X-Filename': encodeURIComponent(e.target.files[0].name) } });
+    await until(id, ['detected']);                            // walls, doors, windows and rooms are found
+    // (to let people correct the plan first, show `${SERVER}/web/edit.html?job=${id}` instead of building right away)
+    await api(`/api/jobs/${id}/build`, { method: 'POST', body: JSON.stringify({ quality: 'draft' }) });
+    await until(id, ['done']);
+    say('Ready. Click the view, then walk with W A S D.');
+    const tour = document.getElementById('tour');
+    tour.src = `${SERVER}/web/view.html?job=${id}&embed`;
+    tour.hidden = false;
+  } catch (err) { say(`Failed: ${err.message}`); }
+};
+</script>
+</html>

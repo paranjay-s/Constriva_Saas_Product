@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>3D Walkthrough</title>
+<link rel="stylesheet" href="/web/style.css?v=2">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #111; touch-action: none; }
+  canvas { display: block; }
+  #overlay { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+             background: rgba(10, 12, 16, .7); color: #f2efe8; text-align: center; cursor: pointer; padding: 16px; }
+  #overlay h1 { font-weight: 600; margin: 0 0 8px; font-size: 24px; }
+  #overlay p { margin: 4px; opacity: .85; }
+  kbd { background: #2b2f36; border-radius: 4px; padding: 1px 7px; font-family: inherit; }
+  #room { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); color: #fff; background: rgba(0,0,0,.45);
+          padding: 6px 14px; border-radius: 18px; font-size: 14px; pointer-events: none; white-space: nowrap; }
+  #room:empty { display: none; }
+  #cross { position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%;
+           background: rgba(255,255,255,.7); pointer-events: none; }
+  #bar { position: fixed; bottom: 12px; left: 12px; right: 12px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  #bar button { background: rgba(20,22,26,.75); color: #eee; border: 1px solid #444; border-radius: 6px; padding: 7px 11px; font-size: 13px; }
+  #bar button.on { background: #e8e1d3; color: #111; }
+  #bar button.live { background: #b3261e; border-color: #b3261e; color: #fff; }
+  #fps { color: #bbb; font-size: 12px; margin-left: auto; background: rgba(0,0,0,.4); padding: 4px 8px; border-radius: 6px; }
+  #floors { display: contents; }
+  #map { position: fixed; right: 12px; bottom: 58px; width: 220px; height: 220px; border-radius: 12px; cursor: pointer;
+         background: rgba(14, 16, 20, .78); border: 1px solid rgba(255, 255, 255, .18); }
+  #map.big { right: 50%; bottom: 50%; transform: translate(50%, 50%); width: min(88vw, 88vh, 900px); height: min(88vw, 88vh, 900px);
+             background: rgba(14, 16, 20, .92); }
+  .mapbig #room, .mapbig #cross { visibility: hidden; }      /* the large map shows the room itself */
+  @media (max-width: 600px) { #map:not(.big) { width: 130px; height: 130px; bottom: 100px; } }
+  @media (pointer: coarse) { .desk { display: none; } }
+  @media (pointer: fine) { .touch { display: none; } }
+</style>
+<script type="importmap">
+{ "imports": { "three": "/three/build/three.module.js", "three/addons/": "/three/examples/jsm/" } }
+</script>
+</head>
+<body>
+<canvas id="map" title="Map: click or press M to enlarge"></canvas>
+<div id="overlay">
+  <h1>3D walkthrough</h1>
+  <p id="status">Loading…</p>
+  <p class="desk"><kbd>W A S D</kbd> walk · <kbd>Mouse</kbd> look · <kbd>Shift</kbd> run · <kbd>T</kbd> top view · <kbd>Esc</kbd> pause</p>
+  <p class="desk"><kbd>P</kbd> screenshot · <kbd>R</kbd> start / stop recording · <kbd>M</kbd> map</p>
+  <p class="touch">Left thumb: move · right thumb: look</p>
+</div>
+<div id="room"></div>
+<div id="cross"></div>
+<div id="bar"><button id="topbtn">Top view</button><span id="floors"></span><button id="shot" title="Save a picture of this view (P)">Screenshot</button><button id="rec" title="Record a video of your walk (R)">Record</button><button id="blend" title="Download this house as a Blender file (.zip)">Blender file</button><a href="/" id="newplan" style="color:#ccc;font-size:13px">Home</a><span id="fps"></span></div>
+<script type="module" src="/web/view.js"></script>
+</body>
+</html>

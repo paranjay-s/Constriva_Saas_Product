@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review Plan</title>
+<link rel="stylesheet" href="/web/style.css?v=2">
+<style>
+  body { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  header { display: flex; gap: 10px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header h2 { font-size: 17px; margin: 0 10px 0 0; }
+  .tabs button { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 6px; padding: 5px 10px; cursor: pointer; }
+  .tabs button.on { background: var(--ink); color: var(--bg); }
+  main { flex: 1; display: flex; min-height: 0; }
+  #stage { flex: 1; position: relative; background: #fff; overflow: hidden; cursor: crosshair; touch-action: none; }
+  #cv { position: absolute; inset: 0; width: 100%; height: 100%; }
+  aside { width: 300px; border-left: 1px solid var(--line); background: var(--panel); padding: 14px; overflow: auto; display: flex; flex-direction: column; gap: 14px; }
+  aside h3 { margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .tools button { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 6px; padding: 6px; cursor: pointer; font-size: 13px; }
+  .tools button.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+  .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+  select, input[type=text], input[type=number] { background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; }
+  .legend span { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; font-size: 12px; }
+  .legend i { width: 12px; height: 8px; display: inline-block; border-radius: 2px; }
+  #bfun { color: var(--accent); font-weight: 600; margin: 10px 0 0; display: flex; align-items: center; }
+  #bfun[hidden] { display: none; }
+  #bhead { display: flex; justify-content: space-between; align-items: baseline; }
+  #beta { font-weight: 400; font-size: 13px; text-transform: none; letter-spacing: 0; }
+  #bspin { width: 18px; height: 18px; flex: none; margin-right: 8px; fill: none; stroke: currentColor; stroke-width: 2;
+           stroke-linecap: round; stroke-linejoin: round; }
+  #bspin path { stroke-dasharray: 100; animation: drawhouse 2.6s ease-in-out infinite; }      /* drawn, held, wiped away */
+  @keyframes drawhouse { 0% { stroke-dashoffset: 100; } 55%, 72% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: -100; } }
+  @media (prefers-reduced-motion: reduce) { #bspin path { animation: none; } }
+  #wait { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); flex-direction: column; gap: 10px; padding: 16px; text-align: center; }
+  @media (max-width: 760px) { main { flex-direction: column; } aside { width: auto; max-height: 45vh; border-left: 0; border-top: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header>
+  <a href="/" title="Back to the home page">Home</a>
+  <h2 id="title">Review</h2>
+  <div class="tabs" id="tabs"></div>
+  <span class="muted" id="scale"></span>
+  <span style="flex:1"></span>
+  <select id="quality" title="Quality">
+    <option value="draft">Draft (fast)</option>
+    <option value="high" selected>High quality</option>
+  </select>
+  <button class="btn" id="build">Build 3D</button>
+</header>
+<main>
+  <div id="stage"><canvas id="cv"></canvas>
+    <div id="wait"><b id="wmsg">Reading the drawing…</b><div class="bar" style="width:260px"><i id="wbar"></i></div><a href="/" id="back" hidden>Upload another file</a></div>
+  </div>
+  <aside>
+    <div>
+      <h3>Tools</h3>
+      <div class="tools" id="tools">
+        <button data-t="select" class="on">Select / pan</button>
+        <button data-t="wall">Draw wall</button>
+        <button data-t="door">Add door</button>
+        <button data-t="window">Add window</button>
+        <button data-t="scale">Set scale</button>
+        <button id="undo">Undo</button>
+      </div>
+      <p class="muted" style="font-size:12px;margin:6px 0 0" id="hint">Click a wall, opening or room to edit it, or another floor plan to switch to it. Drag to pan, scroll to zoom.</p>
+    </div>
+    <div id="props"></div>
+    <div>
+      <h3>Furniture</h3>
+      <label title="Untick to build empty rooms: walls, floors, doors, windows and lights only"><input type="checkbox" id="furn" checked> Furnish the rooms</label>
+      <button class="btn ghost" id="models" type="button" style="margin-top:8px;width:100%">Change furniture models</button>
+    </div>
+    <div>
+      <h3>Floor</h3>
+      <div class="row"><span>Name</span><input type="text" id="fname" style="width:150px"></div>
+      <div class="row" style="margin-top:6px"><span>Ceiling height (ft)</span><input type="number" id="fh" min="8" max="14" step="0.5" style="width:70px"></div>
+    </div>
+    <div class="legend">
+      <span><i style="background:#e53935"></i>wall</span><span><i style="background:#d81bd8"></i>low wall</span>
+      <span><i style="background:#2e9d3a"></i>door</span><span><i style="background:#1e6fe0"></i>window</span>
+      <span><i style="background:#f2b400"></i>opening</span><span><i style="background:#8a5a2b"></i>stairs</span>
+    </div>
+    <div id="buildbox" hidden>
+      <h3 id="bhead">3D build<span id="beta"></span></h3>
+      <div class="bar"><i id="bbar"></i></div>
+      <p id="bfun" hidden><svg id="bspin" viewBox="0 0 24 24" aria-hidden="true"><path pathLength="100" d="M3 11 12 3l9 8M5 9.5V21h14V9.5M10 21v-6h4v6"/></svg><span id="bword"></span></p>
+      <p id="bmsg" class="muted" style="font-size:13px;margin-top:4px"></p>
+      <a class="btn" id="open" hidden>Open walkthrough</a>
+    </div>
+  </aside>
+</main>
+<dialog id="modelsdlg" style="width:min(1000px,94vw);height:86vh;padding:0;border:1px solid var(--line);border-radius:12px;background:var(--bg)">
+  <form method="dialog" style="position:absolute;right:10px;top:8px"><button class="btn ghost">Close</button></form>
+  <iframe id="modelsframe" title="Furniture models" style="width:100%;height:100%;border:0"></iframe>
+</dialog>
+<script type="module" src="/web/edit.js"></script>
+</body>
+</html>
