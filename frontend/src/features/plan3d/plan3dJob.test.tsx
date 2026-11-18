@@ -470,6 +470,34 @@ describe('3D job page', () => {
       expect(screen.getByRole('progressbar', { name: 'Build progress' })).toBeDefined();
     });
 
+    it('says which reader made the plan, and builds only when the review page says it can be built', async () => {
+      mockApi({});
+      renderJob();
+      await screen.findByTitle(REVIEW);
+      await options().findByRole('radio', { name: 'Medium' });
+      act(() =>
+        post({ ...READY, reader: 'trace', notice: 'Neither reader could read this drawing.', buildable: false, problem: 'Draw the walls first.' }),
+      );
+      const note = await screen.findByRole('note', { name: 'How this plan was read' });
+      expect(note.textContent).toContain('Trace the walls over the page');
+      expect(note.textContent).toContain('Neither reader could read this drawing.');
+      expect(isDisabled(buildButton())).toBe(true);
+      expect(options().getByRole('alert').textContent).toBe('Draw the walls first.');
+
+      act(() => post({ source: 'planto3d', job: JOB_ID, type: 'buildable', buildable: true, problem: null }));
+      await waitFor(() => expect(isDisabled(buildButton())).toBe(false));
+      expect(options().queryByRole('alert')).toBeNull();
+    });
+
+    it('names the AI plan reader', async () => {
+      mockApi({});
+      renderJob();
+      await screen.findByTitle(REVIEW);
+      act(() => post({ ...READY, reader: 'ai', notice: 'Read by the AI plan reader: check the walls, doors and sizes before you build.' }));
+      const note = await screen.findByRole('note', { name: 'How this plan was read' });
+      expect(note.textContent).toContain('read by the AI plan reader');
+    });
+
     it('shows why the build could not be started', async () => {
       const fetchMock = mockApi({
         [`POST ${JOB}/build`]: inTurn(

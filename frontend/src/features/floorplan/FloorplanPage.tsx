@@ -4,14 +4,15 @@
  * on their home page under that project.
  *
  * The plan id is kept in the URL (?plan=...), so a reload or a shared link reopens the
- * same plan.
+ * same plan. "Open in 3D" hands the stored plan to the 3D builder (no drawing is read).
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
-import { IconRefresh } from '../../components/ui/Icons';
+import { IconArrowRight, IconRefresh } from '../../components/ui/Icons';
 import { useProject } from '../../context/ProjectContext';
 import { ApiError } from '../../lib/api';
+import { plan3dApi, plan3dErrorText } from '../plan3d';
 import { floorplanApi } from './api';
 import { BriefForm } from './components/BriefForm';
 import { ConfirmationCard } from './components/ConfirmationCard';
@@ -190,6 +191,20 @@ export function FloorplanPage() {
     setStep('form');
   };
 
+  const [opening3d, setOpening3d] = useState(false);
+  const openIn3D = async () => {
+    if (!plan || opening3d) return;
+    setOpening3d(true);
+    setError(null);
+    try {
+      const { job_id } = await plan3dApi.fromFloorplan(plan.id);
+      navigate(`/3d/${encodeURIComponent(job_id)}`);
+    } catch (e) {
+      setError(`The plan could not be opened in 3D. ${plan3dErrorText(e)}`);
+      setOpening3d(false);
+    }
+  };
+
   const messages = pending && plan ? [...plan.messages, pending] : (plan?.messages ?? []);
 
   return (
@@ -206,6 +221,15 @@ export function FloorplanPage() {
             <ExportMenu planId={plan.id} />
             <Button size="sm" variant="secondary" onClick={startOver} leftIcon={<IconRefresh className="h-4 w-4" />}>
               New plan
+            </Button>
+            <Button
+              size="sm"
+              variant="accent"
+              disabled={opening3d}
+              onClick={() => void openIn3D()}
+              rightIcon={<IconArrowRight className="h-4 w-4" />}
+            >
+              {opening3d ? 'Opening…' : 'Open in 3D'}
             </Button>
           </div>
         )}

@@ -27,6 +27,14 @@ export const SAVE_TIMEOUT_MS = 10_000;
 
 const NOT_SAVED = 'The plan could not be saved.';
 const SAVE_TIMED_OUT = 'The review page did not confirm that the plan was saved. Please try again.';
+/** Which reader made the plan, as the person is told. The reader's own notice follows. */
+const READER_TEXT: Record<string, string> = {
+  ai: 'This plan was read by the AI plan reader, because the drawing could not be read directly. Check the walls, doors, windows and sizes before you build.',
+  stored: 'This plan comes from your floor plan. Nothing was read from the drawing.',
+  trace: 'This drawing could not be read. Trace the walls over the page and set the scale before you build.',
+  manual: 'Draw the plan over the page and set the scale before you build.',
+};
+
 const ACCESS_EXPIRED =
   'This page has been open for too long and can no longer save the plan. Open the plan again (changes that were not built are lost), then build.';
 
@@ -58,6 +66,9 @@ function ReviewPanel(props: ReviewPanelProps) {
   const pendingSave = useRef<((problem: string | null) => void) | null>(null);
   const [ready, setReady] = useState(false);
   const [pageProblem, setPageProblem] = useState<string | null>(null);
+  /** Why the plan cannot be built yet, as the review page says; null when it can. */
+  const [notBuildable, setNotBuildable] = useState<string | null>(null);
+  const [reader, setReader] = useState<{ reader: string; notice: string } | null>(null);
   const [furnish, setFurnish] = useState(true);
   const [picked, setPicked] = useState<Plan3dQualityId | null>(null);
   const [busy, setBusy] = useState(false);
@@ -76,6 +87,11 @@ function ReviewPanel(props: ReviewPanelProps) {
         case 'ready':
           setReady(true);
           setPageProblem(null);
+          setReader({ reader: message.data.reader ?? '', notice: message.data.notice ?? '' });
+          setNotBuildable(message.data.buildable === false ? message.data.problem || 'The plan cannot be built yet.' : null);
+          break;
+        case 'buildable':
+          setNotBuildable(message.data.buildable ? null : message.data.problem || 'The plan cannot be built yet.');
           break;
         case 'failed':
           setPageProblem(`The plan could not be opened for review. ${message.data.message}`.trim());
@@ -113,7 +129,7 @@ function ReviewPanel(props: ReviewPanelProps) {
     });
 
   const build = async () => {
-    if (busy || !ready || quality === null) return;
+    if (busy || !ready || notBuildable !== null || quality === null) return;
     if (hasExpired()) {
       setExpired(true);
       setBuildError(ACCESS_EXPIRED);
@@ -131,10 +147,21 @@ function ReviewPanel(props: ReviewPanelProps) {
     }
   };
 
+  const readerText = reader ? READER_TEXT[reader.reader] : undefined;
+  const readerNotice = reader?.notice && reader.notice !== readerText ? reader.notice : '';
+
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
-      <div className="h-[70vh] min-h-[420px] overflow-hidden rounded-lg border border-[#303030] bg-[#141414]">
-        <iframe ref={frame} title="Review the detected plan" src={src} className="h-full w-full border-0" />
+      <div className="flex min-w-0 flex-col gap-3">
+        {(readerText || readerNotice) && (
+          <div role="note" aria-label="How this plan was read" className="rounded border border-[#5A4A2E] bg-[#1E1A12] p-3 text-sm text-[#E2C294]">
+            {readerText && <p className="m-0">{readerText}</p>}
+            {readerNotice && <p className="m-0 mt-1 break-words text-xs text-[#C9B48C]">{readerNotice}</p>}
+          </div>
+        )}
+        <div className="h-[70vh] min-h-[420px] overflow-hidden rounded-lg border border-[#303030] bg-[#141414]">
+          <iframe ref={frame} title="Review the detected plan" src={src} className="h-full w-full border-0" />
+        </div>
       </div>
       <BuildOptions
         qualities={qualities}
@@ -144,9 +171,9 @@ function ReviewPanel(props: ReviewPanelProps) {
         onFurnish={setFurnish}
         quality={quality}
         onQuality={setPicked}
-        ready={ready}
+        ready={ready && notBuildable === null}
         busy={busy}
-        error={buildError ?? pageProblem}
+        error={buildError ?? pageProblem ?? notBuildable}
         errorAction={
           expired && (
             <Button variant="secondary" size="sm" onClick={props.onReopen}>

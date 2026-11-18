@@ -87,6 +87,16 @@ export const plan3dApi = {
     return plan3dJobCreatedSchema.parse(await apiRequest(`${PLAN3D_BASE}/jobs`, { method: 'POST', body, signal }));
   },
 
+  /** A plan of the floor plan generator, opened in 3D without reading any drawing. */
+  fromFloorplan: async (planId: string, signal?: AbortSignal): Promise<{ job_id: string }> =>
+    plan3dJobCreatedSchema.parse(
+      await apiRequest(`${PLAN3D_BASE}/jobs/from-floorplan`, {
+        method: 'POST',
+        body: JSON.stringify({ plan_id: planId }),
+        signal,
+      }),
+    ),
+
   /** The same with the 3D builder's own sample plan. */
   sample: async (projectId?: string | null, signal?: AbortSignal): Promise<{ job_id: string }> =>
     plan3dJobCreatedSchema.parse(

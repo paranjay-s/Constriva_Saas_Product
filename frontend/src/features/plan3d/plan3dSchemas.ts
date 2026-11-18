@@ -44,7 +44,8 @@ export const plan3dJobSchema = z.looseObject({
   job_id: z.string(),
   name: z.string(),
   project_id: z.string().nullable(),
-  source: z.enum(['upload', 'sample']),
+  /** upload, the builder's sample, or a plan of the floor plan generator ("Open in 3D"). */
+  source: z.enum(['upload', 'sample', 'floorplan']),
   stage: plan3dStageSchema,
   /** 0 to 100, of the detection or of the build. */
   progress: z.number(),
@@ -60,6 +61,11 @@ export const plan3dJobSchema = z.looseObject({
   quality: plan3dQualityIdSchema.nullable(),
   build_seconds: z.number().nullable(),
   created_at: z.string().nullable(),
+  /** Who read the plan: detector, ai (our AI plan reader), stored (the floor plan generator),
+   *  trace (nothing could be read: traced by hand); empty until it is read. */
+  reader: z.string().optional(),
+  /** What to check, from that reader. */
+  notice: z.string().optional(),
 });
 export type Plan3dJob = z.infer<typeof plan3dJobSchema>;
 
@@ -98,7 +104,22 @@ const fromReviewPage = { source: z.literal('planto3d'), job: z.string() };
  * and an answer without one must still count as "not saved" instead of being ignored.
  */
 export const plan3dFrameMessageSchema = z.discriminatedUnion('type', [
-  z.looseObject({ ...fromReviewPage, type: z.literal('ready'), floors: z.number() }),
+  z.looseObject({
+    ...fromReviewPage,
+    type: z.literal('ready'),
+    floors: z.number(),
+    reader: z.string().optional(),
+    notice: z.string().optional(),
+    /** False while the plan cannot be built yet (a traced plan with no walls or no scale). */
+    buildable: z.boolean().optional(),
+    problem: z.string().nullable().optional(),
+  }),
+  z.looseObject({
+    ...fromReviewPage,
+    type: z.literal('buildable'),
+    buildable: z.boolean(),
+    problem: z.string().nullable().optional(),
+  }),
   z.looseObject({ ...fromReviewPage, type: z.literal('failed'), message: z.string() }),
   z.looseObject({ ...fromReviewPage, type: z.literal('saved'), ok: z.boolean(), error: z.string().nullable().optional() }),
 ]);

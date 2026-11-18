@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { ApiError } from '../../lib/api';
-import { embedOrigin, embedUrl, isNotFound, jobFileUrl, plan3dErrorText } from './plan3dApi';
+import { embedOrigin, embedUrl, isNotFound, jobFileUrl, plan3dApi, plan3dErrorText } from './plan3dApi';
 import { API, EMBED_BASE, HIGH_REASON, JOB_ID, RAW_QUALITIES, RAW_SYSTEM, rawEmbed, rawFurnitureEmbed, rawJob } from './plan3dFixture';
 import {
   PLAN3D_STEPS,
@@ -334,5 +334,25 @@ describe('3D API helpers', () => {
     expect(isNotFound(new ApiError(404, '3D job not found.'))).toBe(true);
     expect(isNotFound(new ApiError(409, 'busy'))).toBe(false);
     expect(isNotFound(new Error('404'))).toBe(false);
+  });
+});
+
+describe('Open in 3D from the floor plan generator', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('asks the gateway for a job made from the stored plan', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ job_id: JOB_ID }), { status: 201, headers: { 'Content-Type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await plan3dApi.fromFloorplan('5b1f0e7a-2c44-4d0b-9a61-7e3c2d9f4a10')).toEqual({ job_id: JOB_ID });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe(`${API}/api/v1/3d/jobs/from-floorplan`);
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(String(init.body))).toEqual({ plan_id: '5b1f0e7a-2c44-4d0b-9a61-7e3c2d9f4a10' });
+  });
+
+  it('accepts a job made from a floor plan, with the reader that made its plan', () => {
+    const job = plan3dJobSchema.parse({ ...rawJob(), source: 'floorplan', reader: 'stored', notice: 'From your floor plan' });
+    expect(job.source).toBe('floorplan');
+    expect(job.reader).toBe('stored');
   });
 });
