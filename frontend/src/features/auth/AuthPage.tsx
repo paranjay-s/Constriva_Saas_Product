@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { SESSION_NOTICE_KEY } from '../../lib/api';
 import { AuthCinematic } from './AuthCinematic';
 import { BrandMark, CtaArrow, LinkArrow } from '../../components/ui/Icons';
 
@@ -11,7 +12,16 @@ export const AuthPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string; general?: string }>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(() => {
+    // "Your session has expired. Please sign in again." after an automatic sign-out
+    try {
+      const notice = sessionStorage.getItem(SESSION_NOTICE_KEY);
+      if (notice) sessionStorage.removeItem(SESSION_NOTICE_KEY);
+      return notice;
+    } catch {
+      return null;
+    }
+  });
 
   const { signIn, signUp, loginAsDemo } = useAuth();
   const navigate = useNavigate();

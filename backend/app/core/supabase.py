@@ -15,7 +15,7 @@ import time
 import logging
 from typing import Optional
 import jwt
-from supabase import create_client, Client
+from supabase import Client, ClientOptions, create_client
 from app.core.config import settings
 
 logger = logging.getLogger("construtiva.supabase")
@@ -26,12 +26,34 @@ _supabase_client: Optional[Client] = None
 REQUIRED_BUCKETS = ["blueprints", "rasters", "site-photos"]
 
 
+_service_auth_header: Optional[str] = None
+
+
+def _no_session_options() -> ClientOptions:
+    # A server never keeps a user session: no background token refresh, nothing stored.
+    return ClientOptions(auto_refresh_token=False, persist_session=False)
+
+
 def get_supabase_client() -> Client:
     """
     Returns the singleton administrative Supabase client initialized with the Service Role Key.
     This client has administrative access to query tables and read/write storage buckets.
+
+    IMPORTANT: never call `auth.sign_in_*` / `auth.refresh_session` on this client. supabase-py
+    switches a client's Authorization header to the signed-in user's token, so every later
+    database call would run as that user (RLS errors, and failures once that token expires
+    an hour later). Use `new_auth_client()` for sign-in. As a safety net, this function
+    rebuilds the client if its Authorization header no longer belongs to the service key.
     """
-    global _supabase_client
+    global _supabase_client, _service_auth_header
+    if _supabase_client is not None and _service_auth_header is not None:
+        current = _supabase_client.options.headers.get("Authorization")
+        if current != _service_auth_header:
+            logger.error(
+                "Supabase admin client was switched to a user session; rebuilding it with the "
+                "service key (some code signed in on the shared client)."
+            )
+            _supabase_client = None
     if _supabase_client is None:
         if not settings.supabase_url or not settings.supabase_service_role_key:
             raise ValueError(
@@ -40,9 +62,23 @@ def get_supabase_client() -> Client:
         _supabase_client = create_client(
             settings.supabase_url,
             settings.supabase_service_role_key,
+            options=_no_session_options(),
         )
+        _service_auth_header = _supabase_client.options.headers.get("Authorization")
         logger.info("Supabase admin client initialized successfully.")
     return _supabase_client
+
+
+def new_auth_client() -> Client:
+    """
+    A fresh, throw-away client for sign-in, token refresh and sign-up flows.
+
+    Signing in on it changes only this client, never the shared admin client.
+    """
+    if not settings.supabase_url:
+        raise ValueError("SUPABASE_URL must be configured in environment.")
+    key = settings.supabase_anon_key or settings.supabase_service_role_key
+    return create_client(settings.supabase_url, key, options=_no_session_options())
 
 
 def get_user_supabase_client(token: Optional[str] = None) -> Client:

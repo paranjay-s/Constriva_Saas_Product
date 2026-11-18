@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from '../types';
-import { authApi, TOKEN_STORAGE_KEY } from '../lib/api';
+import { authApi, clearSession, saveSession, SESSION_EXPIRED_EVENT, TOKEN_STORAGE_KEY } from '../lib/api';
 
 interface AuthContextType {
   user: User | null;
@@ -70,6 +70,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initializeAuth();
   }, []);
 
+  // the API client could not renew the session: sign out cleanly (ProtectedRoute then
+  // shows the sign-in page with the notice) instead of letting pages fail one by one
+  useEffect(() => {
+    const onExpired = () => {
+      setUser(null);
+      localStorage.removeItem(STORAGE_KEY);
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+  }, []);
+
   const signIn = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
     try {
@@ -80,7 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name: res.user.full_name || email.split('@')[0],
       };
       setUser(loggedUser);
-      localStorage.setItem(TOKEN_STORAGE_KEY, res.access_token);
+      saveSession(res);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedUser));
     } catch (err) {
       console.error('Sign in error:', err);
@@ -100,7 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name: res.user.full_name || name,
       };
       setUser(newUser);
-      localStorage.setItem(TOKEN_STORAGE_KEY, res.access_token);
+      saveSession(res);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
     } catch (err) {
       console.error('Sign up error:', err);
@@ -112,7 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = () => {
     setUser(null);
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    clearSession();
     localStorage.removeItem(STORAGE_KEY);
   };
 
