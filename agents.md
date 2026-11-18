@@ -765,6 +765,39 @@ In your final report, list what you created, anything you skipped and why, any w
 - Loan module data model and extraction approach (listed as "to be discussed").
 - The database schema migration (tables for profiles, projects, files, plans, plan versions, sheets, materials, conversations, jobs) is a separate task.
 
+## 11. The 3D module (PlanTo3D)
+
+Floor plan PDF to a furnished 3D house you can walk through. Two parts:
+
+- `services/planto3d/` is a vendored service that runs on standard-library Python 3.9 (`/usr/bin/python3`)
+  and Blender. It reads the plan (`detect.py`), serves the review page and the walkthrough (`web/`), and
+  builds the house in Blender (`blender/gen.py`, `bake.py`). Every change to it is recorded in
+  `services/planto3d/PATCHES.md`, numbered, with what changed and the measured effect. Start it with
+  `scripts/run_planto3d.sh` (add `--dev` for the "Save as reference" button). Tests:
+  `services/planto3d/tests/run_all.sh`.
+- `backend/app/modules/plan3d/` is the gateway at `/api/v1/3d`. It owns jobs per user and falls back
+  through the readers in order: detector, then the AI plan reader (`convert.py`), then tracing. It also
+  classifies unknown room labels with one cached AI call per plan (`areas.py`), sends build emails
+  (`notify.py`, logged when `EMAIL_SMTP_*` is unset), and signs embed tokens for the pages shown in
+  iframes. The tokens are read-only, cover one job, are redacted from logs, are sent with `Cache-Control:
+  private` and are refreshed before they expire.
+- The frontend is `frontend/src/features/plan3d/` (upload, review in an iframe, build, walkthrough).
+
+Rules for this module:
+
+1. Rule 4 in section 3 has one exception: PlanTo3D builds the house mesh in Blender on the server.
+   The owner made that decision.
+2. Room types come from one vocabulary, `services/planto3d/web/rooms.json` (read by `rooms.py`, the
+   converter and the pages). Add a label there, not in a reader. An unknown label becomes
+   "multipurpose" and shows up in "Needs checking". It is never dropped silently.
+3. AI output is data that passes validation: plan JSON through the converter, area specs through
+   `areaspec.validate`. The AI never writes code or geometry that is used without validation.
+4. Unit tests never call a live model. Use the fake clients in `tests/unit/test_plan3d_*.py`.
+5. Accuracy is measured on generated plans that were held out from tuning (`tools/testplans/`, results
+   in `docs/overnight/accuracy.md`). Never tune to the files in `docs/reference/plans` and never claim
+   100%.
+6. Keep `PLAN3D_ALLOW_FURNITURE_CHANGES` false until per-user furniture is finished.
+
 ---
 
 # Appendices
