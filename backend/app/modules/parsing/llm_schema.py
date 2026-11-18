@@ -67,6 +67,8 @@ class DraftRoom(_Draft):
     id: str | int
     name: str | None = None
     kind: str | None = None
+    # The model's reading of the room's use. Checked and applied by the normaliser.
+    boq_type: str | None = None
     polygon: list[DraftPoint] = Field(min_length=3)
     height_m: Number | None = None
     is_double_height_void: bool = False

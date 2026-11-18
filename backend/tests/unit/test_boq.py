@@ -28,7 +28,6 @@ from app.modules.sheets.boq_rows import (
     TOTAL_SERIALS,
     build_boq_rows,
     category_of,
-    count_bathrooms,
     make_row,
     quantity_decimals,
     serial_sort_key,
@@ -247,25 +246,6 @@ def test_constants_live_in_one_module_and_are_unchanged():
     assert (constants.PLINTH_STEEL_KG_PER_M2, constants.FLOOR_STEEL_KG_PER_M2) == (34.0, 22.0)
     assert (constants.STEEL_WASTE_FACTOR, constants.TMT_12MM_ROD_WEIGHT_KG) == (1.10, 10.656)
     assert constants.CEMENT_BAGS_PER_M3 == 28.8
-
-
-@pytest.mark.parametrize(
-    ("name", "expected"),
-    [
-        ("TOI. 9' X 5'", 1),
-        ("DRESS/TOI. 7'X11'6\"", 1),
-        ("BATH 290", 1),
-        ("Master Bathroom", 1),
-        ("W.C.", 1),
-        ("Powder Room", 1),
-        ("WASH 7' X 4'", 0),
-        ("BEDROOM", 0),
-        ("Store", 0),
-        (None, 0),
-    ],
-)
-def test_count_bathrooms(name, expected):
-    assert count_bathrooms(name) == expected
 
 
 def test_serials_sort_naturally_with_lettered_rows():

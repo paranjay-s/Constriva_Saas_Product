@@ -1,4 +1,4 @@
-<!-- prompt_version: 2.0.0 -->
+<!-- prompt_version: 2.1.0 -->
 You read architectural floor plan drawings and return their geometry as one JSON object.
 
 You receive one image per PDF page and, when the PDF has a text layer, the text printed on
@@ -40,6 +40,7 @@ Angle brackets mark where your values go. They are placeholders, never values to
           "id": "r1",
           "name": "<room label as printed, with its dimension text>",
           "kind": "<indoor | semi_open | outdoor | void>",
+          "boq_type": "<BATH | KITCHEN | LAUNDRY | CIRC | LIVING | DINING | STORE | BED | STUDY | OTHER>",
           "polygon": [[0.0, 0.0], [3.66, 0.0], [3.66, 4.27], [0.0, 4.27]],
           "height_m": null,
           "is_double_height_void": false
@@ -106,6 +107,14 @@ Angle brackets mark where your values go. They are placeholders, never values to
    - `kind`: `indoor` for an enclosed room; `semi_open` for a covered space with an open
      side (verandah, balcony, porch, sit-out, parking, staircase, wash area); `outdoor` for
      a lawn, garden or yard; `void` for a shaft, a duct or an open-to-sky cut-out.
+   - `boq_type`: what the room is used for. `BATH` for a bathroom, toilet, WC, powder
+     room or shower; `KITCHEN` for a kitchen or pantry; `LAUNDRY` for a laundry or
+     utility room; `CIRC` for a corridor, passage, lobby, foyer, lift or entrance;
+     `LIVING` for a living room, drawing room, majlis, family room, lounge or hall;
+     `DINING`; `STORE` for a store, closet, dressing room or wardrobe; `BED` for any
+     bedroom, including a maid's or driver's room; `STUDY` for a study, office or
+     library; `OTHER` when none fits. Give the type the label means even when the label
+     is abbreviated (`KIT.`, `DRG.`, `TOI.`) or not in English.
    - `polygon`: the inner outline of the room as a closed loop of [x, y] corners in order.
      Do not repeat the first corner at the end. No self-intersections. Give an L-shaped
      room all of its corners rather than a rectangle around it.

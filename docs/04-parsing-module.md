@@ -34,7 +34,7 @@ Everything that must not depend on the model happens in `normalise.py`:
 - moves every level to its own origin, so the top-left of what is drawn is (0, 0) wherever the model placed it;
 - cleans room polygons: no repeated or closing point, at least 3 points, non-zero area, counter-clockwise, rounded to 3 decimals, canonical start vertex;
 - sorts rooms, walls, openings and columns by their geometry and assigns stable ids (`L0-R01`, `L0-W01`, `L0-O01`, `L0-C01`), so the order the model listed things in does not matter;
-- sets room `kind` by rule (`modules/plans/room_kind.py`), wall `kind` / `is_exterior`, and opening `type` (always `door` or `window`);
+- sets room `kind` by rule (`modules/plans/room_kind.py`) and room `boq_type` by rule (`modules/plans/room_types.py`; the model's answer is used only when the rules return `OTHER`), wall `kind` / `is_exterior`, and opening `type` (always `door` or `window`). `room.type` is the 3D adapter's key and is never read or written;
 - merges duplicate walls and adds missing partition walls (flagged `inferred`);
 - orders levels from the lowest floor up and fills `index`, `name`, `elevation`, `wall_height_source`;
 - adds `warnings` for implausible scale: a room under 1 m2 or over 500 m2, and a room whose printed size differs from its drawn area by more than 10%.

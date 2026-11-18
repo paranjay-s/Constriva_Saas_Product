@@ -163,17 +163,6 @@ def make_row(
     }
 
 
-_BATHROOM = re.compile(
-    r"\b(toi|toilet|toilets|bath|bathroom|w\.?\s?c|powder|lav|lavatory|washroom|restroom|shower)\b",
-    re.IGNORECASE,
-)
-
-
-def count_bathrooms(room_name: Any) -> int:
-    """1 when a room label names a toilet or bathroom ("TOI.", "BATH", "DRESS/TOI."), else 0."""
-    return 1 if _BATHROOM.search(str(room_name or "")) else 0
-
-
 def _waste_note(material: dict[str, Any]) -> str:
     waste = float(material.get("waste_multiplier") or 1.0) - 1.0
     return f"Includes {waste * 100:.0f}% waste." if waste > 0 else ""

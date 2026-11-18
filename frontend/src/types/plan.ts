@@ -50,6 +50,8 @@ export type Openings = Opening[];
 export type Id2 = string;
 export type Name1 = string | null;
 export type Kind1 = ("indoor" | "semi_open" | "outdoor" | "void") | null;
+export type BoqType =
+  ("BATH" | "KITCHEN" | "LAUNDRY" | "CIRC" | "LIVING" | "DINING" | "STORE" | "BED" | "STUDY" | "OTHER") | null;
 export type Polygon = [number, number][];
 export type HeightM = number | null;
 export type IsDoubleHeightVoid = boolean;
@@ -126,6 +128,7 @@ export interface Room {
   id: Id2;
   name?: Name1;
   kind?: Kind1;
+  boq_type?: BoqType;
   polygon: Polygon;
   height_m?: HeightM;
   is_double_height_void?: IsDoubleHeightVoid;

@@ -17,6 +17,13 @@ from app.modules.parsing.normalise import (
     upgrade_plan,
 )
 from app.modules.plans.room_kind import is_open_void_label, parser_room_kind
+from app.modules.plans.room_types import (
+    BOQ_TYPES,
+    boq_type_from_name,
+    is_open_plan_kitchen,
+    resolve_boq_type,
+    stored_or_derived_boq_type,
+)
 from app.modules.plans.schemas import SCHEMA_VERSION, UNSTATED_WALL_HEIGHT_M, PlanJSON
 from app.modules.sheets.llm_mapper import _classify_room_kind
 
@@ -146,6 +153,160 @@ def test_open_kitchen_is_no_longer_a_void_in_the_calculator():
 )
 def test_parser_kind_rules(name, reported, expected):
     assert parser_room_kind(name, reported) == expected
+
+
+# ------------------------------------------------------------------- room boq_type
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        # rule 1 wins over everything below it
+        ("Master Bath", "BATH"),
+        ("GUEST TOILET", "BATH"),
+        ("TOI. 9' X 5'", "BATH"),
+        ("DRESS/TOI. 7'X11'6\"", "BATH"),
+        ("W.C.", "BATH"),
+        ("Washroom", "BATH"),  # before LAUNDRY's "wash"
+        ("Powder Room", "BATH"),
+        ("Ensuite", "BATH"),
+        ("Kitchen", "KITCHEN"),
+        ("Open Kitchen", "KITCHEN"),
+        ("Pantry", "KITCHEN"),
+        ("Laundry", "LAUNDRY"),
+        ("Utility", "LAUNDRY"),
+        ("WASH 7' X 4'", "LAUNDRY"),
+        ("Hallway", "CIRC"),  # before LIVING's "hall"
+        ("Corridor", "CIRC"),
+        ("PASSAGE 3'4\" WD.", "CIRC"),
+        ("ENT.LOBBY 5'X10'4", "CIRC"),
+        ("Staircase", "CIRC"),
+        ("Living Room", "LIVING"),
+        ("Majlis", "LIVING"),
+        ("FAMILY HALL 620X400", "LIVING"),
+        ("Drawing Room", "LIVING"),
+        ("Dining", "DINING"),
+        ("STORE 4'8\" X 4'", "STORE"),
+        ("Dressing", "STORE"),
+        ("Walk-in Closet", "STORE"),
+        ("BED ROOM 500X400", "BED"),
+        ("Master Suite", "BED"),
+        ("MAID ROOM 250", "BED"),
+        ("Guest Room", "BED"),
+        ("Study", "STUDY"),
+        ("Home Office", "STUDY"),
+        ("Hall", "LIVING"),  # rule 10
+        ("Room 1", "OTHER"),
+        ("KIT. 12'6X10'", "OTHER"),  # abbreviations are left to the model
+        ("DRG./DIN. 17'9 X 21'", "OTHER"),
+        ("", "OTHER"),
+        (None, "OTHER"),
+    ],
+)
+def test_boq_type_keyword_rules(name, expected):
+    assert boq_type_from_name(name) == expected
+    assert expected in BOQ_TYPES
+
+
+@pytest.mark.parametrize(
+    ("name", "open_plan"),
+    [
+        ("Living / Dining / Kitchen", True),
+        ("Kitchen + Family", True),
+        ("Lounge with Pantry", True),
+        ("Kitchen Hall", True),
+        ("Open Kitchen", False),
+        ("Kitchen", False),
+        ("Living Room", False),
+        ("Dining", False),
+    ],
+)
+def test_open_plan_kitchen_is_a_living_room(name, open_plan):
+    assert is_open_plan_kitchen(name) is open_plan
+    if open_plan:
+        assert boq_type_from_name(name) == "LIVING"
+
+
+def test_rules_win_and_the_model_fills_in_only_for_other():
+    assert resolve_boq_type("Master Bedroom", "KITCHEN") == "BED"  # rule beats the model
+    assert resolve_boq_type("KIT. 12'6X10'", "KITCHEN") == "KITCHEN"  # abbreviated label
+    assert resolve_boq_type("\u0645\u0637\u0628\u062e", "kitchen") == "KITCHEN"  # Arabic label
+    assert resolve_boq_type("Room 1", "PLAYROOM") == "OTHER"  # not a valid code
+    assert resolve_boq_type("Room 1", None) == "OTHER"
+
+
+def test_a_stored_boq_type_is_kept_and_a_missing_one_is_derived():
+    assert stored_or_derived_boq_type("Room 1", "BED") == "BED"
+    assert stored_or_derived_boq_type("Master Bedroom", None) == "BED"
+    assert stored_or_derived_boq_type("Master Bedroom", "not-a-type") == "BED"
+    assert stored_or_derived_boq_type("Room 1", None) == "OTHER"
+
+
+def test_normaliser_types_indoor_rooms_only():
+    raw = raw_plan()
+    raw["levels"][0]["rooms"][0]["boq_type"] = "BED"  # the model's (wrong) answer for a kitchen
+    raw["levels"][0]["rooms"].append(
+        {
+            "id": "x",
+            "name": "KIT. 10' X 10'",
+            "kind": "indoor",
+            "boq_type": "KITCHEN",
+            "polygon": [[0, 5], [5, 5], [5, 10], [0, 10]],
+        }
+    )
+    rooms = {r["name"]: r for r in normalise_plan(raw)["levels"][0]["rooms"]}
+    assert rooms["Open Kitchen 10' X 10'"]["boq_type"] == "KITCHEN"  # keyword rule wins
+    assert rooms["BEDROOM 10' X 10'"]["boq_type"] == "BED"
+    assert rooms["KIT. 10' X 10'"]["boq_type"] == "KITCHEN"  # rules gave OTHER: model used
+    assert rooms["OPEN 4'6\"X10'"]["kind"] == "void"
+    assert rooms["OPEN 4'6\"X10'"]["boq_type"] is None  # not an indoor room
+
+
+def test_room_type_key_of_the_3d_adapter_is_never_read_written_or_changed():
+    # a fresh parse does not create it, whatever the model sends
+    raw = raw_plan()
+    raw["levels"][0]["rooms"][0]["type"] = "bedroom"  # wrong on purpose: must not be read
+    parsed = normalise_plan(raw)
+    assert all("type" not in r for r in parsed["levels"][0]["rooms"])
+    assert parsed["levels"][0]["rooms"][1]["boq_type"] == "KITCHEN"
+
+    # a stored plan keeps it exactly as it was, next to the new boq_type
+    stored = {
+        "levels": [
+            {
+                "furniture": [{"type": "sofa", "position": [1, 1]}],
+                "rooms": [
+                    {
+                        "id": "r",
+                        "name": "Master Bedroom",
+                        "kind": "indoor",
+                        "type": "bedroom",
+                        "dimensions": "12' X 14'",
+                        "polygon": [[0, 0], [4, 0], [4, 5], [0, 5]],
+                    },
+                    {
+                        "id": "k",
+                        "name": "Kitchen",
+                        "kind": "indoor",
+                        "type": "toilet",
+                        "polygon": [[4, 0], [8, 0], [8, 5], [4, 5]],
+                    },
+                ],
+                "walls": [
+                    {"id": "w", "start": [0, 0], "end": [8, 0], "height": 3.1, "type": "exterior"}
+                ],
+            }
+        ]
+    }
+    upgraded = upgrade_plan(stored)
+    bed, kitchen = upgraded["levels"][0]["rooms"]
+    assert (bed["type"], bed["dimensions"], bed["boq_type"]) == ("bedroom", "12' X 14'", "BED")
+    assert (kitchen["type"], kitchen["boq_type"]) == ("toilet", "KITCHEN")  # type ignored
+    assert upgraded["levels"][0]["walls"][0]["height"] == 3.1
+    assert upgraded["levels"][0]["furniture"] == [{"type": "sofa", "position": [1, 1]}]
+    assert (
+        PlanJSON.model_validate(upgraded).model_dump()["levels"][0]["rooms"][0]["type"] == "bedroom"
+    )
 
 
 # -------------------------------------------------------------------------- helpers

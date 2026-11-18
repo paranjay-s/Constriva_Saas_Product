@@ -27,7 +27,8 @@ import logging
 from typing import Dict, Any, List, Optional, Tuple
 
 from app.modules.plans.room_kind import is_open_void_label
-from app.modules.sheets.boq_rows import build_boq_rows, count_bathrooms
+from app.modules.plans.room_types import stored_or_derived_boq_type
+from app.modules.sheets.boq_rows import build_boq_rows
 from app.modules.sheets.constants import (  # noqa: F401  (re-exported)
     CEMENT_BAGS_PER_M3,
     CEMENT_WASTE_FACTOR,
@@ -585,6 +586,12 @@ def map_plan_to_materials(
             )
 
             counts_as_built = r_kind in ("indoor", "semi_open")
+            # Indoor rooms only. A plan stored without `boq_type` gets it from the name.
+            r_boq_type = (
+                stored_or_derived_boq_type(r.get("name"), r.get("boq_type"))
+                if r_kind == "indoor"
+                else None
+            )
             r_gross_wall = (perim_m * SHARED_WALL_REDUCTION_FACTOR * h_room) if counts_as_built else 0.0
             r_skirting = (perim_m * SKIRTING_HEIGHT_M) if counts_as_built else 0.0
 
@@ -595,12 +602,13 @@ def map_plan_to_materials(
                 lvl_built_room_ids.append(r_id)
                 all_built_room_ids.append(r_id)
                 built_rooms_count += 1
-                bathrooms_count += count_bathrooms(r.get("name"))
+                bathrooms_count += 1 if r_boq_type == "BATH" else 0
 
             lvl_room_records.append({
                 "raw_room": r,
                 "id": r_id,
                 "kind": r_kind,
+                "boq_type": r_boq_type,
                 "poly": poly,
                 "area_m2": area_m2,
                 "perim_m": perim_m,
@@ -704,6 +712,7 @@ def map_plan_to_materials(
                 "id": r_id,
                 "name": r.get("name", "Room"),
                 "kind": rec["kind"],
+                "boq_type": rec["boq_type"],
                 "vertices_count": len(rec["poly"]),
                 "is_complex_polygon": len(rec["poly"]) > 4,
                 "length_m": round(rec["len_m"], 2),

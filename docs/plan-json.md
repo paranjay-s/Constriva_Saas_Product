@@ -77,6 +77,7 @@ The model is defined once, in `backend/app/modules/plans/schemas.py` (`SCHEMA_VE
 | plan | `parser` | which parser run produced the plan: PDF sha256, parser, prompt and model |
 | level | `index`, `name` | position from the lowest floor (0) and the floor's printed title |
 | level | `wall_height_source` | `stated` when the drawing gives the height, else `default` |
+| room | `boq_type` | what the room is used for, for the material calculator: `BATH`, `KITCHEN`, `LAUNDRY`, `CIRC`, `LIVING`, `DINING`, `STORE`, `BED`, `STUDY` or `OTHER`. Indoor rooms only; `null` on every other kind |
 | room | `height_m`, `is_double_height_void` | per-room ceiling height, when it differs from the level |
 | wall | `is_exterior` | mirrors `kind` (`exterior` / `interior`); the model keeps the two in step |
 | opening | `sill_height` | mirrors `sill`; the model keeps the two in step |
@@ -87,7 +88,9 @@ Notes:
 - `wall_height` holds `2.8` when the drawing states no height (`wall_height_source: "default"`). The 3D viewer draws walls at that height; the material calculator uses its own standard ceiling height (3.35 m) instead.
 - `offset` is measured along the wall from its `start` to the centre of the opening.
 - Parser output uses stable ids: `L0-R01` (room), `L0-W01` (wall), `L0-O01` (opening), `L0-C01` (column), where the first number is the level index.
-- A room `type` code for the material calculator is **not** written yet. The 3D adapter (`viewer3d/adapter/normalizePlan.ts`) reads `room.type` as its own lowercase room type, so that key cannot carry a second vocabulary without changing the 3D output. The key to use is an open decision.
+- `boq_type` and `type` are different keys with different owners. `boq_type` is written by the parser's normaliser from the keyword rules in `backend/app/modules/plans/room_types.py` (section 2 of [materials_formula_spec.md](materials_formula_spec.md)); the rules win, and the parser model's own answer is used only when they return `OTHER`. `type` belongs to the 3D adapter (`viewer3d/adapter/normalizePlan.ts`), which reads it as its own lowercase room type. Nothing in the parser or the calculator reads, writes or changes `type`.
+- A plan stored before `boq_type` existed still calculates: the calculator derives the type from the room name when the key is missing.
+- Keys this schema does not define are kept when a stored plan is validated or upgraded, so keys other readers own (`room.type`, `wall.height`, `level.furniture`) survive.
 
 ## 2. Internal Target `Plan` Type (`frontend/src/viewer3d/types.ts`)
 

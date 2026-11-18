@@ -8,7 +8,8 @@ Everything that must not depend on which LLM read the drawing happens here:
     non-zero area, counter-clockwise, rounded to 3 decimals, canonical start vertex);
   * rooms, walls, openings and columns are sorted in a canonical order and given stable
     ids (`L0-R01`, `L0-W01`, `L0-O01`, `L0-C01`);
-  * room `kind`, wall `kind` / `is_exterior` and opening `type` are set by rule;
+  * room `kind` and `boq_type`, wall `kind` / `is_exterior` and opening `type` are set
+    by rule (`room.type` is the 3D adapter's key and is never read or written);
   * scale warnings are raised for implausible room sizes and for rooms whose printed size
     disagrees with the drawn polygon.
 
@@ -26,6 +27,7 @@ from typing import Any
 
 from app.modules.parsing.validate import compute_plan_confidence, deduplicate_and_merge_walls
 from app.modules.plans.room_kind import ROOM_KINDS, parser_room_kind
+from app.modules.plans.room_types import resolve_boq_type, stored_or_derived_boq_type
 from app.modules.plans.schemas import SCHEMA_VERSION, UNSTATED_WALL_HEIGHT_M, PlanJSON
 
 logger = logging.getLogger("construtiva.parsing.normalise")
@@ -538,17 +540,16 @@ def _normalise_level(
         thickness = to_metres(w.get("thickness"), scale)
         if thickness is None or thickness <= 0:
             thickness = DEFAULT_WALL_THICKNESS_M
-        walls.append(
-            {
-                "id": wall_id,
-                "start": start,
-                "end": end,
-                "thickness": thickness,
-                "kind": kind,
-                "is_exterior": kind == "exterior",
-                "inferred": bool(w.get("inferred", False)),
-            }
-        )
+        wall = {
+            "id": wall_id,
+            "start": start,
+            "end": end,
+            "thickness": thickness,
+            "kind": kind,
+            "is_exterior": kind == "exterior",
+            "inferred": bool(w.get("inferred", False)),
+        }
+        walls.append(wall if canonical else _with_extras(w, wall))
 
     # Openings (offsets are along the wall as the model drew it)
     wall_by_id = {w["id"]: w for w in walls}
@@ -571,19 +572,18 @@ def _normalise_level(
             offset = _offset_from_position(wall, placed(op.get("position")))
         if offset is None or offset < 0:
             offset = 0.0
-        openings.append(
-            {
-                "id": str(op.get("id") if op.get("id") is not None else f"op_{index}"),
-                "wall_id": wall_id,
-                "type": op_type,
-                "offset": offset,
-                "width": width,
-                "height": height,
-                "sill": sill,
-                "sill_height": sill,
-                "inferred": bool(op.get("inferred", False)),
-            }
-        )
+        opening = {
+            "id": str(op.get("id") if op.get("id") is not None else f"op_{index}"),
+            "wall_id": wall_id,
+            "type": op_type,
+            "offset": offset,
+            "width": width,
+            "height": height,
+            "sill": sill,
+            "sill_height": sill,
+            "inferred": bool(op.get("inferred", False)),
+        }
+        openings.append(opening if canonical else _with_extras(op, opening))
 
     if canonical:
         walls, openings = deduplicate_and_merge_walls(walls, openings)
@@ -613,16 +613,25 @@ def _normalise_level(
             kind: str | None = parser_room_kind(room_name, reported)
         else:
             kind = reported if reported in ROOM_KINDS else None
-        rooms.append(
-            {
-                "id": str(r.get("id") if r.get("id") is not None else f"room_{index}"),
-                "name": room_name,
-                "kind": kind,
-                "polygon": polygon,
-                "height_m": _room_height(r, scale),
-                "is_double_height_void": bool(r.get("is_double_height_void", False)),
-            }
-        )
+        # Only indoor rooms are typed. A fresh parse applies the keyword rules, which win
+        # unless they return OTHER; a stored plan keeps the type it already has.
+        if kind != "indoor":
+            boq_type = None
+        elif canonical:
+            boq_type = resolve_boq_type(room_name, r.get("boq_type"))
+        else:
+            boq_type = stored_or_derived_boq_type(room_name, r.get("boq_type"))
+        room = {
+            "id": str(r.get("id") if r.get("id") is not None else f"room_{index}"),
+            "name": room_name,
+            "kind": kind,
+            "boq_type": boq_type,
+            "polygon": polygon,
+            "height_m": _room_height(r, scale),
+            "is_double_height_void": bool(r.get("is_double_height_void", False)),
+        }
+        # Keys other readers own (`type` belongs to the 3D adapter) pass through as is.
+        rooms.append(room if canonical else _with_extras(r, room))
 
     if canonical:
         walls = synthesize_interior_walls_if_missing(walls, rooms)
@@ -637,14 +646,13 @@ def _normalise_level(
             continue
         width = to_metres(col.get("width"), scale)
         depth = to_metres(col.get("depth"), scale)
-        columns.append(
-            {
-                "id": str(col.get("id") if col.get("id") is not None else f"col_{index}"),
-                "position": position_pt,
-                "width": width if width and width > 0 else DEFAULT_COLUMN_SIZE_M,
-                "depth": depth if depth and depth > 0 else DEFAULT_COLUMN_SIZE_M,
-            }
-        )
+        column = {
+            "id": str(col.get("id") if col.get("id") is not None else f"col_{index}"),
+            "position": position_pt,
+            "width": width if width and width > 0 else DEFAULT_COLUMN_SIZE_M,
+            "depth": depth if depth and depth > 0 else DEFAULT_COLUMN_SIZE_M,
+        }
+        columns.append(column if canonical else _with_extras(col, column))
 
     if canonical:
         walls, openings, rooms, columns = _canonical_order(
@@ -661,7 +669,7 @@ def _normalise_level(
         _room_scale_warnings(name, rooms, warnings)
 
     elevation = to_metres(raw.get("elevation"), scale)
-    return {
+    level = {
         "index": position,
         "name": name,
         "elevation": elevation,  # filled by the caller when None
@@ -672,6 +680,12 @@ def _normalise_level(
         "rooms": rooms,
         "columns": columns,
     }
+    return level if canonical else _with_extras(raw, level)
+
+
+def _with_extras(original: dict, built: dict) -> dict:
+    """`built`, plus every key of `original` that the normaliser does not manage."""
+    return {**{k: v for k, v in original.items() if k not in built}, **built}
 
 
 def _as_list(value: Any) -> list:
@@ -847,6 +861,9 @@ def _run(raw: Any, *, canonical: bool) -> dict:
         "warnings": [],
         "parser": raw.get("parser") if isinstance(raw.get("parser"), dict) else None,
     }
+
+    if not canonical:
+        plan = _with_extras(raw, plan)
 
     kept_confidence = raw.get("confidence")
     if not canonical and isinstance(kept_confidence, dict) and kept_confidence:

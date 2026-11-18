@@ -11,7 +11,9 @@ model keeps the two in step.
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from app.modules.plans.room_types import BoqType
 
 SCHEMA_VERSION = "2.0"
 
@@ -38,7 +40,18 @@ ScaleSource = Literal[
 ]
 
 
-class Wall(BaseModel):
+class _PlanModel(BaseModel):
+    """Keys this schema does not define are kept, not dropped.
+
+    Other readers own keys of their own on the same document. The 3D adapter, for one,
+    reads `room.type`, `wall.height` and `level.furniture`. Validating a stored plan must
+    never remove them.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+
+class Wall(_PlanModel):
     id: str
     start: Point
     end: Point
@@ -56,7 +69,7 @@ class Wall(BaseModel):
         return self
 
 
-class Opening(BaseModel):
+class Opening(_PlanModel):
     id: str
     wall_id: str
     type: OpeningType
@@ -78,24 +91,28 @@ class Opening(BaseModel):
         return self
 
 
-class Column(BaseModel):
+class Column(_PlanModel):
     id: str
     position: Point
     width: float = 0.23
     depth: float = 0.23
 
 
-class Room(BaseModel):
+class Room(_PlanModel):
     id: str
     name: str | None = None
     kind: RoomKind | None = None
+    # What the room is used for, for the material calculator. Indoor rooms only; None on
+    # every other kind and on plans stored before this field existed. This is not
+    # `type`: that key belongs to the 3D adapter and is never read or written here.
+    boq_type: BoqType | None = None
     polygon: list[Point]
     # Ceiling height of this room when it differs from the level's wall_height.
     height_m: float | None = None
     is_double_height_void: bool = False
 
 
-class Level(BaseModel):
+class Level(_PlanModel):
     index: int = 0
     name: str | None = None
     elevation: float = 0.0
@@ -107,7 +124,7 @@ class Level(BaseModel):
     columns: list[Column] = Field(default_factory=list)
 
 
-class ParserInfo(BaseModel):
+class ParserInfo(_PlanModel):
     """Which parser run produced this plan. Lets a stored plan be matched to its PDF."""
 
     pdf_sha256: str | None = None
@@ -117,7 +134,7 @@ class ParserInfo(BaseModel):
     model: str | None = None
 
 
-class PlanJSON(BaseModel):
+class PlanJSON(_PlanModel):
     schema_version: str = SCHEMA_VERSION
     version: int = 1
     units: Literal["m"] = "m"
