@@ -234,6 +234,43 @@ def run_detect(jid):
         reading.discard(jid)
 
 
+# seconds per million light-map pixels, by quality, for storey maps and the site map, plus model and export time:
+# measured on an M1 Pro (Metal); CALIBRATION scales them to this machine after every build
+RATES = {"draft": (12.0, 4.0), "high": (18.0, 8.0)}
+FIXED = {"draft": 14.0, "high": 18.0}
+CALIBRATION = os.path.join(JOBS, ".eta_calibration.json")
+
+
+def maps_estimate(quality, maps):
+    """seconds for a build whose light maps are {name: size px}: per map, its megapixels times the rate (the site map
+    bakes faster), plus model and export time, times this machine's calibration factor"""
+    lvl, site = RATES.get(quality, RATES["high"])
+    s = FIXED.get(quality, 18.0) + sum((site if n == "site" else lvl) * (px * px / 1e6) for n, px in maps.items())
+    try:
+        with open(CALIBRATION) as fh:
+            s *= max(0.3, min(3.0, float(json.load(fh).get(quality, 1.0))))
+    except (OSError, ValueError, TypeError):
+        pass
+    return s
+
+
+def calibrate(quality, maps, seconds):
+    """after a build: how far the estimate was off on this machine (a running mean of the ratio)"""
+    if not maps or seconds <= 0:
+        return
+    try:
+        with open(CALIBRATION) as fh:
+            cal = json.load(fh)
+    except (OSError, ValueError):
+        cal = {}
+    base = maps_estimate(quality, maps) / max(0.3, min(3.0, float(cal.get(quality, 1.0))))
+    ratio = seconds / max(base, 1.0)
+    cal[quality] = round(0.5 * float(cal.get(quality, ratio)) + 0.5 * ratio, 3)
+    with open(CALIBRATION + ".part", "w") as fh:
+        json.dump(cal, fh)
+    os.replace(CALIBRATION + ".part", CALIBRATION)
+
+
 def estimate(jid, quality):
     """seconds this build should take: the latest finished build of the same quality on this machine, scaled by the
     number of light maps (one per storey + the site); README timings until a build has been measured"""
@@ -265,6 +302,10 @@ def builder():
                 ok = False
                 for line in pr.stdout:
                     log.write(line)
+                    mm = re.match(r"MAPS (.*)", line)
+                    if mm:          # the light maps' sizes are known: estimate from them (maps_estimate)
+                        maps = {k: int(v) for k, v in (x.split("=") for x in mm.group(1).split() if "=" in x) if v.isdigit()}
+                        status(jid, eta_total=round(maps_estimate(quality, maps)), maps=maps)
                     m = re.match(r"PROGRESS (\d+) (.*)", line)
                     if m:
                         status(jid, progress=int(m.group(1)), message=m.group(2).strip())
@@ -277,6 +318,10 @@ def builder():
                 if os.path.exists(os.path.join(d, f)):
                     os.remove(os.path.join(d, f))
             status(jid, stage="done", progress=100, message="Ready", quality=quality, build_seconds=round(time.time() - t0))
+            try:
+                calibrate(quality, (read_status(jid) or {}).get("maps") or {}, time.time() - t0)
+            except OSError:
+                pass
         except Exception as e:
             traceback.print_exc()
             status(jid, stage="failed", message=str(e))

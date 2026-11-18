@@ -246,3 +246,19 @@ What: wall groups whose walls lie in the same band end to end across a gap of at
 window) are merged (`same_line`), unless both groups already hold a plan's room names (two storeys drawn side by
 side). Held-out generated plans, vector styles: wall recall 21-40 % -> 35-63 %, doors found 2-14 % -> 58-75 %. The
 sample, OPT 5, the SF plan and paranjay-villa.pdf are read as before.
+
+## 19. Area specs, guided tour, fresh embed tokens, time left from light maps (areaspec.py, server.py, web/tour.js, view.js, view.html, edit.js, blender/gen.py, blender/bake.py)
+
+What:
+- Area library: `areaspec.py` validates specs for areas no builder knows (helipad, koi pond...): a fixed schema of
+  surface, edge, height, walkable, markings and objects. `GET /api/areas` lists them and `POST /api/areas` adds one, but only
+  after validation. A room of type "custom" is built from its spec, and a refused or missing spec builds a generic zone.
+- Walkthrough: a "Guided tour" button walks the route from `tour.js` at 1 m/s with eased turns and pauses. Any
+  movement key, mouse button or touch takes control back.
+- Embedded pages (edit.js, view.js) take a fresh token posted by the framing page (`{source:'planto3d-host',
+  type:'token', base}`, checked against the parent window and the path pattern) and swap it into their own address
+  without reloading.
+- Before the first bake, `bake.py` prints `MAPS name=size ...`. The server then estimates the build from the light
+  maps' megapixels (`maps_estimate`) and corrects the factor after each finished build (`jobs/.eta_calibration.json`).
+  Checked against builds on this M1 Pro: the sample (Low and Medium) and OPT 5 (Low) are within 5%. The dock and pool
+  houses are 33-52% over, with their map sizes estimated, not read; the calibration corrects the factor.

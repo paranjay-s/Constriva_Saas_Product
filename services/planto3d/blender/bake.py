@@ -232,6 +232,13 @@ def bake_and_export(groups, unbaked, out, quality="high", do_bake=True, progress
     samples = 256 if quality == "high" else 64
     baked, keep, lightmaps, lmax = [], [], {}, {}
     n = len(groups)
+    if do_bake:      # every light map's size before the first bake: the server's time-left estimate (server.py)
+        sizes = []
+        for name, objs in groups.items():
+            ms = [o for o in _flatten([o for o in objs if o.name in bpy.data.objects]) if not _transparent(o) and len(o.data.polygons)]
+            if ms:
+                sizes.append(f"{name}={_texture_size(sum(_surface_area(o) for o in ms), texel)}")
+        print("MAPS " + " ".join(sizes), flush=True)
     for gi, (name, objs) in enumerate(groups.items()):
         objs = [o for o in objs if o.name in bpy.data.objects]
         meshes = _flatten(objs)
