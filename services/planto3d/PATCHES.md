@@ -222,3 +222,15 @@ affected; on the test plans the only change is one fridge in OPT 5's first-floor
 room. `tests/test_openplan.py` (in `run_all.sh`): every zone furnished, no overlaps, no second sofa group, 0.9 m
 between zones, every zone reachable from the door. Not done: an island or peninsula facing the other zones, and
 dragging zone cuts on the review page (a zone's type can be changed there, as for any room).
+
+## 17. "Needs checking" on the review page (checks.py, server.py, rooms.py, web/edit.html, edit.js, style.css)
+
+Why: a person should see, before the first build, what the readers were unsure of.
+
+What: whenever plan.json is written (detection, import, save) the server adds `checks`: rooms with a label no rule
+knows, labels that name two or more functions (read as whole phrases, longest first: `rooms.functions`), doors with no
+room on either side (or, on an upper storey, on one side), rooms whose area is more than 10 % off the size in their
+label (as a clear size or as a size between wall centre lines), and unlabelled indoor spaces over 150 sq ft. The review
+page lists them under "Needs checking" with the rooms and doors outlined in orange; a click selects the item, and the
+list is refreshed after every save. Not done yet: possible missed walls (no wall-band tracing inside PlanTo3D) and a
+per-element source and confidence (the plan records its reader as a whole).

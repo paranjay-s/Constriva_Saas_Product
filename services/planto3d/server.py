@@ -19,7 +19,7 @@ PAGES, PAGE_DPI = 6, 100        # page images for the review screen: the first p
 PAGES_SECONDS = 20              # an upload without the detector draws its pages before it answers: the caller waits
 ID = re.compile(r"^[a-f0-9]{12}$")
 sys.path.insert(0, HERE)
-import catalog, detect, fetch_assets, vector  # noqa: E402
+import catalog, checks, detect, fetch_assets, vector  # noqa: E402
 
 os.makedirs(JOBS, exist_ok=True)
 builds = queue.Queue()
@@ -221,6 +221,7 @@ def run_detect(jid):
                                    "Please export the plan from AutoCAD / your CAD tool as a PDF.")
         importlib.reload(detect)          # pick up detector fixes without restarting the server
         plan = detect.detect(pdf)
+        plan["checks"] = checks.plan_checks(plan)        # what the review page asks the person to check
         with open(os.path.join(d, "plan.json"), "w") as fh:
             json.dump(plan, fh)
         status(jid, stage="detected", progress=100, message="Plan detected - please review",
@@ -741,6 +742,7 @@ class H(BaseHTTPRequestHandler):
                         plan = json.loads(body)
                         if not isinstance(plan, dict) or not isinstance(plan.get("floors"), list) or not plan["floors"]:
                             return self.send(400, {"error": "invalid plan"})
+                        plan["checks"] = checks.plan_checks(plan)
                         with open(os.path.join(jdir(jid), "plan.json"), "w") as fh:
                             json.dump(plan, fh)
                         return self.send(200, {"ok": True})
@@ -796,6 +798,7 @@ class H(BaseHTTPRequestHandler):
                 pg = render_page(jid, k, PAGES_SECONDS)       # a storey on a page after the first six
                 if pg:
                     st = status(jid, pages=st["pages"] + [pg])
+            plan["checks"] = checks.plan_checks(plan)
             with open(os.path.join(jdir(jid), "plan.json.part"), "w") as fh:
                 json.dump(plan, fh)
             os.replace(os.path.join(jdir(jid), "plan.json.part"), os.path.join(jdir(jid), "plan.json"))

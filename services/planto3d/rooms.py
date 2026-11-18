@@ -74,8 +74,22 @@ def _classify(ws):
     return (best[1], "fuzzy") if best else (None, None)
 
 
-def names(label, typ):
-    """does the label name this type anywhere (DRG./DIN. names living and dining)?"""
+def functions(label):
+    """the types a label names, reading it as whole phrases, longest first (STAIRCASE HALL is one phrase, a stair;
+    KITCHEN / DINING names two). A dotted word is also read as its parts (DRG./DIN.)."""
     ws = words(label)
-    ws = ws + [p for w in ws for p in w.split(".") if p and "." in w]
-    return any(t == typ and any(tuple(ws[i:i + len(p)]) == p for i in range(len(ws) - len(p) + 1)) for p, t in PHRASES)
+    ws = [p for w in ws for p in (w.split(".") if "." in w and w.replace(".", "").isalpha() and len(w) > 4 else [w]) if p]
+    used, found = [False] * len(ws), []
+    for phrase, typ in PHRASES:
+        n = len(phrase)
+        for i in range(len(ws) - n + 1):
+            if not any(used[i:i + n]) and tuple(ws[i:i + n]) == phrase:
+                used[i:i + n] = [True] * n
+                if typ not in found:
+                    found.append(typ)
+    return found
+
+
+def names(label, typ):
+    """does the label name this type (DRG./DIN. names living and dining)?"""
+    return typ in functions(label)

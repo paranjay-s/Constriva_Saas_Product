@@ -247,6 +247,14 @@ function drawFloor(f, dx, dy, active) {
     z.rects.forEach((r) => g.fillRect(...rectC(mv(r))));
   });
   g.globalAlpha = fade;
+  if (active) {
+    g.strokeStyle = '#e8892f'; g.lineWidth = 3; g.setLineDash([6, 4]);
+    for (const c of (plan.checks || []).filter((c) => plan.floors[c.floor] === f)) {
+      const it = c.item[0] === 'room' ? f.rooms[c.item[1]] : f.openings[c.item[1]];
+      if (it) (it.rects || [it.rect]).forEach((r) => g.strokeRect(...rectC(mv(r))));
+    }
+    g.setLineDash([]);
+  }
   (f.stairs || []).forEach((st, i) => {
     g.fillStyle = isSel('stair', i) ? 'rgba(80,45,10,.8)' : 'rgba(138,90,43,.55)';
     g.fillRect(...rectC(mv(st.rect)));
@@ -384,8 +392,25 @@ const edited = (f = F()) => { if (f.auto_rooms) deriveRooms(f); };
 const el = (tag, props = {}, ...kids) => { const e = Object.assign(document.createElement(tag), props); e.append(...kids); return e; };
 const row = (...kids) => el('div', { className: 'row' }, ...kids);
 const num = (id, value, step, w = 70) => el('input', { type: 'number', id, value, step, style: `width:${w}px` });
+// "Needs checking" (checks.py, computed by the server whenever the plan is saved): listed in the side bar, and the
+// rooms and doors concerned drawn with an orange outline; a click selects the item
+async function refreshChecks() {        // the server works out the checks again on every save
+  try { plan.checks = (await (await fetch(`../jobs/${job}/plan.json`, { cache: 'no-store' })).json()).checks || []; } catch { return; }
+  showChecks(); draw();
+}
+function showChecks() {
+  const list = plan.checks || [];
+  $('checks').hidden = !list.length;
+  $('nchecks').textContent = `(${list.length})`;
+  $('checklist').replaceChildren(...list.map((c) => {
+    const li = el('li', { textContent: c.message });
+    li.onclick = () => { fi = c.floor; sel = { kind: c.item[0], i: c.item[1] }; tabs(); fit(); ui(); };
+    return li;
+  }));
+}
 function ui() {
   if (!plan) return;
+  showChecks();
   document.querySelectorAll('#tabs button').forEach((b, i) => b.classList.toggle('on', i === fi));
   const f = F();
   $('fname').value = f.name;
@@ -726,6 +751,7 @@ $('save').onclick = async () => {        // a traced plan is long work: keep it 
   plan.furnish = $('furn').checked;
   const r = await fetch(`../api/jobs/${job}/plan`, { method: 'POST', body: JSON.stringify(plan) });
   $('saved').textContent = r.ok ? 'Saved' : (await r.json()).error;
+  if (r.ok) refreshChecks();
   $('saved').className = r.ok ? 'muted' : 'err';
   setTimeout(() => { $('saved').textContent = ''; }, 2500);
 };

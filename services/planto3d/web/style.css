@@ -74,3 +74,9 @@ h1 { font-size: 28px; margin: 0 0 6px; }
 .flash { animation: flash .9s ease-in-out 2; }
 @keyframes flash { 50% { background: color-mix(in srgb, var(--bad) 18%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
+
+/* the review page's "Needs checking" list (checks.py): orange, before the first build */
+#checks h3 { color: #e8892f; }
+#checklist { list-style: none; margin: 0 0 10px; padding: 0; max-height: 180px; overflow: auto; font-size: 12px; }
+#checklist li { padding: 4px 6px; border-left: 3px solid #e8892f; margin-bottom: 3px; cursor: pointer; background: rgba(232, 137, 47, .1); }
+#checklist li:hover { background: rgba(232, 137, 47, .25); }
