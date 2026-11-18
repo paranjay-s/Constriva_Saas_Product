@@ -23,7 +23,8 @@ interface WalkthroughStepProps {
 
 export function WalkthroughStep({ job, qualities, onEdit, onDeleted }: WalkthroughStepProps) {
   const jobId = job.job_id;
-  const embed = useEmbedAccess(jobId);
+  const frame = useRef<HTMLIFrameElement>(null);
+  const embed = useEmbedAccess(jobId, frame);
   const box = useRef<HTMLDivElement>(null);
   const onPage = useRef(true);
   const [busy, setBusy] = useState<'export' | 'delete' | null>(null);
@@ -104,7 +105,7 @@ export function WalkthroughStep({ job, qualities, onEdit, onDeleted }: Walkthrou
       {walkthroughUrl && (
         // no `sandbox`: the walkthrough locks the pointer to look around and saves screenshots and recordings
         <div ref={box} className="h-[75vh] min-h-[420px] overflow-hidden rounded-lg border border-[#303030] bg-black">
-          <iframe title="3D walkthrough" src={embedUrl(walkthroughUrl)} allow="fullscreen" className="h-full w-full border-0" />
+          <iframe ref={frame} title="3D walkthrough" src={embedUrl(walkthroughUrl)} allow="fullscreen" className="h-full w-full border-0" />
         </div>
       )}
 

@@ -415,3 +415,13 @@ addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
 });
+
+// a fresh embed token from the framing page (it refreshes the token before it runs out): the page's own address
+// takes the new token in place, so every later request (relative URLs) carries it; nothing reloads
+addEventListener('message', (e) => {
+  const d = e.data;
+  if (e.source !== parent || !d || d.source !== 'planto3d-host' || d.type !== 'token' || typeof d.base !== 'string') return;
+  if (!/^\/api\/v1\/3d\/embed\/[A-Za-z0-9_.-]+$/.test(d.base)) return;
+  const at = location.pathname.indexOf('/web/');
+  if (at > 0) history.replaceState(history.state, '', d.base + location.pathname.slice(at) + location.search);
+});

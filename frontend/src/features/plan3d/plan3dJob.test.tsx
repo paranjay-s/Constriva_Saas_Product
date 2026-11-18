@@ -533,11 +533,35 @@ describe('3D job page', () => {
       expect(callsTo(fetchMock, 'POST', `${JOB}/embed`)).toHaveLength(2);
     });
 
+    it('hands the open review page a fresh token before its own runs out', async () => {
+      fakeClock();
+      const fresh = `${BASE}/embed/a-newer-token`;
+      mockApi({
+        [`POST ${JOB}/embed`]: inTurn(() => json({ ...rawEmbed(), expires_in: 600 }), () => json(rawEmbed(JOB_ID, fresh))),
+      });
+      renderJob();
+      await settle();
+      post(READY);
+      const old = frame(REVIEW);
+      const send = vi.spyOn(pageOf(old), 'postMessage').mockImplementation(() => {});
+      await advance(460_000); // past 75 % of the lifetime
+      await settle();
+      expect(send).toHaveBeenCalledWith({ source: 'planto3d-host', type: 'token', base: fresh }, API);
+      expect(frame(REVIEW)).toBe(old); // the page was not reloaded
+      await advance(200_000); // past the first token's end: still usable
+      fireEvent.click(buildButton());
+      expect(send).toHaveBeenCalledWith({ source: 'planto3d-host', type: 'save', furnish: true }, API);
+    });
+
     it('asks for a new link when the one of the review page has run out', async () => {
       fakeClock();
       const fresh = `${BASE}/embed/a-newer-token`;
       const fetchMock = mockApi({
-        [`POST ${JOB}/embed`]: inTurn(() => json({ ...rawEmbed(), expires_in: 600 }), () => json(rawEmbed(JOB_ID, fresh))),
+        [`POST ${JOB}/embed`]: inTurn(
+          () => json({ ...rawEmbed(), expires_in: 600 }),
+          () => json({ detail: 'Try again in a moment.' }, 503), // the refresh before expiry fails
+          () => json(rawEmbed(JOB_ID, fresh)),
+        ),
       });
       renderJob();
       await settle();
@@ -553,7 +577,7 @@ describe('3D job page', () => {
 
       fireEvent.click(within(alert).getByRole('button', { name: 'Open the plan again' }));
       await settle();
-      expect(callsTo(fetchMock, 'POST', `${JOB}/embed`)).toHaveLength(2);
+      expect(callsTo(fetchMock, 'POST', `${JOB}/embed`)).toHaveLength(3);
       expect(frame(REVIEW).getAttribute('src')).toBe(`${API}${fresh}/web/edit.html?job=${JOB_ID}&embed`);
       expect(frame(REVIEW)).not.toBe(old);
       // a new page: it has to say that the plan is loaded before it can be built

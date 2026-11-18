@@ -7,7 +7,7 @@
  * A message is believed only when it comes from the API's origin, from this very iframe,
  * and names this job.
  */
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { type ReactNode, type RefObject, useEffect, useRef, useState } from 'react';
 import { Button } from '../../../components/ui/Button';
 import { useEmbedAccess } from '../hooks/useEmbedAccess';
 import { embedOrigin, embedUrl, plan3dApi, plan3dErrorText } from '../plan3dApi';
@@ -50,6 +50,8 @@ interface ReviewOptions {
 }
 
 interface ReviewPanelProps extends ReviewOptions {
+  /** The review page's iframe (the step refreshes its token through it). */
+  frame: RefObject<HTMLIFrameElement | null>;
   jobId: string;
   /** URL of the review page. */
   src: string;
@@ -60,8 +62,7 @@ interface ReviewPanelProps extends ReviewOptions {
 }
 
 function ReviewPanel(props: ReviewPanelProps) {
-  const { jobId, src, qualities, hasExpired, onBuilt } = props;
-  const frame = useRef<HTMLIFrameElement>(null);
+  const { jobId, src, qualities, hasExpired, onBuilt, frame } = props;
   /** Settles the save that is waiting for the review page's answer. */
   const pendingSave = useRef<((problem: string | null) => void) | null>(null);
   const [ready, setReady] = useState(false);
@@ -196,7 +197,8 @@ interface ReviewStepProps extends ReviewOptions {
 }
 
 export function ReviewStep({ jobId, hidden, ...options }: ReviewStepProps) {
-  const embed = useEmbedAccess(jobId);
+  const frame = useRef<HTMLIFrameElement>(null);
+  const embed = useEmbedAccess(jobId, frame);
   const reviewUrl = embed.access?.review_url ?? null;
 
   return (
@@ -219,6 +221,7 @@ export function ReviewStep({ jobId, hidden, ...options }: ReviewStepProps) {
         <ReviewPanel
           key={reviewUrl}
           jobId={jobId}
+          frame={frame}
           src={embedUrl(reviewUrl)}
           hasExpired={embed.hasExpired}
           onReopen={embed.reload}
