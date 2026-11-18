@@ -58,6 +58,10 @@ async def lifespan(app: FastAPI):
     logger.info(
         "Plan parser: provider=%s model=%s", parser_config.provider, parser_config.model
     )
+    # Demo access (AUTH_ALLOW_DEMO_USER) needs its dedicated profile; off by default.
+    from app.core.security import check_auth_settings
+
+    check_auth_settings()
     ensure_storage_buckets()
     yield
     logger.info("Construtiva backend shutting down.")

@@ -20,14 +20,13 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.config import settings
 from app.core.supabase import get_supabase_client
-import os
 
 logger = logging.getLogger("construtiva.security")
 
 # HTTP Bearer token extractor
 security_bearer = HTTPBearer(auto_error=False)
 
-_cached_demo_user_id: Optional[str] = None
+NOT_SIGNED_IN = "You are not signed in. Please sign in and try again."
 
 
 def clean_uuid(value: Optional[str]) -> Optional[str]:
@@ -92,63 +91,43 @@ class AuthenticatedUser:
         return f"<AuthenticatedUser id={self.id} email={self.email}>"
 
 
-def get_fallback_user() -> AuthenticatedUser:
+class AuthConfigError(RuntimeError):
+    """The demo-access settings are inconsistent. The message names the variable."""
+
+
+def check_auth_settings() -> None:
+    """Fail at startup when demo access is switched on without a demo profile.
+
+    Raises AuthConfigError naming the variable to fix.
     """
-    Returns a valid authenticated user in development/testing mode:
-    1. Checks if any user profile already exists in the Supabase public.profiles table.
-    2. If empty, creates a default verified developer account via the Supabase Admin API.
-    3. Guarantees foreign key constraints (profiles.id) are satisfied for file/project records.
+    if not settings.auth_allow_demo_user:
+        return
+    if clean_uuid(settings.auth_demo_user_id) is None:
+        raise AuthConfigError(
+            "AUTH_ALLOW_DEMO_USER is true, so AUTH_DEMO_USER_ID must be the UUID of the "
+            "dedicated demo profile. Set it, or turn AUTH_ALLOW_DEMO_USER off."
+        )
+    logger.warning(
+        "Demo access is ON (AUTH_ALLOW_DEMO_USER): requests without a token act as the demo "
+        "profile. Do not use this with real customer data."
+    )
+
+
+def demo_user() -> Optional[AuthenticatedUser]:
+    """The dedicated demo profile, or None when demo access is off (the default).
+
+    The profile is one an operator created for demos and named in AUTH_DEMO_USER_ID.
+    Nothing is created here, and no other user's profile is ever borrowed.
     """
-    if os.environ.get("TESTING") == "1":
-        return AuthenticatedUser(
-            user_id="00000000-0000-0000-0000-000000000001",
-            email="test@construtiva.ai",
-            metadata={"full_name": "Test Architect"},
-        )
-
-    global _cached_demo_user_id
-    if _cached_demo_user_id:
-        return AuthenticatedUser(
-            user_id=_cached_demo_user_id,
-            email="demo@construtiva.ai",
-            metadata={"full_name": "Demo Architect"},
-        )
-
-    try:
-        client = get_supabase_client()
-        # 1. Query for any existing profile
-        res = client.table("profiles").select("id, full_name").limit(1).execute()
-        if res.data:
-            _cached_demo_user_id = str(res.data[0]["id"])
-            return AuthenticatedUser(
-                user_id=_cached_demo_user_id,
-                email="demo@construtiva.ai",
-                metadata={"full_name": res.data[0].get("full_name") or "Demo Architect"},
-            )
-
-        # 2. If table is empty, auto-create a verified developer user via Admin API
-        admin_res = client.auth.admin.create_user(
-            {
-                "email": "demo@construtiva.ai",
-                "password": "Password123!",
-                "email_confirm": True,
-                "user_metadata": {"full_name": "Demo Architect"},
-            }
-        )
-        if admin_res and admin_res.user:
-            _cached_demo_user_id = str(admin_res.user.id)
-            return AuthenticatedUser(
-                user_id=_cached_demo_user_id,
-                email="demo@construtiva.ai",
-                metadata={"full_name": "Demo Architect"},
-            )
-    except Exception as e:
-        logger.warning(f"Could not fetch/create dev user from Supabase ({e}). Using default UUID.")
-
+    if not settings.auth_allow_demo_user:
+        return None
+    user_id = clean_uuid(settings.auth_demo_user_id)
+    if user_id is None:
+        return None
     return AuthenticatedUser(
-        user_id="00000000-0000-0000-0000-000000000001",
-        email="demo@construtiva.ai",
-        metadata={"full_name": "Demo Architect"},
+        user_id=user_id,
+        email=settings.auth_demo_user_email,
+        metadata={"full_name": "Demo user", "demo": True},
     )
 
 
@@ -267,23 +246,39 @@ def verify_token(token: str) -> "AuthenticatedUser":
     return _verify_with_supabase(token)
 
 
+def bearer_token(credentials: Optional[HTTPAuthorizationCredentials]) -> Optional[str]:
+    """The token of an Authorization header, or None when the request carries none.
+
+    The words "null" and "undefined" are what a browser sends when the page has no session;
+    "string" is Swagger UI's placeholder. None of them is a token.
+    """
+    if not credentials or not credentials.credentials:
+        return None
+    token = credentials.credentials.strip()
+    return None if token.lower() in ("", "string", "null", "undefined") else token
+
+
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_bearer),
 ) -> AuthenticatedUser:
     """
     FastAPI dependency: the signed-in user from the Bearer token.
 
-    No token -> the shared demo user (unchanged behaviour for the demo flows).
+    No token -> HTTP 401. (Only when demo access is switched on with AUTH_ALLOW_DEMO_USER,
+    off by default, does such a request act as the dedicated demo profile.)
     A token that is expired, forged or unreadable -> HTTP 401, so the frontend can refresh
     the session or ask the person to sign in again.
     """
-    if (
-        not credentials
-        or not credentials.credentials
-        or credentials.credentials.strip().lower() in ("", "string", "null", "undefined")
-    ):
-        return get_fallback_user()
-    token = credentials.credentials.strip()
+    token = bearer_token(credentials)
+    if token is None:
+        demo = demo_user()
+        if demo is not None:
+            return demo
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            NOT_SIGNED_IN,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     if token.count(".") != 2:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid session. Please sign in again.")
     return verify_token(token)
