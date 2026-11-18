@@ -8,7 +8,8 @@ from app.modules.plan3d import areas
 TYPES = ["bedroom", "living", "store", "garden", "pool"]
 HELIPAD = {"type": "helipad", "name": "Helipad", "surface": "concrete", "edge": "kerb",
            "height": {"mode": "flat", "value_m": 0}, "walkable": True,
-           "markings": [{"kind": "text", "at": [0.5, 0.5], "text": "H", "size_m": 4}], "objects": []}  # fmt: skip
+           "markings": [{"kind": "text", "at": [0.5, 0.5], "text": "H", "size_m": 4}],
+           "objects": []}  # fmt: skip
 
 
 class FakeClient:

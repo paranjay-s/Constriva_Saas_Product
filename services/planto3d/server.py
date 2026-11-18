@@ -19,7 +19,7 @@ PAGES, PAGE_DPI = 6, 100        # page images for the review screen: the first p
 PAGES_SECONDS = 20              # an upload without the detector draws its pages before it answers: the caller waits
 ID = re.compile(r"^[a-f0-9]{12}$")
 sys.path.insert(0, HERE)
-import catalog, checks, detect, fetch_assets, vector  # noqa: E402
+import areaspec, catalog, checks, detect, fetch_assets, vector  # noqa: E402
 
 os.makedirs(JOBS, exist_ok=True)
 builds = queue.Queue()
@@ -605,6 +605,8 @@ class H(BaseHTTPRequestHandler):
             return self.file(os.path.join(HERE, "examples", p[10:]), os.path.join(HERE, "examples"))
         if p.startswith("/thumbs/"):
             return self.file(os.path.join(THUMBS, p[8:]), THUMBS)
+        if p == "/api/areas":          # the area library (areaspec.py): specs of area types no builder knows
+            return self.send(200, areaspec.load())
         if p == "/api/furniture":
             return self.send(200, furniture())
         if p.startswith("/three/"):
@@ -714,6 +716,16 @@ class H(BaseHTTPRequestHandler):
                 reading.add(jid)
                 threading.Thread(target=run_detect, args=(jid,), daemon=True).start()
                 return self.send(200, {"id": jid})
+            if p == "/api/areas":      # add a spec (from our backend's AI classifier, or a person): validated first
+                body = json.loads(self.body() or b"null")
+                if not isinstance(body, dict):
+                    return self.send(400, {"error": "send {spec, source, reviewed}"})
+                try:
+                    clean = areaspec.save(body.get("spec"), source=str(body.get("source", "ai"))[:20],
+                                          reviewed=body.get("reviewed") is True)
+                except ValueError as e:
+                    return self.send(400, {"error": str(e)[:500]})
+                return self.send(200, {"ok": True, "type": clean["type"]})
             m = re.match(r"^/api/jobs/([a-f0-9]{12})/reference$", p)
             if m and TRUTH_DIR and os.path.isdir(jdir(m.group(1))):
                 plan = json.loads(self.body() or b"null")
