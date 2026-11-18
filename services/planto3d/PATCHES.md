@@ -280,3 +280,10 @@ remaining rooms cannot be walked to from where the tour is (a wing reached only 
 reader missed), the route jumps to the nearest of them (`jump: true`), and the Guided tour moves the walker there at
 once. The test allows at most one jump per three rooms and does not walk a leg that ends in a jump. On the 8 stored jobs,
 unvisited rooms went from 19 / 23 / 1 / 1 to 0, with 0-4 jumps per plan (dock house 4, 25f602b2a296 4).
+
+## 22. Room types "court" and "custom" (web/rooms.json)
+
+What: "court" (outdoor) covers tennis, padel, basketball, badminton and volleyball courts, in English and Arabic.
+"COURT" alone and "LANDSCAPE COURT" stay a garden (a courtyard). "custom" (outdoor, orange on the maps) is given only
+by the backend's AI classifier, for areas built from an area spec. The review page and the import accept both. The
+room label test still passes 209/209.

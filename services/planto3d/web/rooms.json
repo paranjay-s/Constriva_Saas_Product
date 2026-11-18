@@ -203,6 +203,20 @@
    "floor": "deck",
    "colour": "#3d7fb8",
    "furnish": null
+  },
+  "court": {
+   "label": "Sports court",
+   "kind": "outdoor",
+   "floor": "court_green",
+   "colour": "#5aa469",
+   "furnish": null
+  },
+  "custom": {
+   "label": "Other area (built from its own spec)",
+   "kind": "outdoor",
+   "floor": "concrete",
+   "colour": "#f59e42",
+   "furnish": null
   }
  },
  "phrases": {
@@ -597,6 +611,23 @@
    "YACHT",
    "مرسى",
    "رصيف"
+  ],
+  "court": [
+   "TENNIS COURT",
+   "TENNIS",
+   "PADEL COURT",
+   "PADEL",
+   "PADDLE COURT",
+   "BASKETBALL COURT",
+   "BASKETBALL",
+   "BASKET BALL COURT",
+   "BADMINTON COURT",
+   "VOLLEYBALL COURT",
+   "SPORTS COURT",
+   "MULTI SPORT COURT",
+   "ملعب تنس",
+   "ملعب كرة سلة",
+   "ملعب بادل"
   ]
  },
  "abbreviations": {
