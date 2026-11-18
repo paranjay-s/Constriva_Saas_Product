@@ -15,6 +15,7 @@ from app.modules.sheets import constants
 from app.modules.sheets.boq_export import (
     COLUMNS,
     FOOTER_TEXT,
+    assumption_lines,
     breakdown,
     build_boq_pdf,
     build_boq_xlsx,
@@ -35,6 +36,7 @@ from app.modules.sheets.boq_rows import (
     quantity_decimals,
     serial_sort_key,
 )
+from app.modules.sheets.boq_schemas import BoqAssumptions
 from app.modules.sheets.boq_service import build_boq_result
 from app.modules.sheets.llm_mapper import (
     _resolve_room_height_m,
@@ -631,32 +633,229 @@ def test_boq_upload_parse_calculate_and_result(boq_client):
     assert body["geometry_summary"]["bathrooms_count"] == 4
 
 
-def test_boq_upload_takes_the_optional_user_inputs(boq_client):
-    def run(**fields) -> dict:
-        started = boq_client.post(
-            "/api/v1/sheets/boq",
-            files={"file": ("p.pdf", minimal_pdf(), "application/pdf")},
-            data=fields,
-        )
-        assert started.status_code == 202, started.text
-        job_id = started.json()["job_id"]
-        wait_for_job(boq_client, job_id)
-        rows = boq_client.get(f"/api/v1/sheets/boq/jobs/{job_id}/result").json()["items"]
-        return {str(r["serial_no"]): r["quantity"] for r in rows}
+def start_and_wait(client, **fields) -> str:
+    started = client.post(
+        "/api/v1/sheets/boq",
+        files={"file": ("p.pdf", minimal_pdf(), "application/pdf")},
+        data=fields,
+    )
+    assert started.status_code == 202, started.text
+    job_id = started.json()["job_id"]
+    assert wait_for_job(client, job_id)["status"] == "done"
+    return job_id
 
-    default = run()
-    custom = run(false_ceiling_share="0.5", plot_perimeter_m="120")
+
+def result_of(client, job_id: str) -> dict:
+    return client.get(f"/api/v1/sheets/boq/jobs/{job_id}/result").json()
+
+
+def by_serial(result: dict) -> dict[str, float]:
+    return {str(r["serial_no"]): r["quantity"] for r in result["items"]}
+
+
+def test_boq_upload_takes_the_assumptions_as_form_fields(boq_client):
+    default = by_serial(result_of(boq_client, start_and_wait(boq_client)))
+    custom = by_serial(
+        result_of(
+            boq_client,
+            start_and_wait(boq_client, false_ceiling_share="0.5", plot_perimeter_m="120"),
+        )
+    )
     assert custom["18b"] == pytest.approx(default["18b"] / 2)
     assert custom["58"] == pytest.approx(126) and default["58"] != custom["58"]
     assert {s for s in default if default[s] != custom[s]} == {"18b", "58"}
 
-    for bad in ({"false_ceiling_share": "1.5"}, {"plot_perimeter_m": "-3"}):
+    for bad in (
+        {"false_ceiling_share": "1.5"},
+        {"plot_perimeter_m": "-3"},
+        {"tile_size_mm": "123x456"},
+        {"building_type": "castle"},
+        {"ceiling_height_m": "12"},
+    ):
         rejected = boq_client.post(
             "/api/v1/sheets/boq",
             files={"file": ("p.pdf", minimal_pdf(), "application/pdf")},
             data=bad,
         )
-        assert rejected.status_code == 422
+        assert rejected.status_code == 422, bad
+
+
+# --------------------------------------------------------------------- assumptions
+
+
+def test_result_states_the_assumptions_it_used(plan):
+    default = build_boq_result(plan, "p.pdf")["assumptions"]
+    assert default == {
+        "building_type": "villa",
+        "building_type_source": "default",  # this stored plan states no building type
+        "ceiling_heights_m": [3.35],
+        "ceiling_height_source": "assumed",
+        "tile_size_mm": "600x600",
+        "tile_pattern": "standard",
+        "false_ceiling_share": 1.0,
+        "plot_perimeter_m": None,
+    }
+    chosen = BoqAssumptions(
+        building_type="apartment",
+        ceiling_height_m=3.0,
+        tile_size_mm="800x800",
+        tile_pattern="herringbone",
+        false_ceiling_share=0.6,
+        plot_perimeter_m=95.0,
+    )
+    assert build_boq_result(plan, "p.pdf", chosen)["assumptions"] == {
+        "building_type": "apartment",
+        "building_type_source": "user",
+        "ceiling_heights_m": [3.0],
+        "ceiling_height_source": "user",
+        "tile_size_mm": "800x800",
+        "tile_pattern": "herringbone",
+        "false_ceiling_share": 0.6,
+        "plot_perimeter_m": 95.0,
+    }
+    plan["building_type"] = "apartment"
+    plan["levels"][0]["wall_height"] = 3.1
+    from_plan = build_boq_result(plan, "p.pdf")["assumptions"]
+    assert (from_plan["building_type"], from_plan["building_type_source"]) == ("apartment", "plan")
+    assert (from_plan["ceiling_heights_m"], from_plan["ceiling_height_source"]) == ([3.1], "plan")
+
+
+def test_each_assumption_changes_what_it_should(plan):
+    def rows(**chosen) -> dict[str, float]:
+        return by_serial(build_boq_result(plan, "p.pdf", BoqAssumptions(**chosen)))
+
+    base = rows()
+    changed = lambda other: {s for s in base if base[s] != other[s]}  # noqa: E731
+
+    assert changed(rows(false_ceiling_share=0.5)) == {"18b"}
+    assert changed(rows(plot_perimeter_m=200)) == {"58"}
+    assert changed(rows(tile_size_mm="800x800")) == {"13"}  # grout; the tiled area is the same
+    assert changed(rows(tile_pattern="herringbone")) == {"7"}
+    apartment = rows(building_type="apartment")
+    assert changed(apartment) == {"8", "10", "20", "21", "26", "31", "53b", "58"}
+    assert all(apartment[s] == 0 for s in changed(apartment))
+    # a lower ceiling: less wall, so fewer blocks and less paint; floor quantities stay
+    lower = rows(ceiling_height_m=2.8)
+    assert lower["1"] < base["1"] and lower["17a"] < base["17a"] and lower["20"] < base["20"]
+    assert lower["7"] == base["7"] and lower["19"] == base["19"] and lower["2"] == base["2"]
+
+
+def test_recalculate_uses_the_parsed_plan_and_never_the_parser(boq_client, plan):
+    parsed: list[int] = []
+
+    def counting_parser(data: bytes) -> dict:
+        parsed.append(len(data))
+        return plan
+
+    boq_client.state_for_test["parser"] = counting_parser
+    job_id = start_and_wait(boq_client)
+    first = result_of(boq_client, job_id)
+    assert len(parsed) == 1
+
+    chosen = {"building_type": "apartment", "false_ceiling_share": 0.5, "tile_size_mm": "800x800"}
+    response = boq_client.post(f"/api/v1/sheets/boq/jobs/{job_id}/recalculate", json=chosen)
+    assert response.status_code == 200, response.text
+    again = response.json()
+    assert len(parsed) == 1  # no second parse, so no model call
+    assert again["assumptions"]["building_type"] == "apartment"
+    assert again["assumptions"]["tile_size_mm"] == "800x800"
+    assert by_serial(again)["18b"] == pytest.approx(by_serial(first)["18b"] / 2)
+    assert by_serial(again)["8"] == 0 and by_serial(first)["8"] > 0
+    assert again["project_metadata"]["source_file_name"] == "p.pdf"
+    assert any(w.startswith("Apartment:") for w in again["warnings"])
+    # the job now holds the new bill
+    assert result_of(boq_client, job_id) == again
+
+    # back to the defaults: the first bill again, still without parsing
+    assert boq_client.post(f"/api/v1/sheets/boq/jobs/{job_id}/recalculate", json={}).json() == first
+    assert len(parsed) == 1
+
+
+def test_recalculate_validates_and_keeps_jobs_private(boq_client):
+    from app.core.security import AuthenticatedUser, get_current_user
+    from app.main import app
+
+    job_id = start_and_wait(boq_client)
+    url = f"/api/v1/sheets/boq/jobs/{job_id}/recalculate"
+    for bad in (
+        {"false_ceiling_share": 2},
+        {"ceiling_height_m": 0.5},
+        {"tile_pattern": "random"},
+        {"building_type": "castle"},
+        {"unknown_field": 1},
+    ):
+        assert boq_client.post(url, json=bad).status_code == 422, bad
+    assert boq_client.post("/api/v1/sheets/boq/jobs/nope/recalculate", json={}).status_code == 404
+
+    def failing(_data: bytes) -> dict:
+        raise PlanOutputInvalidError("The floor plan could not be read reliably from this drawing.")
+
+    boq_client.state_for_test["parser"] = failing
+    failed = boq_client.post(
+        "/api/v1/sheets/boq", files={"file": ("p.pdf", minimal_pdf(), "application/pdf")}
+    ).json()["job_id"]
+    wait_for_job(boq_client, failed)
+    assert (
+        boq_client.post(f"/api/v1/sheets/boq/jobs/{failed}/recalculate", json={}).status_code == 409
+    )
+
+    app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(
+        user_id="someone-else", email="other@example.com", metadata={}
+    )
+    assert boq_client.post(url, json={}).status_code == 404
+
+
+def test_exports_print_the_assumptions(boq_client, plan):
+    chosen = BoqAssumptions(building_type="apartment", ceiling_height_m=3.0, plot_perimeter_m=95.0)
+    result = build_boq_result(plan, "p.pdf", chosen)
+    assert assumption_lines(result["assumptions"]) == [
+        ("Building type", "Apartment (set by user)"),
+        ("Ceiling height", "3.00 m (set by user for every level)"),
+        ("Floor tiles", "600 x 600 mm, standard lay, 5% waste"),
+        ("False ceiling", "100% of the dry indoor area"),
+        ("Plot perimeter", "95.00 m (set by user)"),
+    ]
+    default = assumption_lines(build_boq_result(plan, "p.pdf")["assumptions"])
+    assert ("Ceiling height", "3.35 m (assumed: the plan states none)") in default
+    assert default[-1] == (
+        "Plot perimeter",
+        "Not given: the site hoarding is estimated from the plan outline",
+    )
+    assert assumption_lines(None) == [] and assumption_lines({}) == []
+
+    args = {**_export_args(result), "assumptions": result["assumptions"]}
+    info = [
+        [c.value for c in row]
+        for row in load_workbook(io.BytesIO(build_boq_xlsx(**args)))["Inputs and warnings"]
+    ]
+    start = info.index(["Assumptions", None])
+    assert info[start + 1 : start + 6] == [
+        list(line) for line in assumption_lines(result["assumptions"])
+    ]
+
+    text = " ".join(
+        "\n".join(page.get_text() for page in pymupdf.open(stream=build_boq_pdf(**args))).split()
+    )
+    assert "Assumptions: Building type: Apartment (set by user)" in text
+    assert "Ceiling height: 3.00 m (set by user for every level)" in text
+    assert "Plot perimeter: 95.00 m (set by user)" in text
+
+    # the export endpoints take the assumptions with the rest of the result
+    payload = {**args}
+    pdf = boq_client.post("/api/v1/sheets/boq/export/pdf", json=payload)
+    assert pdf.status_code == 200
+    shown = " ".join(
+        "\n".join(p.get_text() for p in pymupdf.open(stream=pdf.content, filetype="pdf")).split()
+    )
+    assert "Building type: Apartment (set by user)" in shown
+    xlsx = boq_client.post("/api/v1/sheets/boq/export/xlsx", json=payload)
+    sheet = load_workbook(io.BytesIO(xlsx.content))["Inputs and warnings"]
+    assert ["Building type", "Apartment (set by user)"] in [[c.value for c in r] for r in sheet]
+    # a client that sends no assumptions still gets its files
+    assert (
+        boq_client.post("/api/v1/sheets/boq/export/pdf", json=_export_args(result)).status_code
+        == 200
+    )
 
 
 def test_boq_progress_is_streamed_as_sse(boq_client):

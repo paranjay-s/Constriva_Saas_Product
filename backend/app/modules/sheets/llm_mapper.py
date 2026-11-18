@@ -675,9 +675,12 @@ def _measure_level(
 
     label = lvl.get("name") or f"Level {lvl_idx + 1}"
     height = _resolve_room_height_m({}, lvl, global_ceiling_height_m, use_standard_11ft_default)
-    if (
-        global_ceiling_height_m is None
-        and use_standard_11ft_default
+    # Where the level's height comes from: the user, the plan, or the standard assumption.
+    height_source = "plan"
+    if isinstance(global_ceiling_height_m, (int, float)) and float(global_ceiling_height_m) > 1.5:
+        height_source = "user"
+    elif (
+        use_standard_11ft_default
         and lvl.get("wall_height_source") != "stated"
         and abs(
             float(lvl.get("wall_height") or PARSER_FALLBACK_WALL_HEIGHT_M)
@@ -685,6 +688,7 @@ def _measure_level(
         )
         < 0.05
     ):
+        height_source = "assumed"
         warnings.append(
             f"{label}: the drawing states no ceiling height; {DEFAULT_WALL_HEIGHT_M} m was assumed."
         )
@@ -747,6 +751,7 @@ def _measure_level(
         "openings_area": openings_area,
         "net_wall_area": net_wall_area,
         "height": height,
+        "height_source": height_source,
         "width": width,
         "depth": depth,
         "built_box": built_box,
@@ -777,6 +782,11 @@ def _parking_under_an_upper_floor(measured: list[dict[str, Any]]) -> tuple[str, 
             ):
                 names.append(rec["name"])
     return tuple(names)
+
+
+def _one_or_mixed(values: list[str]) -> str:
+    """The value all levels share, or "mixed"."""
+    return values[0] if len(set(values)) == 1 else "mixed"
 
 
 def _derived_summary(p: Primitives) -> dict[str, Any]:
@@ -815,6 +825,7 @@ def map_plan_to_materials(
     use_standard_11ft_default: bool = True,
     false_ceiling_share: float = 1.0,
     plot_perimeter_m: float | None = None,
+    building_type: str | None = None,
 ) -> dict[str, Any]:
     """
     Task 2 Primary Entrypoint: PlanJSON -> the bill of quantities.
@@ -826,8 +837,11 @@ def map_plan_to_materials(
           Floor-Wise level (`level_summaries[i]["materials"]` & `materials_by_key`)
           Room-Wise level (`room_breakdown[i]["materials"]` & `materials_by_key`)
 
-    `false_ceiling_share` (f_fc, 0 to 1) is the share of the dry indoor area that gets a
-    false ceiling. `plot_perimeter_m`, when given, is used for the site hoarding.
+    The assumptions a user can set, all optional: `building_type` (in place of the plan's
+    own), `global_ceiling_height_m` (one height for every level), `tile_size_mm` and
+    `tile_pattern`, `false_ceiling_share` (f_fc, 0 to 1: the share of the dry indoor area
+    that gets a false ceiling) and `plot_perimeter_m` (for the site hoarding). The values
+    actually used are returned under `assumptions`.
     """
     plan = _extract_core_plan_json(plan_payload)
     unit_scale = _get_unit_scale(plan)
@@ -860,7 +874,9 @@ def map_plan_to_materials(
 
     # ---- The plan's derived quantities (spec section 3), computed once.
     site_width, site_depth = measured[0]["all_rooms_box"]
-    building_type = str(plan.get("building_type") or "villa").lower().strip()
+    plan_building_type = str(plan.get("building_type") or "").lower().strip()
+    chosen_building_type = str(building_type or "").lower().strip()
+    building_type_used = chosen_building_type or plan_building_type or "villa"
     facts = PlanFacts(
         levels=tuple(
             LevelFact(
@@ -890,7 +906,7 @@ def map_plan_to_materials(
         site_width=site_width,
         site_depth=site_depth,
         covered_parking=_parking_under_an_upper_floor(measured),
-        building_type=building_type,
+        building_type=building_type_used,
         f_fc=min(max(float(false_ceiling_share), 0.0), 1.0),
         plot_perimeter=(
             float(plot_perimeter_m) if plot_perimeter_m and plot_perimeter_m > 0 else None
@@ -1067,6 +1083,18 @@ def map_plan_to_materials(
             "bathrooms_count": p.n_bath,
             "kitchens_count": p.n_kit,
             "bedrooms_count": p.n_bed,
+        },
+        "assumptions": {
+            "building_type": building_type_used,
+            "building_type_source": (
+                "user" if chosen_building_type else "plan" if plan_building_type else "default"
+            ),
+            "ceiling_heights_m": [level["height"] for level in measured],
+            "ceiling_height_source": _one_or_mixed([level["height_source"] for level in measured]),
+            "tile_size_mm": f"{tile_a_mm:g}x{tile_b_mm:g}",
+            "tile_pattern": "herringbone" if w_pattern == TILE_WASTE_HERRINGBONE else "standard",
+            "false_ceiling_share": facts.f_fc,
+            "plot_perimeter_m": facts.plot_perimeter,
         },
         "derived_quantities": _derived_summary(p),
         "items": build_boq_rows(compute_items(p, facts), project_materials_by_key),

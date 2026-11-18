@@ -50,6 +50,9 @@ class BoqJob:
     error: str | None = None
     error_code: str | None = None
     result: dict[str, Any] | None = None
+    # The parsed PlanJSON, kept so the bill can be calculated again with other assumptions
+    # without parsing the PDF again.
+    plan: dict[str, Any] | None = None
     finished_at: float | None = None
     _cond: threading.Condition = field(default_factory=threading.Condition)
 
@@ -91,6 +94,11 @@ class BoqJob:
             self.finished_at = time.time()
             self.events.append(self._event("failed", message))
             self._cond.notify_all()
+
+    def replace_result(self, result: dict[str, Any]) -> None:
+        """Swap the result of a finished job for one calculated with other assumptions."""
+        with self._cond:
+            self.result = result
 
     @property
     def finished(self) -> bool:

@@ -1,8 +1,9 @@
 """BOQ endpoints, mounted at /api/v1/sheets/boq.
 
 POST /                       multipart `file` (PDF, within the upload limits) -> 202 {job_id}
-                             optional fields: `false_ceiling_share` (0 to 1, default 1) and
-                             `plot_perimeter_m` (metres; replaces the estimated hoarding length)
+                             optional fields: the assumptions of `BoqAssumptions`
+POST /jobs/{job_id}/recalculate   JSON `BoqAssumptions` -> the BOQ again, from the plan the
+                             job already parsed (no model call)
 GET  /jobs/{job_id}          job state with every event so far
 GET  /jobs/{job_id}/events   SSE progress (replays, then live): uploading, parsing, calculating
 GET  /jobs/{job_id}/result   the BOQ once the job is done
@@ -15,7 +16,9 @@ A job belongs to the user who started it; anyone else gets 404.
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import Response, StreamingResponse
+from pydantic import ValidationError
 
 from app.core.security import AuthenticatedUser, get_current_user
 from app.modules.ai.jobs_common import stream_events
@@ -28,8 +31,18 @@ from app.modules.sheets.boq_export import (
     export_filename,
 )
 from app.modules.sheets.boq_jobs import BoqJob, BoqJobManager, get_boq_jobs
-from app.modules.sheets.boq_schemas import BoqExportRequest, BoqJobCreated, BoqJobState
-from app.modules.sheets.boq_service import PlanPdfParser, default_pdf_parser, start_boq_job
+from app.modules.sheets.boq_schemas import (
+    BoqAssumptions,
+    BoqExportRequest,
+    BoqJobCreated,
+    BoqJobState,
+)
+from app.modules.sheets.boq_service import (
+    PlanPdfParser,
+    default_pdf_parser,
+    recalculate_boq,
+    start_boq_job,
+)
 
 router = APIRouter()
 
@@ -61,15 +74,30 @@ async def start_boq(
     jobs: Jobs,
     parse_pdf: Parser,
     file: Annotated[UploadFile, File(description="Floor plan PDF")],
+    building_type: Annotated[str | None, Form(description="villa, apartment or other")] = None,
+    ceiling_height_m: Annotated[
+        float | None, Form(description="One ceiling height for every level, in metres")
+    ] = None,
+    tile_size_mm: Annotated[str, Form(description="600x600, 800x800 or 1200x600")] = "600x600",
+    tile_pattern: Annotated[str, Form(description="standard or herringbone")] = "standard",
     false_ceiling_share: Annotated[
-        float,
-        Form(ge=0.0, le=1.0, description="Share of the dry indoor area with a false ceiling"),
+        float, Form(description="Share of the dry indoor area with a false ceiling, 0 to 1")
     ] = 1.0,
     plot_perimeter_m: Annotated[
-        float | None,
-        Form(gt=0.0, le=100_000.0, description="Plot perimeter in metres, for the site hoarding"),
+        float | None, Form(description="Plot perimeter in metres, for the site hoarding")
     ] = None,
 ) -> BoqJobCreated:
+    try:
+        assumptions = BoqAssumptions(
+            building_type=building_type or None,
+            ceiling_height_m=ceiling_height_m,
+            tile_size_mm=tile_size_mm,
+            tile_pattern=tile_pattern,
+            false_ceiling_share=false_ceiling_share,
+            plot_perimeter_m=plot_perimeter_m,
+        )
+    except ValidationError as invalid:
+        raise RequestValidationError(invalid.errors()) from invalid
     # The same check as the 2D-to-3D import: PDF only, within the size and page limits.
     # A rejected upload starts no job and never reaches a model.
     try:
@@ -79,13 +107,7 @@ async def start_boq(
             getattr(rejected, "http_status", status.HTTP_400_BAD_REQUEST), str(rejected)
         ) from rejected
     job = start_boq_job(
-        jobs,
-        user.id,
-        file.filename or "plan.pdf",
-        pdf_bytes,
-        parse_pdf,
-        false_ceiling_share=false_ceiling_share,
-        plot_perimeter_m=plot_perimeter_m,
+        jobs, user.id, file.filename or "plan.pdf", pdf_bytes, parse_pdf, assumptions
     )
     return BoqJobCreated(job_id=job.id)
 
@@ -115,6 +137,26 @@ async def boq_job_result(job_id: str, user: User, jobs: Jobs) -> dict[str, Any]:
     return job.result
 
 
+@router.post(
+    "/jobs/{job_id}/recalculate",
+    summary="Calculate a finished bill again with other assumptions (no model call)",
+)
+async def recalculate_boq_job(
+    job_id: str, assumptions: BoqAssumptions, user: User, jobs: Jobs
+) -> dict[str, Any]:
+    job = _own_job(jobs, job_id, user)
+    if job.status == "failed":
+        raise HTTPException(status.HTTP_409_CONFLICT, job.error or "The BOQ could not be prepared.")
+    if job.status != "done" or job.plan is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "The BOQ is not ready yet.")
+    try:
+        return recalculate_boq(job, assumptions)
+    except ValueError as e:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, f"Quantities could not be calculated: {e}"
+        ) from e
+
+
 def _file_response(content: bytes, media_type: str, filename: str) -> Response:
     return Response(
         content=content,
@@ -130,7 +172,11 @@ def _file_response(content: bytes, media_type: str, filename: str) -> Response:
 async def export_boq_pdf(payload: BoqExportRequest, user: User) -> Response:
     data = payload.model_dump()
     pdf = build_boq_pdf(
-        data["items"], data["warnings"], data["geometry_summary"], data["project_metadata"]
+        data["items"],
+        data["warnings"],
+        data["geometry_summary"],
+        data["project_metadata"],
+        assumptions=data["assumptions"],
     )
     return _file_response(pdf, PDF_MIME, export_filename(data["project_metadata"], "pdf"))
 
@@ -139,6 +185,10 @@ async def export_boq_pdf(payload: BoqExportRequest, user: User) -> Response:
 async def export_boq_xlsx(payload: BoqExportRequest, user: User) -> Response:
     data = payload.model_dump()
     xlsx = build_boq_xlsx(
-        data["items"], data["warnings"], data["geometry_summary"], data["project_metadata"]
+        data["items"],
+        data["warnings"],
+        data["geometry_summary"],
+        data["project_metadata"],
+        assumptions=data["assumptions"],
     )
     return _file_response(xlsx, XLSX_MIME, export_filename(data["project_metadata"], "xlsx"))

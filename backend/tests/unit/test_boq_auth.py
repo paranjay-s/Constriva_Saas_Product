@@ -17,6 +17,7 @@ BOQ_ENDPOINTS = [
     ("GET", f"{BOQ}/jobs/abc"),
     ("GET", f"{BOQ}/jobs/abc/events"),
     ("GET", f"{BOQ}/jobs/abc/result"),
+    ("POST", f"{BOQ}/jobs/abc/recalculate"),
     ("POST", f"{BOQ}/export/pdf"),
     ("POST", f"{BOQ}/export/xlsx"),
 ]
@@ -40,6 +41,7 @@ def test_every_boq_endpoint_declares_the_same_auth_as_project_endpoints():
             ("GET", f"{BOQ}/jobs/{{job_id}}"),
             ("GET", f"{BOQ}/jobs/{{job_id}}/events"),
             ("GET", f"{BOQ}/jobs/{{job_id}}/result"),
+            ("POST", f"{BOQ}/jobs/{{job_id}}/recalculate"),
             ("POST", f"{BOQ}/export/pdf"),
             ("POST", f"{BOQ}/export/xlsx"),
         ]
@@ -67,6 +69,7 @@ def test_the_boq_router_uses_the_one_auth_dependency():
         boq_router.boq_job_state,
         boq_router.boq_job_events,
         boq_router.boq_job_result,
+        boq_router.recalculate_boq_job,
         boq_router.export_boq_pdf,
         boq_router.export_boq_xlsx,
     ):

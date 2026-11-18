@@ -5,6 +5,10 @@ Rows are grouped by category, then sub-category, then serial number; a lettered 
 ("17a") is a row of its own. Remarks says when an item is excluded from the quote or is an
 allowance, then gives its breakdown (rods, coils, tank sizes...) and its note.
 
+Both files also print the assumptions the bill was calculated with (building type,
+ceiling height, tiles, false-ceiling share, plot perimeter), from the result's
+`assumptions`.
+
 Nothing here is specific to one building: every figure printed comes from the rows and
 the summary passed in.
 """
@@ -97,6 +101,63 @@ def _built_area(summary: dict[str, Any]) -> str:
     return f"{area:,.2f} m2{extra}"
 
 
+SOURCE_TEXT = {"user": "set by user", "plan": "from the plan", "default": "default"}
+PATTERN_TEXT = {"standard": "standard lay, 5% waste", "herringbone": "herringbone lay, 15% waste"}
+
+
+def _number(value: Any) -> float | None:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def assumption_lines(assumptions: dict[str, Any] | None) -> list[tuple[str, str]]:
+    """(label, value) for each assumption a bill was calculated with, as printed in both
+    exports. Empty when the result carries none (a result from an older server)."""
+    a = assumptions or {}
+    lines: list[tuple[str, str]] = []
+
+    building_type = str(a.get("building_type") or "").strip()
+    if building_type:
+        source = SOURCE_TEXT.get(str(a.get("building_type_source") or ""), "")
+        lines.append(
+            ("Building type", f"{building_type.capitalize()}{f' ({source})' if source else ''}")
+        )
+
+    heights = [h for h in map(_number, a.get("ceiling_heights_m") or []) if h is not None]
+    if heights:
+        distinct = sorted(set(heights))
+        shown = ", ".join(f"{h:.2f} m" for h in (distinct if len(distinct) == 1 else heights))
+        source = str(a.get("ceiling_height_source") or "")
+        note = {
+            "user": "set by user for every level",
+            "plan": "from the plan",
+            "assumed": "assumed: the plan states none",
+            "mixed": "per level: from the plan where stated, otherwise assumed",
+        }.get(source, "")
+        lines.append(("Ceiling height", f"{shown}{f' ({note})' if note else ''}"))
+
+    tile_size = str(a.get("tile_size_mm") or "").strip()
+    if tile_size:
+        pattern = PATTERN_TEXT.get(str(a.get("tile_pattern") or ""), "")
+        size = tile_size.replace("x", " x ")
+        lines.append(("Floor tiles", f"{size} mm{f', {pattern}' if pattern else ''}"))
+
+    share = _number(a.get("false_ceiling_share"))
+    if share is not None:
+        lines.append(("False ceiling", f"{share * 100:.0f}% of the dry indoor area"))
+
+    if "plot_perimeter_m" in a:
+        perimeter = _number(a.get("plot_perimeter_m"))
+        lines.append(
+            (
+                "Plot perimeter",
+                f"{perimeter:,.2f} m (set by user)"
+                if perimeter is not None
+                else "Not given: the site hoarding is estimated from the plan outline",
+            )
+        )
+    return lines
+
+
 def export_filename(metadata: dict[str, Any], extension: str) -> str:
     source = str(metadata.get("source_file_name") or "").rsplit(".", 1)[0]
     safe = re.sub(r"[^A-Za-z0-9._-]+", "_", source).strip("_")[:60]
@@ -112,8 +173,10 @@ def build_boq_xlsx(
     geometry_summary: dict[str, Any] | None = None,
     project_metadata: dict[str, Any] | None = None,
     generated_on: date | None = None,
+    assumptions: dict[str, Any] | None = None,
 ) -> bytes:
-    """Sheet "BOQ": one row per item. Sheet "Inputs and warnings": what it was built from."""
+    """Sheet "BOQ": one row per item. Sheet "Inputs and warnings": what it was built from,
+    the assumptions used and the warnings."""
     summary = geometry_summary or {}
     metadata = project_metadata or {}
     wb = Workbook()
@@ -193,6 +256,13 @@ def build_boq_xlsx(
             facts.append((label, summary[key]))
     for label, value in facts:
         info.append([label, value])
+    used = assumption_lines(assumptions)
+    if used:
+        info.append([])
+        info.append(["Assumptions"])
+        info.cell(row=info.max_row, column=1).font = Font(bold=True)
+        for label, value in used:
+            info.append([label, value])
     info.append([])
     info.append(["Warnings"])
     info.cell(row=info.max_row, column=1).font = Font(bold=True)
@@ -242,9 +312,10 @@ def build_boq_pdf(
     geometry_summary: dict[str, Any] | None = None,
     project_metadata: dict[str, Any] | None = None,
     generated_on: date | None = None,
+    assumptions: dict[str, Any] | None = None,
 ) -> bytes:
-    """Header (title, source file, date, built area), then the rows under a band per
-    category, grouped by sub-category inside it, and the footer on every page."""
+    """Header (title, source file, date, built area, assumptions), then the rows under a
+    band per category, grouped by sub-category inside it, and the footer on every page."""
     summary = geometry_summary or {}
     metadata = project_metadata or {}
     styles = getSampleStyleSheet()
@@ -276,8 +347,16 @@ def build_boq_pdf(
             f"Built area: {_built_area(summary)}   |   Items: {len(items)}",
             meta_style,
         ),
-        Spacer(1, 10),
     ]
+    used = assumption_lines(assumptions)
+    if used:
+        story.append(
+            p(
+                "Assumptions: " + "   |   ".join(f"{label}: {value}" for label, value in used),
+                meta_style,
+            )
+        )
+    story.append(Spacer(1, 10))
 
     data: list[list[Any]] = [[p(c, head) for c in COLUMNS]]
     style_cmds: list[tuple] = [

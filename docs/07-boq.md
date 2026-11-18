@@ -32,7 +32,22 @@ Rules that hold everywhere:
 - **Apartment rule.** When `building_type` is `apartment`, items 8, 10, 20, 21, 22, 23, 26, 30, 31, 53b and 58 are 0 with a note, and a warning says composite items still include roof and plinth terms.
 - **Every number is a named constant** in `constants.py`.
 
-Optional inputs of `map_plan_to_materials` (and of `POST /sheets/boq`): `false_ceiling_share` (0 to 1, default 1) and `plot_perimeter_m` (used for the hoarding, with 5% added, in place of the estimate from the plan outline). The BOQ page does not ask for them yet.
+### Assumptions
+
+A user can set six things, in `BoqAssumptions` (`boq_schemas.py`). Each default is what the calculator does on its own:
+
+| Assumption | Default | Effect |
+|---|---|---|
+| `building_type` (villa, apartment, other) | the plan's own, or villa | `apartment` applies the apartment rule |
+| `ceiling_height_m` | each level's height from the plan, 3.35 m where it states none | one height for every level: wall areas and everything built on them |
+| `tile_size_mm` (600x600, 800x800, 1200x600) | 600x600 | tile pieces and grout |
+| `tile_pattern` (standard, herringbone) | standard | tile waste, 5% or 15% |
+| `false_ceiling_share` (0 to 1) | 1 | regular gypsum board (18b) |
+| `plot_perimeter_m` | none: estimated from the plan outline | site hoarding (58) |
+
+The result states what was used under `assumptions`, with where each value came from (`user`, `plan`, `default`, `assumed`). Both exports print it.
+
+Changing an assumption never parses the PDF again. A BOQ job keeps the PlanJSON it parsed, and `POST /jobs/{job_id}/recalculate` calculates from that: no model call, no upload. The job lives for one hour; after that the PDF is uploaded again, which the parser's caches answer without a model call.
 
 The result also carries `derived_quantities`: every symbol of spec section 3 for this plan, for checking a quantity by hand.
 
@@ -60,11 +75,12 @@ Rows of the seven core materials also keep that material's earlier keys (`id`, `
 
 | Method and path | Purpose |
 |---|---|
-| `POST /` | Multipart `file` (PDF, within the upload limits of [04-parsing-module.md](04-parsing-module.md)), plus the optional fields `false_ceiling_share` and `plot_perimeter_m`. Returns `202 {job_id}`. |
+| `POST /` | Multipart `file` (PDF, within the upload limits of [04-parsing-module.md](04-parsing-module.md)), plus the optional assumption fields. Returns `202 {job_id}`. |
 | `GET /jobs/{job_id}` | Job state with every event so far. |
 | `GET /jobs/{job_id}/events` | SSE progress: `uploading`, `parsing`, `calculating`, then `done` or `failed`. |
 | `GET /jobs/{job_id}/result` | The BOQ once the job is done (`409` before, or when it failed). |
-| `POST /export/pdf`, `POST /export/xlsx` | Body: `items`, `warnings`, `geometry_summary`, `project_metadata` of a result. Returns the file. |
+| `POST /jobs/{job_id}/recalculate` | JSON `BoqAssumptions`. Returns the BOQ calculated again from the job's parsed plan, and makes it the job's result. No model call. `409` when the job is not done. |
+| `POST /export/pdf`, `POST /export/xlsx` | Body: `items`, `warnings`, `geometry_summary`, `project_metadata` and `assumptions` of a result. Returns the file. |
 
 Every BOQ endpoint uses the same authentication as the project endpoints: the app's one dependency, `get_current_user`. A valid Bearer token identifies the user; an expired or invalid token gets `401`. A job belongs to the user who started it, and anyone else gets `404`. `tests/unit/test_boq_auth.py` pins this.
 
@@ -93,8 +109,8 @@ Both files carry every row the result has (64 for a full bill), a lettered row o
 
 Remarks reads: "Excluded from quote" and "Allowance" when they apply, then the row's breakdown (`components`, such as `Ground tank: 2,000 L; Roof tank: 1,500 L`), then its note.
 
-- **Excel**: sheet `BOQ` with a frozen header row, an autofilter, numeric quantity cells and set column widths; sheet `Inputs and warnings` with the project facts, the geometry inputs (including the wall-model areas) and the warnings.
-- **PDF**: project title, source file name, date and built area in the header; one band per category; excluded items greyed and marked in Remarks; `Page X of Y`; footer "Estimated quantities from a 2D plan. Verify before procurement."
+- **Excel**: sheet `BOQ` with a frozen header row, an autofilter, numeric quantity cells and set column widths; sheet `Inputs and warnings` with the project facts, the geometry inputs (including the wall-model areas), the assumptions and the warnings.
+- **PDF**: project title, source file name, date, built area and the assumptions in the header; one band per category; excluded items greyed and marked in Remarks; `Page X of Y`; footer "Estimated quantities from a 2D plan. Verify before procurement."
 
 ## Tests
 
