@@ -798,6 +798,8 @@ for k, f in enumerate(floors):
         name=f.get("name", f"Floor {k}"), z=round(z * F_, 3), height=round(H * F_, 3),
         colliders=[m(b) for b in subtract_all([(*w[:4], 0, 1) for w in f["walls"]] + sills,
                                               [(c[0], c[1], c[2], c[3], 0, 1) for c in cuts if c[4] < 1])] + [m(b) for b in guards] + [m(b) for b in closed],
+        # solid furniture, for the guided tour's route (web/tour.js) to go round
+        furniture=[m(it["box"]) for it in items if it.get("solid", True) and it["box"][1] > it["box"][0]],
         # an upper storey can be walked on only where its slab is; the ground storey everywhere
         **({"floor": [m(b) for b in slab]} if k or BASE else {}),
         # what was built at each opening of the plan, in plan order: glazed with a sill (window), or cut to the

@@ -19,5 +19,6 @@ done
 for m in jobs/*/meta.json; do [ -f "$m" ] && node tests/test_walk.mjs "$m"; done
 for m in jobs/*/meta.json; do [ -f "$m" ] && node tests/test_storeys.mjs "$m"; done
 for m in jobs/*/meta.json; do [ -f "$m" ] && node tests/test_water.mjs "$m"; done
+for m in jobs/*/meta.json; do [ -f "$m" ] && node tests/test_tour.mjs "$m" || true; done      # reported, not yet required (LOG.md)
 for m in jobs/*/meta.json; do [ -f "$m" ] && node tests/test_openings.mjs "$(dirname "$m")"; done
 echo ALL PASS

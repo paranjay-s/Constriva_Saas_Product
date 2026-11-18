@@ -88,6 +88,7 @@ class Room:
         walls = [w for w in floor["walls"]]
         ops = floor["openings"]
         self.free = {}       # side -> {"low": intervals, "tall": intervals}  (positions along the side)
+        self.open_ways = []  # stretches of the room's edge with no wall into another room (open plan)
         for side in "NSEW":
             along = (x0, x1) if side in "NS" else (y0, y1)
             face = {"N": y1, "S": y0, "E": x1, "W": x0}[side]
@@ -127,6 +128,11 @@ class Room:
             for a, b in subtract_ivs([along], cov + [(d0 - 0.5, d1 + 0.5) for d0, d1 in doors_here]):
                 m = (a + b) / 2
                 past = {"N": (m, y1 + 0.75), "S": (m, y0 - 0.75), "E": (x1 + 0.75, m), "W": (x0 - 0.75, m)}[side]
+                into = any(z is not zone and any(q[0] <= past[0] <= q[1] and q[2] <= past[1] <= q[3] for q in z["rects"])
+                           for z in floor["rooms"])
+                if into and b - a >= 2.5:       # an open way into the next room: kept as passable as a door
+                    self.open_ways.append({"N": (a, b, y1 - 0.5, y1), "S": (a, b, y0, y0 + 0.5),
+                                           "E": (x1 - 0.5, x1, a, b), "W": (x0, x0 + 0.5, a, b)}[side])
                 beyond = zone["type"] in INDOOR and any(
                     z is not zone and z["type"] in INDOOR and any(q[0] <= past[0] <= q[1] and q[2] <= past[1] <= q[3] for q in z["rects"])
                     for z in floor["rooms"])
@@ -683,8 +689,76 @@ def furnish_floor(floor):
         if R.w < 2.5 or R.d < 2.5:
             continue
         RULES[z["type"]](R)
+        keep_passages(R)
         out += R.items
     return out
+
+
+def connected_doors(R, items, g=0.5, body=0.75):
+    """can someone (0.75 ft from their centre to their shoulder) walk between every door of the room, round its
+    solid furniture? A grid over the room's rectangles; a door counts as reached at any free cell next to it."""
+    cells = set()
+    for x0, x1, y0, y1 in R.zone["rects"]:
+        for i in range(int((x1 - x0) / g)):
+            for j in range(int((y1 - y0) / g)):
+                cx, cy = x0 + (i + 0.5) * g, y0 + (j + 0.5) * g
+                # (keep off the walls too: the rects are the clear space, a walker's shoulder is 0.75 ft wide;
+                # an edge shared with the next part of the same room or an open way is no wall)
+                if any(abs(c - e) < body and not _open_edge(R, cx, cy) for c, e in ((cx, x0), (cx, x1), (cy, y0), (cy, y1))):
+                    continue
+                if any(it["solid"] and it["box"][0] - body < cx < it["box"][1] + body and it["box"][2] - body < cy < it["box"][3] + body
+                       for it in items):
+                    continue
+                cells.add((round(cx / g), round(cy / g)))
+    targets = []
+    # every door on any part of the room (an L-shaped room's doors on its short arm too), and its open ways
+    doors = [o["rect"] for o in R.floor["openings"] if o["type"] != "window" and any(
+        q[0] - 1 <= (o["rect"][0] + o["rect"][1]) / 2 <= q[1] + 1 and q[2] - 1 <= (o["rect"][2] + o["rect"][3]) / 2 <= q[3] + 1
+        for q in R.zone["rects"])]
+    for r in doors + R.open_ways:
+        near = {c for c in cells if r[0] - 1.6 <= c[0] * g <= r[1] + 1.6 and r[2] - 1.6 <= c[1] * g <= r[3] + 1.6}
+        if not near:
+            return False          # a door with no room in front of it at all
+        targets.append(near)
+    if len(targets) < 2:
+        return True
+    seen, todo = set(), [next(iter(targets[0]))]
+    while todo:
+        c = todo.pop()
+        if c in seen or c not in cells:
+            continue
+        seen.add(c)
+        todo += [(c[0] + 1, c[1]), (c[0] - 1, c[1]), (c[0], c[1] + 1), (c[0], c[1] - 1)]
+    return all(t & seen for t in targets)
+
+
+# what goes first when furniture closes a way through a room: decor and extras before the things the room is for
+KEEP = dict(plant=0, desk=1, tv_unit=1, coffee_table=1, outdoor_set=2, wardrobe=3, dining_set=4, sofa=5, fridge2=6,
+            washer2=6, kitchen_run=8, bed=9, wc2=9, vanity=9, shower2=9)
+
+
+def _open_edge(R, x, y):
+    """is (x, y) next to another part of the same room, an open way or a door (no wall there)?"""
+    m = 1.0
+    if any(q[0] - m < x < q[1] + m and q[2] - m < y < q[3] + m and not (q[0] < x < q[1] and q[2] < y < q[3])
+           for q in R.zone["rects"]):
+        return True
+    return any(w[0] - m < x < w[1] + m and w[2] - m < y < w[3] + m for w in R.open_ways) or any(
+        o["type"] != "window" and o["rect"][0] - 1.6 < x < o["rect"][1] + 1.6 and o["rect"][2] - 1.6 < y < o["rect"][3] + 1.6
+        for o in R.floor["openings"])
+
+
+def keep_passages(R):
+    """furniture never closes the way between a room's doors (an open-plan room or a drawing room people cross to
+    reach the rooms beyond): while it does, the item whose removal opens the way goes, the largest first"""
+    for _ in range(6):
+        if connected_doors(R, R.items):
+            return
+        solid = sorted((it for it in R.items if it["solid"]), key=lambda it: (KEEP.get(it["fn"], 5), -area(it["box"])))
+        drop = next((it for it in solid if connected_doors(R, [x for x in R.items if x is not it])), None)
+        if drop is None:
+            return
+        R.items = [x for x in R.items if x is not drop]
 
 
 def clashes(items, floor):

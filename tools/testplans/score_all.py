@@ -29,7 +29,8 @@ CACHE = ROOT / "backend/.tmp/plan_cache"
 def detect(pdf):
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "plan.json"
-        r = subprocess.run(["/usr/bin/python3", "detect.py", str(pdf), str(out)], cwd=P3D, capture_output=True, text=True, timeout=300)
+        r = subprocess.run(["/usr/bin/python3", "detect.py", str(Path(pdf).resolve()), str(out)], cwd=P3D,
+                           capture_output=True, text=True, timeout=300)
         return json.loads(out.read_text()) if r.returncode == 0 and out.exists() else None
 
 
