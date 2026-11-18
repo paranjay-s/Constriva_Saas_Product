@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom';
 import { ProtectedRoute } from '../components/ui/ProtectedRoute';
 import { AppLayout } from '../components/layout/AppLayout';
 
@@ -7,15 +7,15 @@ import { LandingPage } from '../features/landing/LandingPage';
 import { HomePage } from '../features/home/HomePage';
 import { CreateProjectPage } from '../features/projects/CreateProjectPage';
 import { ProjectOptionsPage } from '../features/projects/ProjectOptionsPage';
-import { ImportPlanPage } from '../features/files/ImportPlanPage';
-import { WorkspacePage } from '../features/plan-viewer/WorkspacePage';
+import { Plan3dFurniturePage, Plan3dHomePage, Plan3dJobPage } from '../features/plan3d';
 import { AiGeneratorPage } from '../features/chat/AiGeneratorPage';
 import { LegacyAiGeneratorPage } from '../features/chat/LegacyAiGeneratorPage';
 import { MaterialFinderPage } from '../features/materials';
 import { BoqPage } from '../features/sheets';
 import { LoanAnalysisPage } from '../features/loan/LoanAnalysisPage';
 
-export const router = createBrowserRouter([
+/** The route table; exported on its own so tests can run it in a memory router. */
+export const routes: RouteObject[] = [
   // Public Route
   {
     path: '/auth',
@@ -42,13 +42,27 @@ export const router = createBrowserRouter([
         path: '/projects/options',
         element: <ProjectOptionsPage />,
       },
+      // 2D to 3D: upload and list, the furniture models, and one plan's flow
+      {
+        path: '/3d',
+        element: <Plan3dHomePage />,
+      },
+      {
+        path: '/3d/furniture',
+        element: <Plan3dFurniturePage />,
+      },
+      {
+        path: '/3d/:jobId',
+        element: <Plan3dJobPage />,
+      },
+      // the addresses of the pages that 2D to 3D replaced, kept alive for old links
       {
         path: '/projects/import',
-        element: <ImportPlanPage />,
+        element: <Navigate to="/3d" replace />,
       },
       {
         path: '/projects/3d-workspace',
-        element: <WorkspacePage />,
+        element: <Navigate to="/3d" replace />,
       },
       {
         path: '/projects/ai-generator',
@@ -86,4 +100,6 @@ export const router = createBrowserRouter([
     path: '*',
     element: <Navigate to="/home" replace />,
   },
-]);
+];
+
+export const router = createBrowserRouter(routes);

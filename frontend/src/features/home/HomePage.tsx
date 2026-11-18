@@ -54,9 +54,10 @@ export const HomePage: React.FC = () => {
     navigate('/projects/ai-generator');
   };
 
+  // opening a project makes it the current one; its plans are listed on the 2D to 3D page
   const handleOpenProject = async (project: (typeof projects)[0]) => {
     await selectProject(project);
-    navigate('/projects/3d-workspace');
+    navigate('/3d');
   };
 
   const handleDeleteProject = async (e: React.MouseEvent, projectId: string) => {
@@ -111,7 +112,7 @@ export const HomePage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-14">
           {/* Action 1: 2D Plan to 3D */}
           <div
-            onClick={() => navigate('/projects/new')}
+            onClick={() => navigate('/3d')}
             className="arch-glass arch-glass-hover p-6 rounded-2xl flex flex-col justify-between cursor-pointer group"
           >
             <div>
@@ -125,7 +126,7 @@ export const HomePage: React.FC = () => {
                 2D Plan to 3D
               </h2>
               <p className="text-xs text-white/70 mt-2 leading-relaxed">
-                Upload CAD floor plans or architectural PDFs to synthesize an interactive 3D walkthrough.
+                Upload a floor plan PDF, check the plan that was detected, and walk through the house in 3D.
               </p>
             </div>
             <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-[#C5A77B]">
@@ -327,7 +328,7 @@ export const HomePage: React.FC = () => {
                     <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-white/60">
                       <span>{new Date(proj.createdAt).toLocaleDateString()}</span>
                       <span className="text-[#C5A77B] group-hover:translate-x-1 transition-transform inline-flex items-center gap-1.5 font-semibold">
-                        Enter Workspace <ArrowRightIcon size={12} />
+                        Open 3D plans <ArrowRightIcon size={12} />
                       </span>
                     </div>
                   </div>

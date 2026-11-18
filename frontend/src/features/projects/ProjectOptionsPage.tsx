@@ -33,19 +33,19 @@ export const ProjectOptionsPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Instant Access to 3D Workspace for Existing Plans */}
+        {/* Straight to the plans that were already turned into 3D */}
         <div className="mb-8 p-4 rounded-2xl bg-white/[0.04] border border-[#C5A77B]/30 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <span className="w-2 h-2 rounded-full bg-[#C5A77B] animate-pulse shrink-0" />
             <span className="text-xs text-white/80 font-mono">
-              Already have an architectural model or verified plan for this project?
+              Already turned a plan of this project into 3D?
             </span>
           </div>
           <button
-            onClick={() => navigate('/projects/3d-workspace')}
+            onClick={() => navigate('/3d')}
             className="px-4 py-2 text-xs font-mono font-medium rounded-full bg-[#C5A77B] text-black hover:bg-[#d6b88c] transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
           >
-            Open 3D Workspace <ArrowRightIcon size={12} />
+            Open 2D to 3D <ArrowRightIcon size={12} />
           </button>
         </div>
 
@@ -54,7 +54,7 @@ export const ProjectOptionsPage: React.FC = () => {
           {/* Option 1: Import Existing 2D Plan */}
           <Card
             interactive
-            onClick={() => navigate('/projects/import')}
+            onClick={() => navigate('/3d')}
             className="group bg-[#181818] border-[#303030] hover:border-[#C5A77B] p-8 flex flex-col justify-between transition-all"
           >
             <div>
@@ -68,7 +68,7 @@ export const ProjectOptionsPage: React.FC = () => {
                 Import Existing 2D Plan
               </h2>
               <p className="text-sm text-[#A6A6A6] mt-3 leading-relaxed">
-                Upload an architectural PDF drawing. The system will extract wall geometry, detect openings, and generate your interactive 3D model automatically.
+                Upload an architectural PDF drawing. The walls, openings and rooms are detected for you to review, then built into a 3D house you can walk through.
               </p>
             </div>
 

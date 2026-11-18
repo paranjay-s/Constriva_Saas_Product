@@ -101,11 +101,11 @@ export function LoanAnalysisPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/projects/3d-workspace')}
+            onClick={() => navigate('/3d')}
             leftIcon={<IconArrowLeft className="w-4 h-4" />}
             className="text-white/70 hover:text-white"
           >
-            3D Workspace
+            2D to 3D
           </Button>
 
           <div className="h-4 w-px bg-white/10 hidden sm:block" />

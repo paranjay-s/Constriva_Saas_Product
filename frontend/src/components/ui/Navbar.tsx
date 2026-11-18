@@ -13,7 +13,7 @@ export const Navbar: React.FC = () => {
   const navLinks = [
     { label: 'Studio Home', path: '/home' },
     { label: 'New Project', path: '/projects/new' },
-    { label: '3D Workspace', path: '/projects/3d-workspace' },
+    { label: '2D to 3D', path: '/3d' },
     { label: 'AI Generator', path: '/projects/ai-generator' },
     { label: 'Material AI', path: '/materials/analyse' },
   ];
@@ -52,7 +52,8 @@ export const Navbar: React.FC = () => {
       {/* Center Navigation Pills (Desktop) */}
       <nav className="hidden md:flex items-center gap-1 p-1 rounded-full arch-glass-pill border border-white/10 text-xs font-medium">
         {navLinks.map((link) => {
-          const isActive = location.pathname === link.path;
+          // a section stays marked on its inner pages (/3d/<job>, /3d/furniture)
+          const isActive = location.pathname === link.path || location.pathname.startsWith(`${link.path}/`);
           return (
             <Link
               key={link.path}

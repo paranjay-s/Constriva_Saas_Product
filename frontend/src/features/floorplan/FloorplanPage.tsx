@@ -4,15 +4,14 @@
  * on their home page under that project.
  *
  * The plan id is kept in the URL (?plan=...), so a reload or a shared link reopens the
- * same plan. "Open in 3D" hands the plan's PlanJSON to the existing 3D workspace.
+ * same plan.
  */
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
-import { IconArrowRight, IconRefresh } from '../../components/ui/Icons';
+import { IconRefresh } from '../../components/ui/Icons';
 import { useProject } from '../../context/ProjectContext';
 import { ApiError } from '../../lib/api';
-import type { PlanJSON } from '../../types';
 import { floorplanApi } from './api';
 import { BriefForm } from './components/BriefForm';
 import { ConfirmationCard } from './components/ConfirmationCard';
@@ -42,8 +41,6 @@ export function FloorplanPage() {
     projectsError,
     fetchProjects,
     selectProject,
-    setPlanData,
-    setProjectStatus,
   } = useProject();
   const [choosingProject, setChoosingProject] = useState(false);
   const project = isSavedProject(activeProject, projects) ? activeProject : null;
@@ -125,7 +122,7 @@ export function FloorplanPage() {
     }
   };
 
-  // The open plan's project becomes the active one (so "Open in 3D" and the home page match).
+  // The open plan's project becomes the active one (so the home page matches).
   useEffect(() => {
     const pid = plan?.project_id;
     if (!pid || activeProject?.id === pid) return;
@@ -193,19 +190,6 @@ export function FloorplanPage() {
     setStep('form');
   };
 
-  const openIn3D = () => {
-    if (!plan) return;
-    const planJson = plan.plan_json as unknown as PlanJSON;
-    setPlanData(planJson);
-    try {
-      if (activeProject?.id) localStorage.setItem(`construtiva_plan_cache_${activeProject.id}`, JSON.stringify(planJson));
-    } catch {
-      // storage full: the context copy is enough for this session
-    }
-    setProjectStatus('ready');
-    navigate('/projects/3d-workspace');
-  };
-
   const messages = pending && plan ? [...plan.messages, pending] : (plan?.messages ?? []);
 
   return (
@@ -222,9 +206,6 @@ export function FloorplanPage() {
             <ExportMenu planId={plan.id} />
             <Button size="sm" variant="secondary" onClick={startOver} leftIcon={<IconRefresh className="h-4 w-4" />}>
               New plan
-            </Button>
-            <Button size="sm" variant="accent" onClick={openIn3D} rightIcon={<IconArrowRight className="h-4 w-4" />}>
-              Open in 3D
             </Button>
           </div>
         )}

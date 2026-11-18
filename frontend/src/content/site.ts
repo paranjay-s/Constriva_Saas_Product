@@ -128,7 +128,7 @@ export const siteContent: SiteContent = {
       highlight: "Upload 2D Plan → Live 3D Walkthrough",
       cta: {
         label: "Import 2D Plan",
-        href: "/projects/import",
+        href: "/3d",
       },
     },
     {
@@ -140,7 +140,7 @@ export const siteContent: SiteContent = {
       sub: "Move through the home before it is built.",
       cta: {
         label: "Open Walkthrough",
-        href: "/projects/3d-workspace",
+        href: "/3d",
       },
     },
     {

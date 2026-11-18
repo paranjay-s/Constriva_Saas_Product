@@ -1,33 +1,25 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { DEFAULT_ARCHITECTURAL_PLAN, INITIAL_MATERIAL_ITEMS } from '../lib/defaultPlan';
-import type { LoanComparison, MaterialQuantityItem, PlanJSON, Project, ProjectType } from '../types';
+import { INITIAL_MATERIAL_ITEMS } from '../lib/defaultPlan';
+import type { LoanComparison, MaterialQuantityItem, Project, ProjectType } from '../types';
 import { projectsApi } from '../features/projects/api';
-import { filesApi } from '../features/files/api';
 
 interface ProjectContextType {
   projects: Project[];
   activeProject: Project | null;
   isLoadingProjects: boolean;
   projectsError: string | null;
-  planData: PlanJSON;
   materials: MaterialQuantityItem[];
-  selectedMaterialTag: string | null;
-  activeRoomId: string | null;
   loanComparison: LoanComparison;
   fetchProjects: () => Promise<void>;
   createProject: (name: string, type: ProjectType, description?: string) => Promise<Project>;
   selectProject: (project: Project) => Promise<void> | void;
   deleteProject: (projectId: string) => Promise<void>;
-  setPlanData: (plan: PlanJSON) => void;
   setMaterials: React.Dispatch<React.SetStateAction<MaterialQuantityItem[]>>;
-  setSelectedMaterialTag: (tag: string | null) => void;
-  setActiveRoomId: (roomId: string | null) => void;
   updateLoanAmount: (amount: number) => void;
   setProjectStatus: (status: Project['status']) => void;
 }
 
 const PROJECT_STORAGE_KEY = 'construtiva_active_project';
-const PLAN_STORAGE_KEY = 'construtiva_plan_data';
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
@@ -54,24 +46,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   });
 
-  const [planData, setPlanDataState] = useState<PlanJSON>(() => {
-    try {
-      const stored = localStorage.getItem(PLAN_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed && Array.isArray(parsed.levels) && parsed.levels.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {
-      // fallback
-    }
-    return DEFAULT_ARCHITECTURAL_PLAN;
-  });
-
   const [materials, setMaterials] = useState<MaterialQuantityItem[]>(INITIAL_MATERIAL_ITEMS);
-  const [selectedMaterialTag, setSelectedMaterialTag] = useState<string | null>(null);
-  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
 
   // Calculate total material cost from materials list
   const totalCost = materials.reduce((acc, item) => acc + item.estimatedAmount, 0);
@@ -122,12 +97,6 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     fetchProjects();
   }, []);
 
-  // Persist plan data changes
-  const setPlanData = (plan: PlanJSON) => {
-    setPlanDataState(plan);
-    localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(plan));
-  };
-
   // A project exists only once the backend has saved it. On failure the error goes to the
   // form (no local stand-in project: work saved into one would never reach the account).
   const createProject = async (name: string, type: ProjectType, description?: string): Promise<Project> => {
@@ -138,32 +107,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return apiProj;
   };
 
-  const selectProject = async (project: Project) => {
+  const selectProject = (project: Project) => {
     setActiveProject(project);
     localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(project));
-
-    // 1. Instant cache check: if cached plan exists for this project, load immediately (<10ms)
-    const cacheKey = `construtiva_plan_cache_${project.id}`;
-    const cachedStr = localStorage.getItem(cacheKey);
-    if (cachedStr) {
-      try {
-        const cached = JSON.parse(cachedStr);
-        if (cached && (cached.levels || cached.walls)) {
-          setPlanDataState(cached);
-        }
-      } catch {}
-    }
-
-    // 2. Fetch the latest active architectural plan from backend database
-    try {
-      const res = await filesApi.getProjectPlan(project.id);
-      if (res && res.plan_json) {
-        setPlanData(res.plan_json);
-        localStorage.setItem(cacheKey, JSON.stringify(res.plan_json));
-      }
-    } catch (err) {
-      console.warn(`Could not fetch backend plan for project ${project.id}:`, err);
-    }
   };
 
   const deleteProject = async (projectId: string) => {
@@ -203,19 +149,13 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         activeProject,
         isLoadingProjects,
         projectsError,
-        planData,
         materials,
-        selectedMaterialTag,
-        activeRoomId,
         loanComparison,
         fetchProjects,
         createProject,
         selectProject,
         deleteProject,
-        setPlanData,
         setMaterials,
-        setSelectedMaterialTag,
-        setActiveRoomId,
         updateLoanAmount,
         setProjectStatus,
       }}

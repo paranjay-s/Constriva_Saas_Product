@@ -4,7 +4,6 @@ import { useProject } from '../../context/ProjectContext';
 import { Button } from '../../components/ui/Button';
 import {
   IconArrowLeft,
-  IconArrowRight,
   IconSparkles,
   IconDownload,
   IconCheck,
@@ -26,7 +25,7 @@ interface ChatBubble {
 /** The old template-based generator, kept until the owner approves removing it. */
 export function LegacyAiGeneratorPage() {
   const navigate = useNavigate();
-  const { activeProject, setProjectStatus, setPlanData } = useProject();
+  const { activeProject, setProjectStatus } = useProject();
 
   // Tab mode on the left pane: Details Form vs Live AI Refinement Chat
   const [activeTab, setActiveTab] = useState<'details' | 'chat'>('details');
@@ -218,9 +217,6 @@ export function LegacyAiGeneratorPage() {
         if (chatRes.plan.facing) setFacing(chatRes.plan.facing);
         if (chatRes.plan.plot_width_ft) setPlotWidth(chatRes.plan.plot_width_ft);
         if (chatRes.plan.plot_length_ft) setPlotLength(chatRes.plan.plot_length_ft);
-        if (chatRes.plan.plan_json) {
-          setPlanData(chatRes.plan.plan_json);
-        }
       }
 
       const assistantBubble: ChatBubble = {
@@ -261,23 +257,6 @@ export function LegacyAiGeneratorPage() {
 
     setDownloadSuccess(true);
     setTimeout(() => setDownloadSuccess(false), 3000);
-  };
-
-  // Seamless transition to 3D workspace
-  const handleProceedTo3D = () => {
-    if (generatedPlan?.plan_json) {
-      setPlanData(generatedPlan.plan_json);
-      try {
-        localStorage.setItem('construtiva_plan_data', JSON.stringify(generatedPlan.plan_json));
-        if (activeProject?.id) {
-          localStorage.setItem(`construtiva_plan_cache_${activeProject.id}`, JSON.stringify(generatedPlan.plan_json));
-        }
-      } catch {
-        // Ignore quota
-      }
-    }
-    setProjectStatus('ready');
-    navigate('/projects/3d-workspace');
   };
 
   return (
@@ -329,16 +308,6 @@ export function LegacyAiGeneratorPage() {
               {downloadSuccess ? 'Downloaded CAD PNG' : 'Download Blueprint PNG'}
             </Button>
           )}
-
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleProceedTo3D}
-            rightIcon={<IconArrowRight className="w-4 h-4" />}
-            className="bg-[#C5A77B] text-[#121212] font-semibold hover:bg-[#D4B88E] shadow-sm text-xs cursor-pointer"
-          >
-            Open in 3D Workspace
-          </Button>
         </div>
       </div>
 
