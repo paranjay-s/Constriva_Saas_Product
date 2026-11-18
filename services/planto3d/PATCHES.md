@@ -234,3 +234,15 @@ label (as a clear size or as a size between wall centre lines), and unlabelled i
 page lists them under "Needs checking" with the rooms and doors outlined in orange; a click selects the item, and the
 list is refreshed after every save. Not done yet: possible missed walls (no wall-band tracing inside PlanTo3D) and a
 per-element source and confidence (the plan records its reader as a whole).
+
+## 18. Pieces of one wall line belong to one plan (detect.py)
+
+Why: where doors and windows are drawn with a different pen from the walls, the wall faces stop at every opening,
+and the pieces between two openings touched no other wall: the plan fell apart into many small wall groups and only
+the largest one with two room names became the floor, so most interior walls and doors were lost (measured on
+generated test plans: tools/testplans).
+
+What: wall groups whose walls lie in the same band end to end across a gap of at most 14 wall thicknesses (a door or a
+window) are merged (`same_line`), unless both groups already hold a plan's room names (two storeys drawn side by
+side). Held-out generated plans, vector styles: wall recall 21-40 % -> 35-63 %, doors found 2-14 % -> 58-75 %. The
+sample, OPT 5, the SF plan and paranjay-villa.pdf are read as before.

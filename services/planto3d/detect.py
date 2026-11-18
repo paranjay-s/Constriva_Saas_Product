@@ -497,6 +497,20 @@ def plan_groups(walls, T):
     return [g[1] for g in groups]
 
 
+def same_line(a, b, T, most=14.0):
+    """two wall pieces of one wall line: the same band (faces within 0.2 T) and end to end with a gap of at most
+    `most` wall thicknesses (a door or a window)"""
+    if horiz(a) != horiz(b):
+        return False
+    if horiz(a):
+        band = abs(a[2] - b[2]) < 0.2 * T and abs(a[3] - b[3]) < 0.2 * T
+        gap = max(b[0] - a[1], a[0] - b[1])
+    else:
+        band = abs(a[0] - b[0]) < 0.2 * T and abs(a[1] - b[1]) < 0.2 * T
+        gap = max(b[2] - a[3], a[2] - b[3])
+    return band and 0 <= gap <= most * T
+
+
 def opening_links(walls, lines, arcs_, T):
     """the gap between two pieces of one wall band that holds a door swing or window glass. Drawings that cut
     their walls at every door and window (solid wall bands) leave the pieces of one house touching only across
@@ -954,6 +968,23 @@ def detect_page(page):
     phr = phrases(page["words"])
     A = arcs(page["curves"])
     groups = plan_groups(W, T)
+    named = lambda g: sum(1 for p in phr if inside((p["cx"], p["cy"]), bbox(g)) and room_type([p["text"]]))
+    # pieces of one wall line broken by doors and windows (drawn with another pen, so not joined into one wall):
+    # walls in the same band, end to end across a gap of an opening's width, belong to one plan
+    for _ in range(len(groups)):
+        merged = False
+        for i in range(len(groups)):
+            for j in range(i + 1, len(groups)):
+                # (two groups that each hold a plan's room names are two plans side by side, not one)
+                if min(named(groups[i]), named(groups[j])) < 2 and any(same_line(a, b, T) for a in groups[i] for b in groups[j]):
+                    groups[i] = groups[i] + groups[j]
+                    del groups[j]
+                    merged = True
+                    break
+            if merged:
+                break
+        if not merged:
+            break
     for r in opening_links(W, PEN, A, T):     # pieces of one wall either side of a door or window: one plan
         hit = [g for g in groups if any(overlap_rect(r, w, 0.5) for w in g)]
         if len(hit) > 1:
