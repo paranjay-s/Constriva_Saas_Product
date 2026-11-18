@@ -76,6 +76,10 @@ export function heights(meta, x, y) {
       if (stepHeight(s, x, y) > levels[k + 1] - HEADROOM) planes[k + 1] = null;   // the stairwell hole above
     }
   });
+  // a raised area one can walk on (gen.py "platforms") replaces the floor under it
+  meta.floors.forEach((f, k) => {
+    for (const p of f.platforms || []) if (inRect(p.rect, x, y)) { planes[k] = null; out.push(p.z); }
+  });
   out.push(...planes.filter((z) => z !== null));
   for (const f of meta.floors.filter((_, k) => k !== shut)) for (const s of f.stairs || []) {
     if (inRect(s.rect, x, y, 0.05)) out.push(stepHeight(s, x, y));

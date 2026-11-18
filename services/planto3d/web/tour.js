@@ -8,7 +8,12 @@ const CELL = 0.2, CLEAR = 0.1;          // grid step and how far furniture is ke
 const SKIP = new Set(['stair', 'lift', 'duct', 'open', 'pool', 'water', 'dock']);
 
 function grid(meta, k) {
-  const [x0, x1, y0, y1] = meta.bounds, pad = 6;
+  // the house's bounds, grown to every room and area of the storey (a court or a helipad far out on the site)
+  let [x0, x1, y0, y1] = meta.bounds;
+  for (const r of meta.floors[k].rooms) for (const q of r.rects) {
+    x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[1]); y0 = Math.min(y0, q[2]); y1 = Math.max(y1, q[3]);
+  }
+  const pad = 6;
   const nx = Math.ceil((x1 - x0 + 2 * pad) / CELL), ny = Math.ceil((y1 - y0 + 2 * pad) / CELL);
   const f = meta.floors[k], furn = f.furniture || [];
   const ok = new Uint8Array(nx * ny);

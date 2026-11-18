@@ -698,7 +698,7 @@ for k, f in enumerate(floors):
     fl = {}
     well = [(*r, -9, 99) for r in well_prev]
     slab, voids = upper_slab(k, well) if k else ([], [])
-    water, wet_walk, blocked_areas, custom_objects = [], [], [], []
+    water, wet_walk, blocked_areas, custom_objects, platforms = [], [], [], [], []
     for zn in f["rooms"]:
         if zn["type"] in WATER:            # built as water, not as a floor (water_parts)
             parts, deck = water_parts(zn, k)
@@ -715,6 +715,8 @@ for k, f in enumerate(floors):
                 water += bxs
                 if not walkable:
                     blocked_areas.append(r)
+                elif spec and spec["height"]["mode"] == "raised":   # stood on: the walker climbs onto it (walk.js)
+                    platforms.append((r, bxs[0][5]))     # the surface is parts()'s first box
                 for part, ox_, oy_, rot in objs:
                     custom_objects.append((part, ox_, oy_, rot))
             continue
@@ -833,6 +835,8 @@ for k, f in enumerate(floors):
                for zn in f["rooms"] if zn["type"] not in ("duct",)],
         stairs=[dict(s, rect=m(s["rect"]), z0=round((z + s["z0"]) * F_, 3), z1=round((z + s["z1"]) * F_, 3),
                      **({"start": round(s["start"] * F_, 3)} if "start" in s else {})) for s in smeta],
+        # raised areas one can walk on (a helipad, a stage): their top, in place of the floor under them
+        **({"platforms": [dict(rect=m(r), z=round((z + top_) * F_, 3)) for r, top_ in platforms]} if platforms else {}),
     ))
     progress(5 + 25 * (k + 1) / NF, f"built {f.get('name', k)}")
 

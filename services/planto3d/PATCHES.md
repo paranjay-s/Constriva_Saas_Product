@@ -262,3 +262,12 @@ What:
   maps' megapixels (`maps_estimate`) and corrects the factor after each finished build (`jobs/.eta_calibration.json`).
   Checked against builds on this M1 Pro: the sample (Low and Medium) and OPT 5 (Low) are within 5%. The dock and pool
   houses are 33-52% over, with their map sizes estimated, not read; the calibration corrects the factor.
+
+## 20. Raised areas can be walked on; the tour reaches areas far out on the site (blender/gen.py, web/walk.js, web/tour.js)
+
+What: a walkable custom area that is raised (a helipad 0.3 m high) is written to meta.json as a floor `platform`
+(rect and top height). `walk.heights` stands the walker on it instead of on the floor under it (on a one-storey plan
+as well: the closed-stairs rule does not apply to platforms). The tour's grid covers every room's rects, not only the
+house bounds plus 6 m. Checked on a generated plan with five AI-specified areas (helipad, koi pond, putting green,
+archery range, horse stable): the walker steps up onto the helipad (0.306 m), is kept out of the recessed koi pond,
+and the tour visits 14 of 14 rooms and areas (11 before the grid change). No stored job's tour changed.
