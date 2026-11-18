@@ -15,8 +15,8 @@ export interface ParsingProgressEvent {
   progress: number;
   step: string;
   result?: {
-    plan_id: string;
-    project_id: string;
+    plan_id?: string;
+    project_id?: string;
     pdf_file_id?: string;
     preview_image_url?: string;
     plan_summary?: {
@@ -25,8 +25,14 @@ export interface ParsingProgressEvent {
       rooms_count: number;
       columns_count: number;
     };
+    /** Present when the job failed: the plan parser's typed error. */
+    status?: string;
+    error?: { code?: string; message?: string; details?: string[] };
   };
 }
+
+/** How many times the progress stream may drop before the page gives up on it. */
+const MAX_STREAM_ERRORS = 3;
 
 export const filesApi = {
   /**
@@ -53,13 +59,16 @@ export const filesApi = {
     callbacks: {
       onProgress: (step: string, progress: number) => void;
       onComplete: (data: ParsingProgressEvent) => void;
-      onError: (errorMsg: string) => void;
+      /** `code` is the parser's error code when the job itself failed (e.g. `llm_unavailable`). */
+      onError: (errorMsg: string, code?: string) => void;
     }
   ): (() => void) => {
     const sseUrl = `${API_BASE_URL}/api/v1/parsing/stream/${taskId}`;
     const eventSource = new EventSource(sseUrl);
+    let streamErrors = 0;
 
     eventSource.addEventListener('progress', (e) => {
+      streamErrors = 0;
       try {
         const payload: ParsingProgressEvent = JSON.parse(e.data);
         callbacks.onProgress(payload.step, payload.progress);
@@ -80,19 +89,24 @@ export const filesApi = {
 
     eventSource.addEventListener('failed', (e) => {
       try {
-        const payload = JSON.parse(e.data);
-        callbacks.onError(payload.step || payload.result?.error || 'Blueprint parsing failed.');
+        const payload: ParsingProgressEvent = JSON.parse(e.data);
+        const error = payload.result?.error;
+        callbacks.onError(error?.message || payload.step || 'The plan could not be processed.', error?.code);
       } catch {
-        callbacks.onError('Blueprint parsing failed.');
+        callbacks.onError('The plan could not be processed.');
       }
       eventSource.close();
     });
 
     eventSource.onerror = (err) => {
       console.warn('SSE connection error:', err);
-      // Give a brief window for retry or report error
-      callbacks.onError('Lost connection to plan processing stream.');
-      eventSource.close();
+      // The browser reconnects by itself and the server then sends the job's current state,
+      // so a short drop loses nothing. Give up only when it keeps failing.
+      streamErrors += 1;
+      if (streamErrors >= MAX_STREAM_ERRORS || eventSource.readyState === EventSource.CLOSED) {
+        callbacks.onError('Lost connection while the plan was being processed.', 'connection_lost');
+        eventSource.close();
+      }
     };
 
     return () => {

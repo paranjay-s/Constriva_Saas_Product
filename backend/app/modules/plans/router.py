@@ -177,7 +177,6 @@ async def download_plan_png(
     """
     import base64
     from fastapi.responses import Response
-    from app.modules.ai.floorplan_generator import create_architectural_template, render_floorplan_to_png
 
     clean_id = clean_uuid(plan_id)
     plan_name = "Architectural_Working_Plan"
@@ -197,10 +196,13 @@ async def download_plan_png(
         except Exception as e:
             logger.warning(f"Could not load PNG from DB for plan {plan_id}: {e}")
 
-    # Fallback to instantaneous on-demand CAD rendering if not pre-stored
+    # A plan without a stored drawing has none to download. Another plan's drawing is
+    # never returned in its place.
     if not png_bytes:
-        default_template = create_architectural_template(36.5, 55.0, config_type="dual_rental_2bhk", goal="rental", facing="East")
-        png_bytes = render_floorplan_to_png(default_template, client_name="SMT. GEETA GAUD")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This plan has no downloadable drawing.",
+        )
 
     clean_filename = "".join(c for c in plan_name if c.isalnum() or c in (" ", "_", "-")).strip().replace(" ", "_")
     return Response(

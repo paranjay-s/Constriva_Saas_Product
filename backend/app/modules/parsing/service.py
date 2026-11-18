@@ -86,6 +86,22 @@ class ParsingService:
             logger.warning(f"Could not update job {job_id} progress: {e}")
 
     @classmethod
+    def fail_job(cls, job_id: str, error: PlanParseError, progress: int = 0) -> Dict[str, Any]:
+        """
+        Marks a job failed with a typed parse error and returns the failure as the result.
+        `step` carries the message the upload screen shows; `result.error` carries the code.
+        """
+        failure = {"status": "failed", "error": error.to_dict()}
+        cls.update_job_progress(
+            job_id=job_id,
+            step=error.message,
+            progress=progress,
+            status="failed",
+            result=failure,
+        )
+        return failure
+
+    @classmethod
     async def process_blueprint_pdf(
         cls,
         pdf_bytes: bytes,
@@ -101,9 +117,13 @@ class ParsingService:
         1. Upload raw PDF to Supabase Storage ('blueprints' bucket).
         2. Convert Page 1 to high-resolution 300 DPI PNG via PyMuPDF.
         3. Upload high-res PNG to Supabase Storage ('rasters' bucket).
-        4. Synthesize/Extract PlanJSON (walls, doors, windows, room polygons).
+        4. Extract PlanJSON (walls, doors, windows, room polygons) with the plan parser.
         5. Save active PlanJSON into 'public.plans' table.
         6. Return complete extracted plan data.
+
+        When the parser cannot read the drawing the job is marked failed with the typed
+        parse error and `{"status": "failed", "error": {...}}` is returned. No plan row is
+        written and no other plan is substituted.
         """
         supabase = get_supabase_client()
         ensure_storage_buckets()
@@ -200,22 +220,11 @@ class ParsingService:
         try:
             # Reads the plan cache first: the same PDF bytes always give the same PlanJSON.
             extracted_plan = parse_plan_pdf(pdf_bytes, min_rooms=BLUEPRINT_MIN_ROOMS)
-        except Exception as err:
-            reason = f"{err.code}: {err}" if isinstance(err, PlanParseError) else str(err)
-            logger.warning(f"Vision LLM parsing unavailable ({reason}). Synthesizing calibrated CAD plan from architectural template.")
-            from app.modules.ai.floorplan_generator import create_architectural_template, build_plan_json_from_template
-            is_rental = any(k in filename.lower() for k in ("alt", "sf", "rent", "opt", "smt", "geeta", "working", "dual", "2bhk", "plan", "blueprint"))
-            template = create_architectural_template(
-                plot_width_ft=36.5,
-                plot_length_ft=55.0,
-                config_type="dual_rental_2bhk" if is_rental else "3_bhk",
-                goal="rental" if is_rental else "residence",
-                facing="East",
-            )
-            extracted_plan = build_plan_json_from_template(template)
-            clean_title = filename.replace(".pdf", "").replace("_", " ").strip()
-            extracted_plan["project_title"] = clean_title
-            extracted_plan["client"] = "SMT. GEETA GAUD"
+        except PlanParseError as err:
+            # The drawing could not be read. The job fails with the parser's own error and
+            # nothing is saved as this project's plan: no other plan is ever put in its place.
+            logger.warning(f"Blueprint {filename} not parsed ({err.code}): {err}")
+            return cls.fail_job(job_id, err, progress=75)
 
         cls.update_job_progress(job_id, "Calculating closed room polygons and floor areas...", 90)
 

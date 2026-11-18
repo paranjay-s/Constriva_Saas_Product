@@ -22,14 +22,27 @@ interface PlanSummaryCounts {
   openings: number;
 }
 
+/** What to tell the user next, by the parser's error code. */
+const RETRY_HINTS: Record<string, string> = {
+  llm_unavailable: 'The AI service was busy or unreachable. Nothing was saved; trying again in a moment usually works.',
+  llm_rate_limited: 'The AI service is receiving too many requests. Nothing was saved; wait a minute, then try again.',
+  llm_output_invalid: 'The drawing could not be read reliably. Nothing was saved. Try again, or use a clearer PDF of the floor plan.',
+  no_floor_plan: 'No floor plan was found in this file. Nothing was saved. Choose a PDF that shows the floor plan with its rooms.',
+  invalid_pdf: 'This file could not be opened as a PDF. Nothing was saved. Choose another file.',
+  connection_lost: 'The connection dropped while the plan was being processed. Trying again is safe: a plan that was already read is not read twice.',
+};
+
 export const ImportPlanPage: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [stage, setStage] = useState<UploadStage>('idle');
   const [currentProgress, setCurrentProgress] = useState(20);
   const [currentStepText, setCurrentStepText] = useState('Uploading blueprint...');
-  const [summary, setSummary] = useState<PlanSummaryCounts>({ rooms: 23, walls: 84, openings: 23 });
+  // Counts of the plan that was just processed. Null until a real result is in.
+  const [summary, setSummary] = useState<PlanSummaryCounts | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // The parser's error code for a failed job (e.g. `llm_unavailable`), when there is one.
+  const [errorCode, setErrorCode] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sseCleanupRef = useRef<(() => void) | null>(null);
@@ -55,6 +68,7 @@ export const ImportPlanPage: React.FC = () => {
     }
 
     setErrorMessage(null);
+    setErrorCode(null);
     setFile(selectedFile);
   };
 
@@ -66,39 +80,17 @@ export const ImportPlanPage: React.FC = () => {
     }
   };
 
-  const handleProcessPlan = async (forceFresh: boolean = false) => {
+  // Every upload goes to the server. A plan is never taken from the browser by file name:
+  // two different drawings can share a name. The server recognises a PDF it has already
+  // parsed by its content, so a repeat upload is still fast.
+  const handleProcessPlan = async () => {
     if (!file) return;
 
-    // Fast Cache Retrieval: If blueprint was already uploaded, load coordinates instantly (<50ms)
-    if (!forceFresh) {
-      const cacheKey = `construtiva_plan_cache_${file.name}_${file.size}`;
-      const legacyKey = `construtiva_plan_cache_${file.name}`;
-      const cachedStr = localStorage.getItem(cacheKey) || localStorage.getItem(legacyKey);
-      if (cachedStr) {
-        try {
-          const cachedPlan = JSON.parse(cachedStr);
-          if (cachedPlan?.levels?.[0]?.rooms?.length) {
-            setPlanData(cachedPlan);
-            const lvl = cachedPlan.levels[0];
-            setSummary({
-              rooms: lvl.rooms?.length || 18,
-              walls: lvl.walls?.length || 42,
-              openings: lvl.openings?.length || 16,
-            });
-            setCurrentProgress(100);
-            setCurrentStepText('⚡ Instant Load: Loaded architectural coordinates from cache in <50ms');
-            setStage('completed');
-            setProjectStatus('imported');
-            return;
-          }
-        } catch {
-          // Proceed with upload if cache parse failed
-        }
-      }
-    }
-
+    if (sseCleanupRef.current) sseCleanupRef.current();
+    setSummary(null);
     setStage('uploading');
     setErrorMessage(null);
+    setErrorCode(null);
     setCurrentProgress(20);
     setCurrentStepText('Uploading PDF to secure storage...');
 
@@ -115,81 +107,56 @@ export const ImportPlanPage: React.FC = () => {
           setCurrentStepText(step);
         },
         onComplete: async (data: ParsingProgressEvent) => {
+          // The job is done: load the plan it created, by its id. Only that plan is shown.
+          const planId = data.result?.plan_id;
           try {
-            const planId = data.result?.plan_id;
-            let planJsonToStore: any = null;
-            if (planId) {
-              const fetchedPlan = await filesApi.getPlanById(planId);
-              if (fetchedPlan?.plan_json) {
-                planJsonToStore = fetchedPlan.plan_json;
-                setPlanData(fetchedPlan.plan_json);
-              }
-            } else if (activeProject?.id) {
-              const fetchedPlan = await filesApi.getProjectPlan(activeProject.id);
-              if (fetchedPlan?.plan_json) {
-                planJsonToStore = fetchedPlan.plan_json;
-                setPlanData(fetchedPlan.plan_json);
-              }
-            }
+            if (!planId) throw new Error('The finished job did not name its plan.');
+            const fetchedPlan = await filesApi.getPlanById(planId);
+            if (!fetchedPlan?.plan_json) throw new Error('The processed plan came back empty.');
+            setPlanData(fetchedPlan.plan_json);
 
-            if (planJsonToStore) {
-              try {
-                const cacheKey = `construtiva_plan_cache_${file.name}_${file.size}`;
-                const legacyKey = `construtiva_plan_cache_${file.name}`;
-                localStorage.setItem(cacheKey, JSON.stringify(planJsonToStore));
-                localStorage.setItem(legacyKey, JSON.stringify(planJsonToStore));
-              } catch {
-                // Ignore localStorage quota limits
-              }
-            }
-
-            if (data.result?.plan_summary) {
-              setSummary({
-                rooms: data.result.plan_summary.rooms_count || 18,
-                walls: data.result.plan_summary.walls_count || 42,
-                openings: data.result.plan_summary.openings_count || 16,
-              });
-            }
+            const counts = data.result?.plan_summary;
+            const level = fetchedPlan.plan_json.levels?.[0];
+            setSummary({
+              rooms: counts?.rooms_count ?? level?.rooms?.length ?? 0,
+              walls: counts?.walls_count ?? level?.walls?.length ?? 0,
+              openings: counts?.openings_count ?? level?.openings?.length ?? 0,
+            });
           } catch (err) {
-            console.warn('Could not fetch active plan by ID, continuing with active project session:', err);
+            console.warn('Processed plan could not be loaded:', err);
+            setStage('error');
+            setErrorCode('plan_not_loaded');
+            setErrorMessage('The plan was processed but could not be loaded. Please try again.');
+            return;
           }
 
           setCurrentProgress(100);
           setStage('completed');
           setProjectStatus('imported');
         },
-        onError: (errorMsg: string) => {
-          console.warn('SSE progress error, attempting fallback fetch:', errorMsg);
-          // If SSE disconnected or finished out-of-band, check project plan before failing
-          if (activeProject?.id) {
-            filesApi
-              .getProjectPlan(activeProject.id)
-              .then((p) => {
-                if (p?.plan_json) {
-                  setPlanData(p.plan_json);
-                  setStage('completed');
-                  setProjectStatus('imported');
-                  return;
-                }
-                setStage('error');
-                setErrorMessage(errorMsg || 'Plan extraction failed. Please ensure the PDF is clear.');
-              })
-              .catch(() => {
-                setStage('error');
-                setErrorMessage(errorMsg || 'Plan extraction failed. Please ensure the PDF is clear.');
-              });
-          } else {
-            setStage('error');
-            setErrorMessage(errorMsg || 'Plan extraction failed. Please ensure the PDF is clear.');
-          }
+        onError: (errorMsg: string, code?: string) => {
+          // The upload failed. Show why and offer a retry; no other plan is shown in its place.
+          setStage('error');
+          setErrorCode(code ?? null);
+          setErrorMessage(errorMsg || 'The plan could not be processed.');
         },
       });
 
       sseCleanupRef.current = cleanup;
     } catch (err: any) {
       setStage('error');
-      setErrorMessage(err?.message || 'Failed to initiate blueprint conversion.');
+      setErrorCode(null);
+      setErrorMessage(err?.message || 'The upload could not be started.');
     }
+  };
+
+  const handleChooseAnotherFile = () => {
+    if (sseCleanupRef.current) sseCleanupRef.current();
+    setFile(null);
+    setErrorMessage(null);
+    setErrorCode(null);
+    setSummary(null);
+    setStage('idle');
   };
 
   const formatFileSize = (bytes: number): string => {
@@ -224,10 +191,47 @@ export const ImportPlanPage: React.FC = () => {
         </div>
 
         <Card className="bg-[#181818] border-[#303030] p-8">
-          {errorMessage && (
-            <div className="mb-6 p-4 rounded bg-[#351010] border border-[#FFB4AB]/40 text-[#FFB4AB] text-xs flex items-center gap-3">
+          {errorMessage && stage !== 'error' && (
+            <div role="alert" className="mb-6 p-4 rounded bg-[#351010] border border-[#FFB4AB]/40 text-[#FFB4AB] text-xs flex items-center gap-3">
               <AlertCircleIcon size={18} />
               <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {/* Failed: say why and offer a retry. No plan is shown in place of the one that failed. */}
+          {stage === 'error' && (
+            <div role="alert" className="py-6 flex flex-col items-center text-center">
+              <div className="w-14 h-14 rounded-full bg-[#351010] border border-[#FFB4AB]/50 flex items-center justify-center text-[#FFB4AB] mb-4">
+                <AlertCircleIcon size={24} />
+              </div>
+              <h3 className="font-display font-semibold text-2xl text-[#FFFFFF]">
+                The plan could not be processed
+              </h3>
+              <p className="text-sm text-[#FFB4AB] mt-2 max-w-md">
+                {errorMessage || 'The plan could not be processed.'}
+              </p>
+              <p className="text-xs text-[#A6A6A6] mt-2 max-w-md">
+                {RETRY_HINTS[errorCode ?? ''] ?? 'Nothing was saved to this project. You can try again or choose another file.'}
+              </p>
+              {file && (
+                <p className="text-[11px] font-mono text-[#737373] mt-3">
+                  {file.name} • {formatFileSize(file.size)}
+                </p>
+              )}
+              <div className="mt-6 flex flex-col sm:flex-row items-center gap-3 w-full max-w-md">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  className="w-full"
+                  disabled={!file}
+                  onClick={() => handleProcessPlan()}
+                >
+                  Try again
+                </Button>
+                <Button variant="ghost" size="lg" className="w-full" onClick={handleChooseAnotherFile}>
+                  Choose another file
+                </Button>
+              </div>
             </div>
           )}
 
@@ -327,7 +331,7 @@ export const ImportPlanPage: React.FC = () => {
                   variant="primary"
                   size="lg"
                   disabled={!file}
-                  onClick={() => handleProcessPlan(false)}
+                  onClick={() => handleProcessPlan()}
                   rightIcon={<ArrowRightIcon size={16} />}
                 >
                   Process Architectural Plan
@@ -383,15 +387,15 @@ export const ImportPlanPage: React.FC = () => {
               {/* Extraction Summary Badges */}
               <div className="grid grid-cols-3 gap-3 w-full max-w-md my-6">
                 <div className="p-3 rounded bg-[#141414] border border-[#303030] text-center">
-                  <span className="block text-lg font-bold text-[#C5A77B] font-mono">{summary.rooms}</span>
+                  <span className="block text-lg font-bold text-[#C5A77B] font-mono">{summary?.rooms ?? '–'}</span>
                   <span className="text-[10px] uppercase font-mono tracking-wider text-[#A6A6A6]">Rooms</span>
                 </div>
                 <div className="p-3 rounded bg-[#141414] border border-[#303030] text-center">
-                  <span className="block text-lg font-bold text-[#C5A77B] font-mono">{summary.walls}</span>
+                  <span className="block text-lg font-bold text-[#C5A77B] font-mono">{summary?.walls ?? '–'}</span>
                   <span className="text-[10px] uppercase font-mono tracking-wider text-[#A6A6A6]">Walls</span>
                 </div>
                 <div className="p-3 rounded bg-[#141414] border border-[#303030] text-center">
-                  <span className="block text-lg font-bold text-[#C5A77B] font-mono">{summary.openings}</span>
+                  <span className="block text-lg font-bold text-[#C5A77B] font-mono">{summary?.openings ?? '–'}</span>
                   <span className="text-[10px] uppercase font-mono tracking-wider text-[#A6A6A6]">Openings</span>
                 </div>
               </div>
@@ -408,10 +412,10 @@ export const ImportPlanPage: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => handleProcessPlan(true)}
+                onClick={handleChooseAnotherFile}
                 className="text-xs text-[#A6A6A6] hover:text-[#C5A77B] underline mt-3 transition-colors"
               >
-                Re-parse from scratch with Vision AI
+                Import a different plan
               </button>
             </div>
           )}

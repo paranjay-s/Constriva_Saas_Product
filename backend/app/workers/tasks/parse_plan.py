@@ -68,6 +68,12 @@ def process_blueprint_task(
         )
         loop.close()
 
+        if isinstance(result, dict) and result.get("status") == "failed":
+            # A typed parse failure: the job row already carries it. It is not retried,
+            # because a retry would repeat the model calls and fail the same way.
+            logger.warning(f"[Celery Worker] Parsing job {job_id} failed: {result.get('error')}")
+            return result
+
         logger.info(f"[Celery Worker] Successfully completed parsing job {job_id}")
         return result
 

@@ -78,12 +78,20 @@ All subclass `PlanParseError` (`errors.py`), which carries a stable `code`, a us
 | `PlanOutputInvalidError` | `llm_output_invalid` | Reply still invalid after the repair attempts |
 | `PlanNormalisationError` | `normalisation_failed` | Valid reply could not become a valid PlanJSON |
 
+## When parsing fails
+
+No flow substitutes another plan for one that could not be read.
+
+- **2D-to-3D import**: the job ends as `failed`, `step` holds the user-facing message and `result.error` the typed error. The import screen shows the message with "Try again" and "Choose another file". Nothing is saved to the project. A Celery worker does not retry a typed parse failure, because a retry would repeat the model calls.
+- **BOQ**: the job fails with the same error code and message.
+- **Material finder plan upload**: the chat says the plan could not be read and asks for the room size.
+
 ## Files
 
 | File | Purpose |
 |---|---|
 | `router.py` | `POST /parsing/process` (upload and start), `GET /parsing/stream/{task_id}` (SSE progress), `GET /parsing/{project_id}/plan`. |
-| `service.py` | The blueprint import used by the 2D-to-3D flow: stores the PDF and its raster, calls `parse_plan_pdf`, saves the plan row, reports job progress. |
+| `service.py` | The blueprint import used by the 2D-to-3D flow: stores the PDF and its raster, calls `parse_plan_pdf`, saves the plan row, reports job progress. When the parser fails the job is marked `failed` with the typed error (`result.error.code` and message) and no plan row is written. |
 | `llm_parser.py` | The pipeline above. `parse_plan_pdf`, `parse_plan_images`, and the earlier entry points kept for existing callers. |
 | `pdf_input.py` | PDF to page images and positioned text. |
 | `llm_schema.py` | `LLMPlanDraft` and the draft checks. |
@@ -101,5 +109,4 @@ All subclass `PlanParseError` (`errors.py`), which carries a stable `code`, a us
 ## Known limits
 
 - `validate.py` scores `bounding_box_fidelity` and orientation against one specific plot size (36'6" x 55'). The score is therefore low for every other drawing. It affects `confidence` only, not geometry.
-- When the parser fails, `service.py` still falls back to a built-in template plan for the 2D-to-3D flow. The BOQ flow does not: it reports the parser's error.
 - How many walls and openings are found depends on the model. With the default lightweight models a busy sheet can come back with rooms only; the normaliser then builds the walls from the room outlines (flagged `inferred`) and no doors or windows are counted. `PLAN_PARSER_LLM_MODEL` selects a stronger model.
