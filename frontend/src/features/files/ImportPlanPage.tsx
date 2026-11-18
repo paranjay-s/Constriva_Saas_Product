@@ -31,6 +31,8 @@ const RETRY_HINTS: Record<string, string> = {
   no_floor_plan: 'No floor plan was found in this file. Nothing was saved. Choose a PDF that shows the floor plan with its rooms.',
   invalid_pdf: 'This file could not be opened as a PDF. Nothing was saved. Choose another file.',
   connection_lost: 'The connection dropped while the plan was being processed. Trying again is safe: a plan that was already read is not read twice.',
+  not_signed_in: 'Sign in again, then upload the plan once more. A plan that was already read is not read twice.',
+  job_not_found: 'This import is no longer available to follow. Upload the plan again; a plan that was already read is not read twice.',
 };
 
 export const ImportPlanPage: React.FC = () => {
