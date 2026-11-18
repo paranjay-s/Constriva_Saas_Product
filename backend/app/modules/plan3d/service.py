@@ -18,12 +18,10 @@ JOB_ID = re.compile(r"^[a-f0-9]{12}$")
 
 # Our names for a build -> PlanTo3D's. "high" (the cinema video tour) has no build quality
 # in PlanTo3D: its tour renderer is a command-line tool that the service does not run.
+# It is built with the Ultra tier; until then the pages show it as "Coming soon".
 QUALITY_TO_SERVICE = {"low": "draft", "medium": "high"}
 SERVICE_TO_QUALITY = {service: ours for ours, service in QUALITY_TO_SERVICE.items()}
-CINEMA_UNAVAILABLE = (
-    "The cinema video tour is not built by the 3D service yet: PlanTo3D renders it with a "
-    "command-line tool that needs a camera route written by hand."
-)
+CINEMA_UNAVAILABLE = "Coming soon: the cinema video tour is not ready yet."
 
 
 def is_job_id(value: object) -> bool:
@@ -53,6 +51,7 @@ def qualities(service_ready: bool) -> list[QualityInfo]:
             label="High",
             description="Cinema video tour of the house.",
             available=False,
+            coming_soon=True,
             reason=CINEMA_UNAVAILABLE,
         ),
     ]

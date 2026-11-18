@@ -331,6 +331,7 @@ def test_system_names_our_three_qualities(client, planto3d):
         ("high", "High", False),
     ]
     assert "cinema video tour" in body["qualities"][2]["reason"]
+    assert [q["coming_soon"] for q in body["qualities"]] == [False, False, True]
 
     planto3d.ready = False
     body = client.get(f"{API}/system").json()

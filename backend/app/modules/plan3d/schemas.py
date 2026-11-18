@@ -13,6 +13,8 @@ class QualityInfo(BaseModel):
     label: str
     description: str
     available: bool
+    # Planned but not built yet: the pages say "Coming soon" instead of "Not available".
+    coming_soon: bool = False
     reason: str = ""
 
 

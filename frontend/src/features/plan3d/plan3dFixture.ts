@@ -10,8 +10,7 @@ export const JOB_ID = 'a1b2c3d4e5f6';
 export const TOKEN = 'eyJqb2IiOiJhMWIyYzNkNGU1ZjYifQ.c2lnbmVk';
 export const EMBED_BASE = `${BASE}/embed/${TOKEN}`;
 
-export const HIGH_REASON =
-  'The cinema video tour is not built by the 3D service yet: PlanTo3D renders it with a command-line tool that needs a camera route written by hand.';
+export const HIGH_REASON = 'Coming soon: the cinema video tour is not ready yet.';
 
 export const RAW_QUALITIES = [
   {
@@ -22,7 +21,7 @@ export const RAW_QUALITIES = [
     reason: '',
   },
   { id: 'medium', label: 'Medium', description: 'High-quality light and textures for the walkthrough.', available: true, reason: '' },
-  { id: 'high', label: 'High', description: 'Cinema video tour of the house.', available: false, reason: HIGH_REASON },
+  { id: 'high', label: 'High', description: 'Cinema video tour of the house.', available: false, coming_soon: true, reason: HIGH_REASON },
 ];
 
 export const RAW_SYSTEM = {

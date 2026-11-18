@@ -293,7 +293,7 @@ describe('3D job page', () => {
       expect(options().getByText('Draft: the fastest build, to check the plan and walk through it.')).toBeDefined();
       expect(options().getByText('High-quality light and textures for the walkthrough.')).toBeDefined();
       const hint = document.getElementById(radio('High').getAttribute('aria-describedby') ?? '');
-      expect(hint?.textContent).toBe(`Cinema video tour of the house.Not available: ${HIGH_REASON}`);
+      expect(hint?.textContent).toBe('Cinema video tour of the house.Coming soon');
 
       fireEvent.click(radio('Low'));
       expect(radio('Low').checked).toBe(true);

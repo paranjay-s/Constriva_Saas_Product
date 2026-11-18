@@ -16,6 +16,8 @@ export const plan3dQualitySchema = z.looseObject({
   label: z.string(),
   description: z.string(),
   available: z.boolean(),
+  /** Planned but not built yet: shown as "Coming soon" instead of "Not available". */
+  coming_soon: z.boolean().optional(),
   /** Why it cannot be built; empty when it can. */
   reason: z.string(),
 });
