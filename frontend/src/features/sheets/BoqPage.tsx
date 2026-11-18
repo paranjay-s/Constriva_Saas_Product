@@ -1,6 +1,8 @@
 /**
  * BOQ raw material: upload a floor-plan PDF -> Uploading / Parsing / Calculating -> the
  * bill of quantities as a searchable table, with PDF and Excel downloads of the full list.
+ * The assumptions behind the bill can be changed; that recalculates it from the plan
+ * already read, and the downloads are always of the bill on screen.
  *
  * Quantities only (no money). Nothing is assumed about the rows: the table is built from
  * whatever items, categories and sub-categories the server returns.
@@ -11,7 +13,8 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { AlertCircleIcon, ArrowLeftIcon, IconDownload, IconFilePdf, IconUpload } from '../../components/ui/Icons';
 import { planFileProblem, useUploadLimits } from '../files';
-import type { BoqResult } from './boqSchemas';
+import type { BoqAssumptionsInput, BoqResult } from './boqSchemas';
+import { BoqAssumptions } from './components/BoqAssumptions';
 import { BoqProgress } from './components/BoqProgress';
 import { BoqSummary } from './components/BoqSummary';
 import { BoqTable } from './components/BoqTable';
@@ -33,13 +36,20 @@ interface BoqResultViewProps {
   result: BoqResult;
   /** Name of the uploaded file, used when the result does not carry one. */
   sourceName: string | null;
+  /** The person's own assumptions behind `result`; empty when they changed none. */
+  choices: BoqAssumptionsInput;
+  recalculating: boolean;
+  recalculateError: string | null;
+  onRecalculate: (choices: BoqAssumptionsInput) => void;
   onReset: () => void;
 }
 
-function BoqResultView({ result, sourceName, onReset }: BoqResultViewProps) {
+function BoqResultView(props: BoqResultViewProps) {
+  const { result, sourceName, choices, recalculating, recalculateError, onRecalculate, onReset } = props;
   const exporter = useBoqExport(result, sourceName);
-  // nothing to download from an empty bill; one download at a time
-  const cannotExport = exporter.busy !== null || result.items.length === 0;
+  // nothing to download from an empty bill; one download at a time; and not the bill that
+  // a recalculation is about to replace
+  const cannotExport = exporter.busy !== null || result.items.length === 0 || recalculating;
   const meta = result.project_metadata;
   const fileName = meta.source_file_name || sourceName;
   const title = meta.project_title || fileName || 'Bill of quantities';
@@ -92,6 +102,15 @@ function BoqResultView({ result, sourceName, onReset }: BoqResultViewProps) {
       </div>
 
       <BoqSummary summary={result.geometry_summary} itemCount={result.items.length} />
+      {result.assumptions && (
+        <BoqAssumptions
+          assumptions={result.assumptions}
+          choices={choices}
+          busy={recalculating}
+          error={recalculateError}
+          onRecalculate={onRecalculate}
+        />
+      )}
       <BoqWarnings warnings={result.warnings} />
       <BoqTable items={result.items} />
     </div>
@@ -144,7 +163,15 @@ export function BoqPage() {
           </div>
 
           {phase === 'ready' && job.result ? (
-            <BoqResultView result={job.result} sourceName={file?.name ?? null} onReset={reset} />
+            <BoqResultView
+              result={job.result}
+              sourceName={file?.name ?? null}
+              choices={job.assumptionsInput}
+              recalculating={job.recalculating}
+              recalculateError={job.recalculateError}
+              onRecalculate={(choices) => void job.recalculate(choices)}
+              onReset={reset}
+            />
           ) : (
             <Card className="sm:p-8">
               {phase === 'idle' && (

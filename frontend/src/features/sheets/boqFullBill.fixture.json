@@ -1154,6 +1154,18 @@
     "total_doors": 13,
     "total_windows": 12
   },
+  "assumptions": {
+    "building_type": "villa",
+    "building_type_source": "plan",
+    "ceiling_heights_m": [
+      3.35
+    ],
+    "ceiling_height_source": "plan",
+    "tile_size_mm": "600x600",
+    "tile_pattern": "standard",
+    "false_ceiling_share": 1.0,
+    "plot_perimeter_m": null
+  },
   "project_metadata": {
     "project_title": "Spec fixture villa",
     "client": "NA",

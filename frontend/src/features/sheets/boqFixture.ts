@@ -4,7 +4,9 @@
  * It covers what the page must cope with: six categories (codes A to F), lettered serials
  * ("17a", "17b"), rows out of order, an excluded row, allowance rows, a row without
  * `quantity_decimals`, the same sub-category name in two categories, extra keys on rows
- * and on the loose objects, and the older top-level keys the page must ignore.
+ * and on the loose objects, the assumptions the bill was calculated with (two levels with
+ * their own heights, a building type from the plan that is none of the three a person can
+ * pick), and the older top-level keys the page must ignore.
  */
 
 interface RawComponent {
@@ -119,6 +121,19 @@ export const RAW_BOQ_RESULT = {
     building_type: 'Residential',
     source_file_name: 'green-villa.pdf',
     drawing_no: 'A-101',
+  },
+  assumptions: {
+    // the plan's own words, lower-cased by the server
+    building_type: 'residential',
+    building_type_source: 'plan',
+    ceiling_heights_m: [2.8, 3.1],
+    ceiling_height_source: 'plan',
+    tile_size_mm: '600x600',
+    tile_pattern: 'standard',
+    false_ceiling_share: 1,
+    plot_perimeter_m: null,
+    // a key the page does not know: it must survive a round trip to export
+    skirting_height_mm: 100,
   },
   // older keys: ignored by the page and never sent to export
   materials: [{ id: 'mat-bricks', name: 'Bricks' }],

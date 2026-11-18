@@ -36,6 +36,11 @@ describe('full bill: contract', () => {
     );
   });
 
+  it('keeps the assumptions the bill was calculated with, unchanged', () => {
+    expect(RESULT.assumptions).toBeDefined();
+    expect(RESULT.assumptions).toEqual(RAW_FULL_BILL.assumptions);
+  });
+
   it('arrives in serial order, lettered rows after their number', () => {
     expect(sortItems(RESULT.items).map((item) => item.serial_no)).toEqual(RESULT.items.map((item) => item.serial_no));
   });
@@ -44,7 +49,8 @@ describe('full bill: contract', () => {
     const body = boqExportBody(RESULT);
     expect(body.items).toHaveLength(64);
     expect(body.items).toEqual(RAW_FULL_BILL.items);
-    expect(Object.keys(body).sort()).toEqual(['geometry_summary', 'items', 'project_metadata', 'warnings']);
+    expect(body.assumptions).toEqual(RAW_FULL_BILL.assumptions);
+    expect(Object.keys(body).sort()).toEqual(['assumptions', 'geometry_summary', 'items', 'project_metadata', 'warnings']);
   });
 });
 

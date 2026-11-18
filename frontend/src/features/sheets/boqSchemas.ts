@@ -62,15 +62,61 @@ export const boqProjectMetadataSchema = z.looseObject({
 export type BoqProjectMetadata = z.infer<typeof boqProjectMetadataSchema>;
 
 /**
+ * What the bill was calculated with: the values actually used and where they come from.
+ *
+ * The values are plain strings, not enums, on purpose: a building type is whatever the plan
+ * states, and a value this page does not know yet must not make the whole bill unreadable.
+ * Known today: building_type_source "user" | "plan" | "default"; ceiling_height_source
+ * "user" | "plan" | "assumed" | "mixed"; tile_size_mm and tile_pattern as in
+ * `BoqAssumptionsInput`.
+ */
+export const boqAssumptionsSchema = z.looseObject({
+  building_type: z.string(),
+  building_type_source: z.string(),
+  /** One per level. */
+  ceiling_heights_m: z.array(z.number()),
+  ceiling_height_source: z.string(),
+  tile_size_mm: z.string(),
+  tile_pattern: z.string(),
+  /** 0 to 1: the share of the dry indoor area that gets a false ceiling. */
+  false_ceiling_share: z.number(),
+  /** null: estimated from the plan. */
+  plot_perimeter_m: z.number().nullable(),
+});
+export type BoqAssumptions = z.infer<typeof boqAssumptionsSchema>;
+
+export type BoqBuildingType = 'villa' | 'apartment' | 'other';
+export type BoqTileSize = '600x600' | '800x800' | '1200x600';
+export type BoqTilePattern = 'standard' | 'herringbone';
+
+/**
+ * The body of POST /jobs/{id}/recalculate: what a person chose. Every field is optional and
+ * a field that is left out means "the default" (the server rejects unknown fields).
+ */
+export interface BoqAssumptionsInput {
+  /** Left out or null: what the plan says. */
+  building_type?: BoqBuildingType | null;
+  /** 2 to 8 m, for every level. Left out or null: each level's own height from the plan. */
+  ceiling_height_m?: number | null;
+  tile_size_mm?: BoqTileSize;
+  tile_pattern?: BoqTilePattern;
+  /** 0 to 1. */
+  false_ceiling_share?: number;
+  /** Above 0, at most 100000. Left out or null: estimated from the plan. */
+  plot_perimeter_m?: number | null;
+}
+
+/**
  * The finished bill. Older keys the server may still send next to these (materials,
  * materials_by_key, level_summaries, room_breakdown) are dropped here, so they can never
- * reach the screen or an export request.
+ * reach the screen or an export request. `assumptions` is missing from an older server.
  */
 export const boqResultSchema = z.object({
   items: z.array(boqItemSchema),
   warnings: z.array(z.string()),
   geometry_summary: boqGeometrySummarySchema,
   project_metadata: boqProjectMetadataSchema,
+  assumptions: boqAssumptionsSchema.optional(),
 });
 export type BoqResult = z.infer<typeof boqResultSchema>;
 

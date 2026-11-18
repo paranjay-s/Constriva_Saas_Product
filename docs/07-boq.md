@@ -49,6 +49,8 @@ The result states what was used under `assumptions`, with where each value came 
 
 Changing an assumption never parses the PDF again. A BOQ job keeps the PlanJSON it parsed, and `POST /jobs/{job_id}/recalculate` calculates from that: no model call, no upload. The job lives for one hour; after that the PDF is uploaded again, which the parser's caches answer without a model call.
 
+On the BOQ page the **Assumptions** panel (`components/BoqAssumptions.tsx`) sits above the table. It shows the values the bill was calculated with and where each comes from. Picking another value in a select recalculates at once; a number recalculates when the field is left or Enter is pressed, and only when it is valid and has changed. Each request carries all of the person's choices so far, and fields they never touched are left out so the defaults apply. While a request runs the controls are disabled; if it fails, the bill on screen stays and the reason is shown in the panel. The downloads are always of the bill on screen, so the files print the assumptions it was calculated with.
+
 The result also carries `derived_quantities`: every symbol of spec section 3 for this plan, for checking a quantity by hand.
 
 Warnings the calculator adds: parking under an upper floor is counted as paved outdoor area; no bathroom or kitchen detected; doors look under-read (fewer doors than bathrooms plus bedrooms); more than 30% of the indoor area has no recognised room type; opening widths absent (items 28 and 29 are 0); no paved outdoor rooms (items 22 and 23 are 0); the exterior wall area was capped by the net wall area; the gypsum-plastered wall area was clamped to 0; no built area.
@@ -116,4 +118,5 @@ Remarks reads: "Excluded from quote" and "Allowance" when they apply, then the r
 
 - `backend/tests/unit/test_boq_formulas.py`: the fixture of spec section 8 on the formula layer (every derived quantity and all 64 rows), one test per edge case of section 7, every warning, the apartment rule, and that room and level values add up to the project totals.
 - `backend/tests/unit/test_boq.py`: row contract, category plan, calculator keys, determinism, the endpoints with a fake plan parser, and both exports with the full 64-row bill (grouping, lettered rows, breakdowns).
+- `frontend/src/features/sheets/boqAssumptions.test.tsx`: the Assumptions panel: values and sources shown, what is sent on each change, validation, errors, stale replies and the export after a recalculation.
 - `frontend/src/features/sheets/boqFullBill.test.tsx`: the table, filters and export request with the full bill. Its data, `boqFullBill.fixture.json`, is the spec's section 8 fixture as the API returns it. The backend writes that file and `test_the_frontend_fixture_is_the_bill_this_backend_produces` fails when it is stale; rewrite it with `BOQ_WRITE_FIXTURE=1 uv --directory backend run pytest tests/unit/test_boq_formulas.py`.

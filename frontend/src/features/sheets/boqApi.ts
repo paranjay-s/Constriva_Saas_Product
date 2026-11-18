@@ -2,12 +2,19 @@
  * BOQ raw-material API client (/api/v1/sheets/boq). Every JSON response is checked with zod.
  *
  * Flow: start(file) -> { job_id } -> follow the job with useJobEvents({ base: BOQ_BASE })
- * -> result(jobId) -> download('pdf' | 'xlsx', result).
+ * -> result(jobId) -> recalculate(jobId, choices), any number of times
+ * -> download('pdf' | 'xlsx', result).
  */
 import { z } from 'zod';
 import { API_BASE_URL, ApiError, TOKEN_STORAGE_KEY, apiRequest, ensureFreshSession } from '../../lib/api';
 import { exportFileName, fileNameFromDisposition } from './boqLogic';
-import { type BoqExportFormat, type BoqResult, boqJobCreatedSchema, boqResultSchema } from './boqSchemas';
+import {
+  type BoqAssumptionsInput,
+  type BoqExportFormat,
+  type BoqResult,
+  boqJobCreatedSchema,
+  boqResultSchema,
+} from './boqSchemas';
 
 export const BOQ_BASE = '/api/v1/sheets/boq';
 
@@ -24,10 +31,46 @@ export function boqErrorText(e: unknown): string {
   return 'Something went wrong.';
 }
 
-/** The export request: the four parts of the result exactly as the server sent them, nothing else. */
-export function boqExportBody(result: BoqResult): Pick<BoqResult, 'items' | 'warnings' | 'geometry_summary' | 'project_metadata'> {
-  const { items, warnings, geometry_summary, project_metadata } = result;
-  return { items, warnings, geometry_summary, project_metadata };
+export type BoqExportBody = Pick<
+  BoqResult,
+  'items' | 'warnings' | 'geometry_summary' | 'project_metadata' | 'assumptions'
+>;
+
+/**
+ * The export request: the parts of the result exactly as the server sent them, nothing
+ * else. `assumptions` (printed in the file) go along when the result has them.
+ */
+export function boqExportBody(result: BoqResult): BoqExportBody {
+  const { items, warnings, geometry_summary, project_metadata, assumptions } = result;
+  const body: BoqExportBody = { items, warnings, geometry_summary, project_metadata };
+  if (assumptions) body.assumptions = assumptions;
+  return body;
+}
+
+const BILL_EXPIRED = 'This bill has expired. Upload the plan again to change its assumptions.';
+
+/** One entry of FastAPI's own 422 body: { detail: [{ loc: ["body", "<field>"], msg }] }. */
+const validationIssueSchema = z.looseObject({ msg: z.string(), loc: z.array(z.unknown()).optional() });
+
+/**
+ * A recalculation error with a `detail` a person can read. `apiRequest` passes the server's
+ * `detail` on as it is, and for a 422 that can be a list of issues instead of a string.
+ */
+function recalculateError(e: unknown): unknown {
+  if (!(e instanceof ApiError)) return e;
+  // unknown job, a job that is not this person's, or a bill older than the server keeps
+  if (e.status === 404) return new ApiError(404, BILL_EXPIRED);
+  const detail: unknown = e.detail;
+  if (typeof detail === 'string' && detail.trim()) return e;
+  const issues = z.array(validationIssueSchema).safeParse(detail);
+  if (issues.success && issues.data.length > 0) {
+    const lines = issues.data.map((issue) => {
+      const field = issue.loc?.findLast((part) => typeof part === 'string' && part !== 'body');
+      return typeof field === 'string' ? `${field}: ${issue.msg}` : issue.msg;
+    });
+    return new ApiError(e.status, lines.join(' '));
+  }
+  return new ApiError(e.status, `The bill could not be recalculated (${e.status}).`);
 }
 
 async function exportError(res: Response, format: BoqExportFormat): Promise<ApiError> {
@@ -63,6 +106,25 @@ export const boqApi = {
   /** The finished bill; only available once the job is done. */
   result: async (jobId: string): Promise<BoqResult> =>
     boqResultSchema.parse(await apiRequest(`${BOQ_BASE}/jobs/${encodeURIComponent(jobId)}/result`)),
+
+  /**
+   * The bill again with other assumptions, from the plan the job already holds (the PDF is
+   * not read again). `input` is the complete set of choices: a field left out means "the
+   * default". The answer has the shape of `result` and becomes the job's result.
+   */
+  recalculate: async (jobId: string, input: BoqAssumptionsInput, signal?: AbortSignal): Promise<BoqResult> => {
+    try {
+      return boqResultSchema.parse(
+        await apiRequest(`${BOQ_BASE}/jobs/${encodeURIComponent(jobId)}/recalculate`, {
+          method: 'POST',
+          body: JSON.stringify(input),
+          signal,
+        }),
+      );
+    } catch (e) {
+      throw recalculateError(e);
+    }
+  },
 
   /**
    * Download the whole bill as a PDF or Excel file. The file name comes from the server;

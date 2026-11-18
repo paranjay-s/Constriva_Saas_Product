@@ -32,7 +32,8 @@ describe('BOQ schemas', () => {
     expect(RESULT.items).toEqual(RAW_BOQ_RESULT.items); // extra row keys (id, details...) included
     expect(RESULT.geometry_summary).toEqual(RAW_BOQ_RESULT.geometry_summary);
     expect(RESULT.project_metadata).toEqual(RAW_BOQ_RESULT.project_metadata);
-    expect(Object.keys(RESULT).sort()).toEqual(['geometry_summary', 'items', 'project_metadata', 'warnings']);
+    expect(RESULT.assumptions).toEqual(RAW_BOQ_RESULT.assumptions);
+    expect(Object.keys(RESULT).sort()).toEqual(['assumptions', 'geometry_summary', 'items', 'project_metadata', 'warnings']);
   });
 
   it('accepts a bill of any size, with or without the optional fields', () => {
@@ -456,6 +457,7 @@ describe('BOQ page', () => {
       warnings: RAW_BOQ_RESULT.warnings,
       geometry_summary: RAW_BOQ_RESULT.geometry_summary,
       project_metadata: RAW_BOQ_RESULT.project_metadata,
+      assumptions: RAW_BOQ_RESULT.assumptions,
     });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Download PDF' }).hasAttribute('disabled')).toBe(false));
   });
@@ -533,10 +535,15 @@ describe('BOQ page', () => {
     expect(downloads).toEqual(['BOQ_green-villa.xlsx', 'BOQ_Site Plan.pdf', 'BOQ.pdf']);
   });
 
-  it('sends nothing but the four parts of the result to export', () => {
+  it('sends nothing but the parts of the result to export', () => {
     const withLegacy = { ...RESULT, materials: [], materials_by_key: {}, level_summaries: [], room_breakdown: [] };
     const body = boqExportBody(withLegacy);
-    expect(Object.keys(body).sort()).toEqual(['geometry_summary', 'items', 'project_metadata', 'warnings']);
+    expect(Object.keys(body).sort()).toEqual(['assumptions', 'geometry_summary', 'items', 'project_metadata', 'warnings']);
     expect(body.items).toBe(RESULT.items);
+    expect(body.assumptions).toBe(RESULT.assumptions);
+
+    // a result from an older server has no assumptions: the key is left out, not sent empty
+    const { assumptions: _dropped, ...older } = withLegacy;
+    expect(Object.keys(boqExportBody(older)).sort()).toEqual(['geometry_summary', 'items', 'project_metadata', 'warnings']);
   });
 });

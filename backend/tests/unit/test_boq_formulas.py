@@ -1192,6 +1192,16 @@ def full_bill_result() -> dict:
             "total_doors": p.n_door,
             "total_windows": p.n_win,
         },
+        "assumptions": {
+            "building_type": facts.building_type,
+            "building_type_source": "plan",
+            "ceiling_heights_m": [level.height for level in facts.levels],
+            "ceiling_height_source": "plan",
+            "tile_size_mm": f"{facts.tile_a_mm:g}x{facts.tile_b_mm:g}",
+            "tile_pattern": "standard",
+            "false_ceiling_share": facts.f_fc,
+            "plot_perimeter_m": facts.plot_perimeter,
+        },
         "project_metadata": {
             "project_title": "Spec fixture villa",
             "client": "NA",
