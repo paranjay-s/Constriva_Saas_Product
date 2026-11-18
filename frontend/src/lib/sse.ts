@@ -2,11 +2,9 @@
  * Server-Sent Events read with fetch().
  *
  * Every stream of this API needs the signed-in user's token, and EventSource cannot send
- * an Authorization header. fetch() can, so streams are read from the response body, and
- * the text that arrives is split into messages here.
+ * an Authorization header. fetch() can, so a feature reads its stream from the response
+ * body and splits the text that arrives into messages here.
  */
-import { TOKEN_STORAGE_KEY } from './api';
-
 export interface SseMessage {
   event: string;
   data: string;
@@ -28,12 +26,4 @@ export function parseSse(buffer: string): { messages: SseMessage[]; rest: string
     if (data.length) messages.push({ event, data: data.join('\n') });
   }
   return { messages, rest };
-}
-
-/** The Authorization header of the current session; empty when nobody is signed in. */
-export function authHeaders(): Headers {
-  const headers = new Headers();
-  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-  return headers;
 }
