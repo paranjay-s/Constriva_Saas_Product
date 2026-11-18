@@ -107,7 +107,7 @@ function ReviewPanel(props: ReviewPanelProps) {
       window.removeEventListener('message', onMessage);
       pendingSave.current?.(NOT_SAVED); // the page is gone: nothing will answer any more
     };
-  }, [jobId]);
+  }, [jobId, frame]);
 
   /** Ask the review page to save the plan as it is now; resolves once it says it did. */
   const save = (furnishRooms: boolean) =>
