@@ -1,0 +1,665 @@
+{
+ "_about": "Room types and the labels that name them. One file for the detector (detect.py), the furniture rules (furnish.py), the builder (blender/gen.py), the review page (web/edit.js) and our backend's converter. kind: indoor (ceiling, lamp, furniture), outdoor (open to the sky), covered (outdoor under a roof), water (not walkable, built as water), shaft (not walkable: lift, duct), void (open to the storey below), stair. furnish: the rule in furnish.py, or null. Phrases are matched on whole words, longest first; abbreviations also match as the start of a word.",
+ "types": {
+  "bedroom": {
+   "label": "Bedroom",
+   "kind": "indoor",
+   "floor": "wood",
+   "colour": "#c8a2c8",
+   "furnish": "bedroom"
+  },
+  "toilet": {
+   "label": "Bathroom / WC",
+   "kind": "indoor",
+   "floor": "bathtile",
+   "colour": "#8fc7e8",
+   "furnish": "toilet"
+  },
+  "kitchen": {
+   "label": "Kitchen",
+   "kind": "indoor",
+   "floor": "marble",
+   "colour": "#f2c48d",
+   "furnish": "kitchen"
+  },
+  "dining": {
+   "label": "Dining",
+   "kind": "indoor",
+   "floor": "marble",
+   "colour": "#e7b7a0",
+   "furnish": "dining"
+  },
+  "living": {
+   "label": "Living / majlis",
+   "kind": "indoor",
+   "floor": "marble",
+   "colour": "#e9d48a",
+   "furnish": "living"
+  },
+  "breakfast": {
+   "label": "Breakfast area",
+   "kind": "indoor",
+   "floor": "marble",
+   "colour": "#f0d9a8",
+   "furnish": "breakfast"
+  },
+  "bar": {
+   "label": "Bar",
+   "kind": "indoor",
+   "floor": "marble",
+   "colour": "#d9a87a",
+   "furnish": "bar"
+  },
+  "foyer": {
+   "label": "Entrance foyer",
+   "kind": "indoor",
+   "floor": "marble",
+   "colour": "#e6dccb",
+   "furnish": "foyer"
+  },
+  "puja": {
+   "label": "Prayer room",
+   "kind": "indoor",
+   "floor": "marble",
+   "colour": "#f0a0a0",
+   "furnish": "puja"
+  },
+  "study": {
+   "label": "Study / office",
+   "kind": "indoor",
+   "floor": "wood",
+   "colour": "#b8c9a0",
+   "furnish": "study"
+  },
+  "gym": {
+   "label": "Gym",
+   "kind": "indoor",
+   "floor": "concrete",
+   "colour": "#a9b8c9",
+   "furnish": "gym"
+  },
+  "cinema": {
+   "label": "Cinema",
+   "kind": "indoor",
+   "floor": "wood",
+   "colour": "#8d86a8",
+   "furnish": "cinema"
+  },
+  "wash": {
+   "label": "Laundry / utility",
+   "kind": "indoor",
+   "floor": "concrete",
+   "colour": "#a8d5c2",
+   "furnish": "wash"
+  },
+  "store": {
+   "label": "Store / pantry",
+   "kind": "indoor",
+   "floor": "concrete",
+   "colour": "#bbbbbb",
+   "furnish": "store"
+  },
+  "dress": {
+   "label": "Dressing",
+   "kind": "indoor",
+   "floor": "wood",
+   "colour": "#e3d2b8",
+   "furnish": "dress"
+  },
+  "passage": {
+   "label": "Passage / lobby",
+   "kind": "indoor",
+   "floor": "tile",
+   "colour": "#d9d2c3",
+   "furnish": null
+  },
+  "room": {
+   "label": "Room",
+   "kind": "indoor",
+   "floor": "tile",
+   "colour": "#dcdcdc",
+   "furnish": null
+  },
+  "multipurpose": {
+   "label": "Unknown: multipurpose",
+   "kind": "indoor",
+   "floor": "tile",
+   "colour": "#f5b06a",
+   "furnish": null
+  },
+  "stair": {
+   "label": "Stairs",
+   "kind": "stair",
+   "floor": "stair",
+   "colour": "#c49a6c",
+   "furnish": null
+  },
+  "lift": {
+   "label": "Lift",
+   "kind": "shaft",
+   "floor": "concrete",
+   "colour": "#7d7d8c",
+   "furnish": null
+  },
+  "duct": {
+   "label": "Duct",
+   "kind": "shaft",
+   "floor": "concrete",
+   "colour": "#999999",
+   "furnish": null
+  },
+  "open": {
+   "label": "Open to below",
+   "kind": "void",
+   "floor": "pebbles",
+   "colour": "#9fd8d0",
+   "furnish": null
+  },
+  "balcony": {
+   "label": "Balcony / terrace",
+   "kind": "covered",
+   "floor": "terracotta",
+   "colour": "#b6dfa0",
+   "furnish": "balcony"
+  },
+  "parking": {
+   "label": "Garage / parking",
+   "kind": "covered",
+   "floor": "pavers",
+   "colour": "#c9c9d6",
+   "furnish": "parking"
+  },
+  "garden": {
+   "label": "Garden",
+   "kind": "outdoor",
+   "floor": "turf",
+   "colour": "#7fc97f",
+   "furnish": "garden"
+  },
+  "yard": {
+   "label": "Yard",
+   "kind": "outdoor",
+   "floor": "pavers",
+   "colour": "#cfe6b8",
+   "furnish": null
+  },
+  "pool": {
+   "label": "Pool / jacuzzi",
+   "kind": "water",
+   "floor": "pooltile",
+   "colour": "#4aa3df",
+   "furnish": null
+  },
+  "water": {
+   "label": "Water / fountain",
+   "kind": "water",
+   "floor": "pooltile",
+   "colour": "#6cbbe8",
+   "furnish": null
+  },
+  "dock": {
+   "label": "Dock / jetty",
+   "kind": "water",
+   "floor": "deck",
+   "colour": "#3d7fb8",
+   "furnish": null
+  }
+ },
+ "phrases": {
+  "bedroom": [
+   "BEDROOM",
+   "BED ROOM",
+   "BED RM",
+   "BEDRM",
+   "MASTER BEDROOM",
+   "MASTER BED",
+   "MASTER",
+   "GUEST BEDROOM",
+   "GUEST ROOM",
+   "GUEST",
+   "KIDS ROOM",
+   "KIDS",
+   "CHILDREN ROOM",
+   "NURSERY",
+   "MAID ROOM",
+   "MAIDS ROOM",
+   "MAID",
+   "MAIDS",
+   "MAID'S ROOM",
+   "DRIVER ROOM",
+   "DRIVERS ROOM",
+   "DRIVER",
+   "DRIVER'S ROOM",
+   "NANNY ROOM",
+   "SERVANT ROOM",
+   "STAFF ROOM",
+   "SUITE",
+   "MASTER SUITE",
+   "B.R",
+   "M.BED",
+   "M.B.R",
+   "BR",
+   "MBR",
+   "غرفة نوم",
+   "غرفة النوم",
+   "غرفة نوم رئيسية",
+   "غرفة ضيوف",
+   "غرفة خادمة",
+   "غرفة الخادمة",
+   "غرفة سائق",
+   "غرفة السائق"
+  ],
+  "toilet": [
+   "TOILET",
+   "TOI",
+   "BATH",
+   "BATHROOM",
+   "BATH ROOM",
+   "W.C",
+   "WC",
+   "WASHROOM",
+   "LAV",
+   "LAVATORY",
+   "POWDER",
+   "POWDER ROOM",
+   "SHOWER",
+   "ENSUITE",
+   "EN SUITE",
+   "RESTROOM",
+   "حمام",
+   "دورة مياه",
+   "مرحاض"
+  ],
+  "kitchen": [
+   "KITCHEN",
+   "KIT",
+   "KITCHENETTE",
+   "SHOW KITCHEN",
+   "DIRTY KITCHEN",
+   "WET KITCHEN",
+   "DRY KITCHEN",
+   "MAIN KITCHEN",
+   "SERVICE KITCHEN",
+   "OPEN KITCHEN",
+   "SHOW KIT",
+   "مطبخ",
+   "المطبخ",
+   "مطبخ تحضيري"
+  ],
+  "dining": [
+   "DINING",
+   "DINING ROOM",
+   "DINING AREA",
+   "DIN",
+   "DINNING",
+   "DINING HALL",
+   "طعام",
+   "غرفة طعام",
+   "صالة طعام"
+  ],
+  "living": [
+   "LIVING",
+   "LIVING ROOM",
+   "LIVING AREA",
+   "FAMILY LIVING",
+   "FAMILY LIVING AREA",
+   "FAMILY ROOM",
+   "FAMILY",
+   "FAMILY HALL",
+   "LOUNGE",
+   "HALL",
+   "DRAWING",
+   "DRAWING ROOM",
+   "DRG",
+   "LIV",
+   "LVG",
+   "SITTING",
+   "SITTING ROOM",
+   "SITTING AREA",
+   "MAJLIS",
+   "MAJLES",
+   "MAJLIS MEN",
+   "MAJLIS LADIES",
+   "LADIES MAJLIS",
+   "MEN MAJLIS",
+   "RECEPTION",
+   "SALON",
+   "مجلس",
+   "مجلس رجال",
+   "مجلس نساء",
+   "صالة",
+   "صالة معيشة",
+   "غرفة معيشة",
+   "استقبال"
+  ],
+  "breakfast": [
+   "BREAKFAST",
+   "BREAKFAST AREA",
+   "BREAKFAST NOOK",
+   "BREAKFAST ROOM",
+   "NOOK",
+   "إفطار"
+  ],
+  "bar": [
+   "BAR",
+   "BAR AREA",
+   "WET BAR",
+   "BAR COUNTER",
+   "LOUNGE BAR",
+   "COFFEE BAR"
+  ],
+  "foyer": [
+   "FOYER",
+   "ENTRANCE FOYER",
+   "ENTRY FOYER",
+   "ENTRANCE",
+   "ENTRANCE HALL",
+   "ENTRY",
+   "VESTIBULE",
+   "MAIN ENTRANCE",
+   "مدخل",
+   "المدخل",
+   "بهو"
+  ],
+  "puja": [
+   "PUJA",
+   "POOJA",
+   "MANDIR",
+   "PRAYER",
+   "PRAYER ROOM",
+   "TEMPLE",
+   "MUSALLA",
+   "MUSALAH",
+   "MASJID",
+   "مصلى",
+   "غرفة صلاة"
+  ],
+  "study": [
+   "STUDY",
+   "OFFICE",
+   "HOME OFFICE",
+   "LIBRARY",
+   "WORK ROOM",
+   "مكتب",
+   "مكتبة"
+  ],
+  "gym": [
+   "GYM",
+   "GYMNASIUM",
+   "FITNESS",
+   "FITNESS ROOM",
+   "WORKOUT",
+   "نادي رياضي",
+   "صالة رياضة"
+  ],
+  "cinema": [
+   "CINEMA",
+   "HOME CINEMA",
+   "HOME THEATRE",
+   "HOME THEATER",
+   "THEATRE",
+   "THEATER",
+   "MEDIA ROOM",
+   "سينما"
+  ],
+  "wash": [
+   "WASH",
+   "WASH AREA",
+   "LAUNDRY",
+   "LAUNDRY ROOM",
+   "UTILITY",
+   "UTILITY ROOM",
+   "DRY AREA",
+   "DRY",
+   "IRONING",
+   "غسيل",
+   "غرفة غسيل"
+  ],
+  "store": [
+   "STORE",
+   "STORE ROOM",
+   "STOREROOM",
+   "STR",
+   "STORAGE",
+   "COLD STORE",
+   "HOT STORE",
+   "DRY STORE",
+   "PANTRY",
+   "WINE STORE",
+   "WINE CELLAR",
+   "CELLAR",
+   "LOFT",
+   "STORE RM",
+   "مخزن",
+   "مستودع"
+  ],
+  "dress": [
+   "DRESS",
+   "DRESSING",
+   "DRESSING ROOM",
+   "WARDROBE",
+   "W.I.C",
+   "WIC",
+   "WALK IN CLOSET",
+   "WALK-IN CLOSET",
+   "WALK IN",
+   "CLOSET",
+   "غرفة ملابس"
+  ],
+  "passage": [
+   "PASSAGE",
+   "LOBBY",
+   "CORRIDOR",
+   "PASS",
+   "GALLERY",
+   "LANDING",
+   "HALLWAY",
+   "ممر"
+  ],
+  "stair": [
+   "STAIR",
+   "STAIRS",
+   "STAIRCASE",
+   "STAIRCASE HALL",
+   "STAIR HALL",
+   "STAIR CASE",
+   "UP",
+   "DN",
+   "درج"
+  ],
+  "lift": [
+   "LIFT",
+   "ELEVATOR",
+   "SERVICE LIFT",
+   "SERVICE ELEVATOR",
+   "PASSENGER LIFT",
+   "GOODS LIFT",
+   "DUMBWAITER",
+   "مصعد"
+  ],
+  "duct": [
+   "DUCT",
+   "SHAFT",
+   "SHAFT DUCT",
+   "SERVICE SHAFT",
+   "MEP SHAFT"
+  ],
+  "open": [
+   "OPEN",
+   "OPEN TO SKY",
+   "OPEN TO BELOW",
+   "CUTOUT",
+   "CUT OUT",
+   "VOID",
+   "DOUBLE HEIGHT"
+  ],
+  "balcony": [
+   "BALCONY",
+   "SITOUT",
+   "SIT-OUT",
+   "SIT OUT",
+   "VERANDAH",
+   "VERANDA",
+   "TERRACE",
+   "ROOF TERRACE",
+   "ROOF GARDEN TERRACE",
+   "DECK",
+   "PORCH",
+   "PATIO",
+   "LOGGIA",
+   "PERGOLA",
+   "شرفة",
+   "تراس",
+   "سطح"
+  ],
+  "parking": [
+   "PARKING",
+   "CAR PARKING",
+   "CAR PARK",
+   "CAR PORCH",
+   "CARPORCH",
+   "CAR",
+   "GARAGE",
+   "PORTICO",
+   "CAR SHED",
+   "موقف",
+   "موقف سيارات",
+   "مرآب",
+   "كراج"
+  ],
+  "garden": [
+   "LAWN",
+   "GARDEN",
+   "COURTYARD",
+   "COURT",
+   "LANDSCAPE",
+   "LANDSCAPE COURT",
+   "LANDSCAPING",
+   "PLANTER",
+   "OTS",
+   "BACKYARD",
+   "حديقة",
+   "فناء"
+  ],
+  "pool": [
+   "POOL",
+   "SWIMMING POOL",
+   "SWIM POOL",
+   "PLUNGE POOL",
+   "KIDS POOL",
+   "INFINITY POOL",
+   "LAP POOL",
+   "JACUZZI",
+   "SPA POOL",
+   "HOT TUB",
+   "FUTURE SWIMMING POOL",
+   "مسبح",
+   "حمام سباحة",
+   "جاكوزي"
+  ],
+  "water": [
+   "WATER BODY",
+   "WATER FEATURE",
+   "WATERBODY",
+   "FOUNTAIN",
+   "POND",
+   "REFLECTING POOL",
+   "REFLECTION POOL",
+   "LAKE",
+   "AQUARIUM",
+   "نافورة",
+   "بركة"
+  ],
+  "dock": [
+   "DOCK",
+   "DOCK FOR YACHT",
+   "BOAT DOCK",
+   "JETTY",
+   "PIER",
+   "BOAT SHED",
+   "BOATHOUSE",
+   "BOAT HOUSE",
+   "MARINA",
+   "MOORING",
+   "YACHT",
+   "مرسى",
+   "رصيف"
+  ]
+ },
+ "abbreviations": {
+  "bedroom": [
+   "BED",
+   "BEDR",
+   "M.BED"
+  ],
+  "toilet": [
+   "TOI",
+   "BATH"
+  ],
+  "kitchen": [
+   "KIT"
+  ],
+  "dining": [
+   "DIN"
+  ],
+  "living": [
+   "LIV",
+   "DRG",
+   "LOUNG"
+  ],
+  "store": [
+   "STOR"
+  ],
+  "dress": [
+   "DRESS"
+  ],
+  "passage": [
+   "PASS",
+   "CORR"
+  ],
+  "balcony": [
+   "BALC"
+  ],
+  "parking": [
+   "PARK",
+   "GARAG"
+  ],
+  "stair": [
+   "STAIR"
+  ],
+  "wash": [
+   "LAUND"
+  ],
+  "study": [
+   "STUD"
+  ]
+ },
+ "priority": [
+  "lift",
+  "pool",
+  "dock",
+  "water",
+  "toilet",
+  "bedroom",
+  "kitchen",
+  "breakfast",
+  "bar",
+  "dining",
+  "living",
+  "puja",
+  "wash",
+  "dress",
+  "store",
+  "study",
+  "gym",
+  "cinema",
+  "foyer",
+  "passage",
+  "balcony",
+  "garden",
+  "open",
+  "duct",
+  "parking",
+  "stair"
+ ]
+}

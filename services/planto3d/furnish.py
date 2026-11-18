@@ -9,7 +9,9 @@ import math
 SIDES = {   # side of the room rect -> (rot of an item backed onto it, axis along the wall)
     "N": 0, "S": 180, "E": 270, "W": 90,
 }
-INDOOR = {"bedroom", "toilet", "kitchen", "living", "dining", "puja", "study", "store", "passage", "room", "wash", "dress"}
+import rooms
+
+INDOOR = rooms.kinds("indoor")      # web/rooms.json
 
 
 def area(r):
@@ -203,6 +205,7 @@ class Room:
 
 
 OPP = {"N": "S", "S": "N", "E": "W", "W": "E"}
+FRONT = {"N": "-y", "S": "+y", "E": "-x", "W": "+x"}     # the way a counter on that wall faces
 
 
 def front_offset(side, xy, dist):
@@ -541,12 +544,72 @@ def wash(R):
 
 
 def parking(R):
-    cx, cy = (R.rect[0] + R.rect[1]) / 2, (R.rect[2] + R.rect[3]) / 2
+    """as many cars as fit side by side across the room (a double garage holds two), parked along its long side"""
     along_y = R.d >= R.w
-    L, W = 14.5, 6.2
-    box = (cx - W / 2, cx + W / 2, cy - L / 2, cy + L / 2) if along_y else (cx - L / 2, cx + L / 2, cy - W / 2, cy + W / 2)
-    if R.fits(box):
-        R.add("car", box, cx, cy, 0 if along_y else 90)
+    L, W, gap = 14.5, 6.2, 1.5
+    span = R.w if along_y else R.d
+    n = max(1, min(4, int((span - gap) // (W + gap))))
+    for k in range(n, 0, -1):            # the most cars that fit, centred across the room
+        boxes = []
+        for i in range(k):
+            c = (R.rect[0] if along_y else R.rect[2]) + span / 2 + (i - (k - 1) / 2) * (W + gap)
+            m = (R.rect[2] + R.rect[3]) / 2 if along_y else (R.rect[0] + R.rect[1]) / 2
+            boxes.append((c - W / 2, c + W / 2, m - L / 2, m + L / 2) if along_y else (m - L / 2, m + L / 2, c - W / 2, c + W / 2))
+        if all(R.fits(b) for b in boxes):
+            for b in boxes:
+                R.add("car", b, (b[0] + b[1]) / 2, (b[2] + b[3]) / 2, 0 if along_y else 90)
+            return
+
+
+def breakfast(R):
+    """a small table and chairs (two to four seats), by a window when there is one"""
+    for tw, tl, n, m in ((4.5, 3.0, 4, 1.8), (3.0, 3.0, 2, 1.8)):
+        cx, cy = (R.rect[0] + R.rect[1]) / 2, (R.rect[2] + R.rect[3]) / 2
+        a, b = (tw, tl) if R.w >= R.d else (tl, tw)
+        box = (cx - a / 2 - m, cx + a / 2 + m, cy - b / 2 - m, cy + b / 2 + m)
+        if R.fits(box):
+            R.add("dining_set", (cx - a / 2 - 1.6, cx + a / 2 + 1.6, cy - b / 2 - 1.6, cy + b / 2 + 1.6),
+                  cx, cy, 0 if R.w >= R.d else 90, w=tw, d=tl, seats=n)
+            return
+
+
+def bar(R):
+    """a counter along the longest free wall"""
+    for side in R.sides_by("long"):
+        for w in (8.0, 6.0, 4.0):
+            p = R.spot(side, w, 2.0)
+            if p:
+                box = p[3]
+                R.add("kitchen_run", box, *box, FRONT[side], sink=None, hob=None)
+                return
+
+
+def foyer(R):
+    """a console against a wall and a plant: an entrance, never a bed"""
+    for side in R.sides_by("long"):
+        p = R.spot(side, 4.0, 1.4)
+        if p:
+            R.add("tv_unit", p[3], p[0], p[1], p[2])
+            break
+    plants(R, 1)
+
+
+def store(R):
+    """shelving (closed cabinets) along the long walls"""
+    for side in R.sides_by("long")[:2]:
+        for w in (8.0, 6.0, 4.0, 3.0):
+            p = R.spot(side, w, 1.6, tall=True)
+            if p:
+                R.add("wardrobe", p[3], p[0], p[1], p[2], w=w, d=1.6, h=7.0)
+                break
+
+
+def gym(R):
+    """an exercise mat: equipment models are not in the library yet"""
+    cx, cy = (R.rect[0] + R.rect[1]) / 2, (R.rect[2] + R.rect[3]) / 2
+    a, b = min(8.0, R.w - 3), min(6.0, R.d - 3)
+    if a > 2 and b > 2:
+        R.add("rug", (cx - a / 2, cx + a / 2, cy - b / 2, cy + b / 2), cx - a / 2, cx + a / 2, cy - b / 2, cy + b / 2, solid=False)
 
 
 def balcony(R):
@@ -574,7 +637,10 @@ def plants(R, n):
 
 
 RULES = dict(dress=dress, bedroom=bedroom, toilet=toilet, kitchen=kitchen, living=living, dining=dining, puja=puja, wash=wash,
-             parking=parking, balcony=balcony, garden=garden, study=lambda R: bedroom_study(R))
+             parking=parking, balcony=balcony, garden=garden, study=lambda R: bedroom_study(R), breakfast=breakfast,
+             bar=bar, foyer=foyer, store=store, gym=gym, cinema=living)
+# every furnish rule named in web/rooms.json must exist here
+assert {v["furnish"] for v in rooms.TYPES.values() if v["furnish"]} <= set(RULES), "rooms.json names a missing rule"
 
 
 def bedroom_study(R):

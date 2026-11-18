@@ -138,7 +138,7 @@ def embed_claims(token: str) -> dict[str, Any]:
 # What PlanTo3D's own pages need, and nothing else. A token never lists jobs, uploads,
 # builds or deletes: those go through the signed-in API, which records them.
 WEB_FILES = frozenset(
-    {"edit.html", "edit.js", "view.html", "view.js", "walk.js", "furniture.html", "style.css"}
+    {"edit.html", "edit.js", "view.html", "view.js", "walk.js", "furniture.html", "style.css", "rooms.json"}
 )
 SAFE_PATH = re.compile(r"^[A-Za-z0-9._\-/]+$")
 PRIVATE_JOB_FILES = frozenset({"build.log"})  # holds paths of the server

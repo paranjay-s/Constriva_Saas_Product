@@ -187,3 +187,24 @@ ignores), `GET /api/system` says `truth: true`, the standalone review page shows
 404 and the button stays hidden; it is never shown in embed mode. `tools/score_plan.py detected.json reference.json`
 reports wall length recall and precision (within 0.15 m, parallel), doors and windows found (same type, centre within
 0.5 m), room type accuracy and room area error, per floor.
+
+## 15. One room vocabulary; new room types, water and more cars (web/rooms.json, rooms.py, detect.py, furnish.py, blender/gen.py, web/edit.js, tests/test_rooms.py)
+
+Why: room types lived in five places (detect.py, furnish.py, gen.py, edit.js and our backend's converter) with a short
+keyword list each. Labels such as SERVICE LIFT, BAR AREA, ENTRANCE FOYER, BREAKFAST AREA, SHOW KITCHEN, COLD STORE,
+DOCK FOR YACHT or SWIMMING POOL either matched nothing and fell back silently to a type guessed from where the room
+was (a pool became a garden, a dock a balcony) or matched the wrong word.
+
+What: `web/rooms.json` holds every type (label, kind, floor material, map colour, furniture rule) and the phrases,
+abbreviations and Arabic labels that name it; `rooms.classify` matches whole words, longest phrase first (SERVICE LIFT
+before LIFT), then abbreviations, then near spellings, and returns nothing rather than guess. New types: breakfast,
+bar, foyer, gym, cinema, lift, pool, water, dock, and multipurpose (an unknown label, built unfurnished and flagged).
+Guest, maid's and driver's rooms are bedrooms; show, dirty and wet kitchens are kitchens; cold and hot stores and
+pantries are stores; majlis and family living are living rooms; terraces are balconies; garages and car porches are
+parking. `furnish.py` has rules for breakfast (small table), bar (counter), foyer (console and plant, no bed), store
+(shelving), gym (mat) and cinema (sofa facing a screen), and fills a garage with as many cars as fit side by side.
+`gen.py` takes floor materials, ceilings and open-to-sky rooms from the file; builds a pool as a basin sunk 4.5 ft
+with tile lining, coping, steps and a water plane (a raised basin on an upper storey), a water body or fountain as a
+shallow basin, and a dock as water with a plank deck on posts along its long sides; and closes water (except the dock
+decks) and lift and duct shafts to the walker. The review page lists every type by name. `tests/test_rooms.py`: 202
+labels. The four vector test plans are read exactly as before.

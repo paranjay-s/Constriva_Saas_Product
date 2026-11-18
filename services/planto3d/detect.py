@@ -9,43 +9,26 @@ Output units are FEET; per floor, origin = lower-left of the walls, +x right, +y
 import json, math, re, sys
 from collections import defaultdict
 
-import vector
+import rooms, vector
+
+VOCAB_PHRASES = rooms.VOCAB["phrases"]
 
 class PlanError(ValueError):
     """the drawing cannot be read as a plan; the message is shown to the person who uploaded it"""
 
 
 # ------------------------------------------------------------------ room names
-ROOM_TYPES = [   # (type, keywords) - first match wins, checked against the label's words
-    ("toilet", ["TOI", "TOILET", "BATH", "W.C", "WC", "WASHROOM", "LAV", "POWDER"]),
-    ("bedroom", ["BED", "BEDROOM", "BEDRM", "B.R", "M.BED", "MASTER", "GUEST", "KIDS"]),
-    ("kitchen", ["KIT", "KITCHEN", "PANTRY"]),
-    ("dining", ["DIN", "DINING"]),
-    ("living", ["LIV", "LIVING", "DRG", "DRAWING", "LOUNGE", "HALL", "FAMILY", "SITTING"]),
-    ("puja", ["PUJA", "POOJA", "MANDIR", "PRAYER", "TEMPLE"]),
-    ("wash", ["WASH", "UTILITY", "LAUNDRY", "DRY"]),
-    ("dress", ["DRESS", "DRESSING", "WARDROBE", "W.I.C"]),
-    ("store", ["STORE", "STR", "STORAGE"]),
-    ("study", ["STUDY", "OFFICE", "LIBRARY"]),
-    ("passage", ["PASSAGE", "LOBBY", "CORRIDOR", "FOYER", "ENTRANCE", "PASS"]),
-    ("balcony", ["BALCONY", "SITOUT", "SIT-OUT", "VERANDAH", "VERANDA", "TERRACE", "DECK", "PORCH"]),
-    ("garden", ["LAWN", "GARDEN", "COURTYARD", "OTS"]),
-    ("open", ["OPEN", "SHAFT", "DUCT", "CUTOUT", "VOID"]),
-    ("parking", ["PARKING", "CAR", "GARAGE"]),
-    ("stair", ["STAIR", "STAIRCASE", "UP", "DN"]),
-]
-OUTDOOR = {"open", "garden", "parking", "balcony", "yard"}
+# room types and the labels that name them: web/rooms.json, matched by rooms.classify (whole words, abbreviations,
+# near spellings). ROOM_TYPES keeps the old shape for code that lists the types.
+ROOM_TYPES = [(t, VOCAB_PHRASES.get(t, [])) for t in rooms.TYPES]
+OUTDOOR = rooms.kinds("outdoor", "covered", "void", "water")
 DIM = re.compile(r"""^(\d+)'?(?:-?(\d+)"?)?\s*[xX×]\s*(\d+)'?(?:-?(\d+)"?)?$""")
 FT = re.compile(r"""^(\d+)'(?:-?(\d+)"?)?$""")
 
 
 def room_type(words):
-    toks = [t.strip(".,:()").upper() for w in words for t in re.split(r"[\s/]+", w)]
-    for typ, keys in ROOM_TYPES:
-        for k in keys:
-            if any(t == k.strip(".") or t.startswith(k.strip(".")) and len(k) >= 3 for t in toks):
-                return typ
-    return None
+    """the room type a label names, or None (rooms.classify)"""
+    return rooms.classify(" ".join(words))[0]
 
 
 METRIC = re.compile(r"^(\d+(?:\.\d+)?)(MM|CM|M)?[X×](\d+(?:\.\d+)?)(MM|CM|M)?$")

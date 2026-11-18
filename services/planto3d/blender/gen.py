@@ -46,13 +46,68 @@ mat("turf", tex="leafy_grass", tile=1.0, tint=(0.5, 0.75, 0.35))
 mat("exterior", (0.93, 0.91, 0.87), 0.9, tex="white_plaster_02", tile=2.5, albedo=False)
 mat("cushion", rough=0.95, tex="caban", tile=0.5, tint=(0.55, 0.45, 0.35))
 
-FLOOR_MAT = dict(dress="wood", bedroom="wood", toilet="bathtile", kitchen="marble", living="marble", dining="marble", puja="marble",
-                 wash="concrete", store="concrete", study="wood", passage="tile", balcony="terracotta",
-                 garden="turf", open="pebbles", parking="pavers", yard="pavers", stair="stair", room="tile",
-                 duct="concrete")
-OPEN_SKY = {"open", "garden", "yard"}      # no slab above these
-VOID = {"open"}       # OPEN, SHAFT, DUCT, CUTOUT, VOID: open down to the storey below, on any storey
-INDOOR = {"bedroom", "toilet", "kitchen", "living", "dining", "puja", "study", "store", "passage", "room", "wash", "dress"}
+import rooms  # noqa: E402
+
+# room types (web/rooms.json): floor material, which rooms get a ceiling, lamp and furniture, which are open to the sky
+FLOOR_MAT = {t: v["floor"] for t, v in rooms.TYPES.items()}
+OPEN_SKY = rooms.kinds("outdoor", "water", "void")       # no slab above these
+VOID = rooms.kinds("void")    # OPEN, SHAFT, CUTOUT, VOID: open down to the storey below, on any storey
+INDOOR = rooms.kinds("indoor")
+WATER, SHAFT = rooms.kinds("water"), rooms.kinds("shaft")
+mat("pooltile", (0.62, 0.82, 0.9), 0.3, tex="large_floor_tiles_02", tile=0.6, tint=(0.62, 0.84, 0.95), grey=True)
+mat("water", (0.05, 0.38, 0.52), 0.03, alpha=0.55)
+mat("deck", tex="laminate_floor_02", tile=1.2, tint=(0.62, 0.45, 0.3))
+mat("coping", (0.88, 0.85, 0.8), 0.6)
+
+
+def water_parts(zn, k):
+    """a pool: a basin sunk 4.5 ft (raised 1.5 ft on an upper storey) lined with tile, coping round it, three steps
+    at one short end and a water plane; a water body or fountain: a shallow basin; a dock: water with a walkable plank
+    deck along its two long sides, on posts. -> (boxes, walkable rects); the rest of the zone is closed to the walker"""
+    out, walk = [], []
+    for r in zn["rects"]:
+        x0, x1, y0, y1 = r
+        if zn["type"] == "dock":
+            long_x = x1 - x0 >= y1 - y0
+            d = min(4.0, (min(x1 - x0, y1 - y0)) / 3)
+            out.append((x0, x1, y0, y1, -3.0, -1.2, "water"))
+            decks = [(x0, x1, y0, y0 + d), (x0, x1, y1 - d, y1)] if long_x else [(x0, x0 + d, y0, y1), (x1 - d, x1, y0, y1)]
+            for q in decks:
+                out.append((*q, -0.25, 0.0, "deck"))
+                walk.append(q)
+                n = max(2, int(max(q[1] - q[0], q[3] - q[2]) / 6) + 1)
+                for i in range(n):          # posts down into the water
+                    t = i / (n - 1)
+                    px, py = (q[0] + (q[1] - q[0]) * t, (q[2] + q[3]) / 2) if long_x else ((q[0] + q[1]) / 2, q[2] + (q[3] - q[2]) * t)
+                    out.append((px - 0.3, px + 0.3, py - 0.3, py + 0.3, -3.5, 0.2, "deck"))
+            continue
+        pool = zn["type"] == "pool"
+        deep = (4.5 if k == 0 else -1.5) if pool else (1.0 if k == 0 else -0.8)
+        c = 0.8 if pool else 0.5                      # coping width
+        out += [(x0, x1, y0, y0 + c, -0.1, 0.15, "coping"), (x0, x1, y1 - c, y1, -0.1, 0.15, "coping"),
+                (x0, x0 + c, y0, y1, -0.1, 0.15, "coping"), (x1 - c, x1, y0, y1, -0.1, 0.15, "coping")]
+        b = (x0 + c, x1 - c, y0 + c, y1 - c)
+        if deep > 0:                                  # sunk into the ground: lining walls and a floor
+            t = 0.3
+            out += [(b[0], b[1], b[2], b[3], -deep - t, -deep, "pooltile"),
+                    (b[0], b[1], b[2], b[2] + t, -deep, -0.1, "pooltile"), (b[0], b[1], b[3] - t, b[3], -deep, -0.1, "pooltile"),
+                    (b[0], b[0] + t, b[2], b[3], -deep, -0.1, "pooltile"), (b[1] - t, b[1], b[2], b[3], -deep, -0.1, "pooltile")]
+            if pool and min(b[1] - b[0], b[3] - b[2]) > 5:        # three steps down at one short end
+                along_x = b[1] - b[0] >= b[3] - b[2]
+                for i in range(3):
+                    top = -(i + 1) * deep / 4
+                    q = (b[0] + t + i * 1.2, b[0] + t + (i + 1) * 1.2, b[2] + t, b[3] - t) if along_x else \
+                        (b[0] + t, b[1] - t, b[2] + t + i * 1.2, b[2] + t + (i + 1) * 1.2)
+                    out.append((*q, -deep, top, "pooltile"))
+            out.append((*b, -0.5, -0.45, "water"))
+        else:                                         # on a slab: a raised basin
+            h = -deep
+            t = 0.4
+            out += [(b[0], b[1], b[2], b[3], 0.0, 0.1, "pooltile"),
+                    (x0, x1, y0, y0 + t, 0, h + 0.15, "coping"), (x0, x1, y1 - t, y1, 0, h + 0.15, "coping"),
+                    (x0, x0 + t, y0, y1, 0, h + 0.15, "coping"), (x1 - t, x1, y0, y1, 0, h + 0.15, "coping"),
+                    (*b, h - 0.3, h - 0.25, "water")]
+    return out, walk
 
 
 # ------------------------------------------------------------------ helpers
@@ -551,11 +606,22 @@ for k, f in enumerate(floors):
     fl = {}
     well = [(*r, -9, 99) for r in well_prev]
     slab, voids = upper_slab(k, well) if k else ([], [])
+    water, wet_walk = [], []
     for zn in f["rooms"]:
+        if zn["type"] in WATER:            # built as water, not as a floor (water_parts)
+            parts, deck = water_parts(zn, k)
+            water += parts
+            wet_walk += deck
+            continue
         m = FLOOR_MAT.get(zn["type"], "tile")
         fl.setdefault(m, []).extend((*b[:4], -0.02, 0.0, m) for r in zn["rects"] for b in subtract_all([(*r, -0.02, 0.0)], well + voids))
     for m, bs in fl.items():
         mesh_from_boxes(f"floor_{k}_{m}", bs)
+    if water:
+        mesh_from_boxes(f"water_{k}", water)
+    # the walker cannot enter water (except a dock's deck) or a lift / duct shaft
+    closed = subtract_all([(*r, 0, 1) for zn in f["rooms"] if zn["type"] in WATER | SHAFT for r in zn["rects"]],
+                          [(*q, 0, 1) for q in wet_walk])
     # wall tiles to 7 ft in toilets
     # (the room's cells stop a little short of the wall face, so door holes are widened across for the tiles,
     # and edges shared by two slices of the same room are not walls)
@@ -628,7 +694,7 @@ for k, f in enumerate(floors):
     META_FLOORS.append(dict(
         name=f.get("name", f"Floor {k}"), z=round(z * F_, 3), height=round(H * F_, 3),
         colliders=[m(b) for b in subtract_all([(*w[:4], 0, 1) for w in f["walls"]] + sills,
-                                              [(c[0], c[1], c[2], c[3], 0, 1) for c in cuts if c[4] < 1])] + [m(b) for b in guards],
+                                              [(c[0], c[1], c[2], c[3], 0, 1) for c in cuts if c[4] < 1])] + [m(b) for b in guards] + [m(b) for b in closed],
         # an upper storey can be walked on only where its slab is; the ground storey everywhere
         **({"floor": [m(b) for b in slab]} if k or BASE else {}),
         # what was built at each opening of the plan, in plan order: glazed with a sill (window), or cut to the

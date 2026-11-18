@@ -26,10 +26,11 @@ slanted one becomes a run of short steps (or is left out, `diagonal="skip"`), an
 openings are dropped. Every such approximation is written to `ConvertResult.notes`.
 """
 
+import importlib.util
 import math
-import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal
 
 FT_PER_M = 1 / 0.3048
@@ -38,42 +39,28 @@ FT_PER_M = 1 / 0.3048
 _TO_FT = {"m": FT_PER_M, "cm": FT_PER_M / 100, "mm": FT_PER_M / 1000, "ft": 1.0, "in": 1 / 12}
 
 # ---------------------------------------------------------------- PlanTo3D's vocabulary
-# web/edit.js TYPES: the room types the review page offers and the builder has a floor for.
-PLANTO3D_TYPES = (
-    "bedroom", "toilet", "kitchen", "living", "dining", "puja", "wash", "store", "study",
-    "passage", "balcony", "garden", "open", "parking", "yard", "stair", "room", "duct", "dress",
-)  # fmt: skip
-OUTDOOR = frozenset({"open", "garden", "parking", "balcony", "yard"})  # detect.py OUTDOOR
-INDOOR = frozenset(  # blender/gen.py INDOOR: rooms with a ceiling, a lamp and furniture
-    {
-        "bedroom", "toilet", "kitchen", "living", "dining", "puja", "study", "store",
-        "passage", "room", "wash", "dress",
-    }
-)  # fmt: skip
+# Room types and the labels that name them live in one file inside PlanTo3D (web/rooms.json),
+# matched by its rooms.py. The detector, the furniture rules, the builder and the review page use
+# the same file, so a room is typed the same way whoever read the drawing. rooms.py is
+# standard-library Python, loaded from its file.
+_PLANTO3D = Path(__file__).resolve().parents[4] / "services" / "planto3d"
 
-# detect.py ROOM_TYPES, copied so a room is typed the same way whoever read the drawing.
-# First match wins; a keyword of three letters or more also matches as a prefix.
-ROOM_TYPES: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("toilet", ("TOI", "TOILET", "BATH", "W.C", "WC", "WASHROOM", "LAV", "POWDER")),
-    ("bedroom", ("BED", "BEDROOM", "BEDRM", "B.R", "M.BED", "MASTER", "GUEST", "KIDS")),
-    ("kitchen", ("KIT", "KITCHEN", "PANTRY")),
-    ("dining", ("DIN", "DINING")),
-    ("living", ("LIV", "LIVING", "DRG", "DRAWING", "LOUNGE", "HALL", "FAMILY", "SITTING")),
-    ("puja", ("PUJA", "POOJA", "MANDIR", "PRAYER", "TEMPLE")),
-    ("wash", ("WASH", "UTILITY", "LAUNDRY", "DRY")),
-    ("dress", ("DRESS", "DRESSING", "WARDROBE", "W.I.C")),
-    ("store", ("STORE", "STR", "STORAGE")),
-    ("study", ("STUDY", "OFFICE", "LIBRARY")),
-    ("passage", ("PASSAGE", "LOBBY", "CORRIDOR", "FOYER", "ENTRANCE", "PASS")),
-    (
-        "balcony",
-        ("BALCONY", "SITOUT", "SIT-OUT", "VERANDAH", "VERANDA", "TERRACE", "DECK", "PORCH"),
-    ),
-    ("garden", ("LAWN", "GARDEN", "COURTYARD", "OTS")),
-    ("open", ("OPEN", "SHAFT", "DUCT", "CUTOUT", "VOID")),
-    ("parking", ("PARKING", "CAR", "GARAGE")),
-    ("stair", ("STAIR", "STAIRCASE", "UP", "DN")),
-)
+
+def _load_rooms() -> Any:
+    spec = importlib.util.spec_from_file_location("planto3d_rooms", _PLANTO3D / "rooms.py")
+    if spec is None or spec.loader is None:
+        raise ImportError(f"PlanTo3D's rooms.py is missing under {_PLANTO3D}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+ROOMS = _load_rooms()
+PLANTO3D_TYPES = tuple(ROOMS.TYPES)
+OUTDOOR = frozenset(ROOMS.kinds("outdoor", "covered", "void", "water"))  # detect.py OUTDOOR
+INDOOR = frozenset(ROOMS.kinds("indoor"))  # blender/gen.py INDOOR: ceiling, lamp, furniture
+UNKNOWN = "multipurpose"  # a named room no label rule knows: built unfurnished, flagged for review
+
 
 # The floor plan generator's room types (ai/floorplan/schemas/common.py RoomType), which it
 # stores as `room.tag`. PlanTo3D has no pool: it becomes an open paved yard that keeps its name.
@@ -83,7 +70,7 @@ GENERATOR_TAGS = {
     "bath": "toilet", "toilet": "toilet", "dress": "dress", "store": "store", "study": "study",
     "lobby": "passage", "passage": "passage", "foyer": "passage", "utility": "wash",
     "stair": "stair", "courtyard": "garden", "garden": "garden", "balcony": "balcony",
-    "parking": "parking", "pool": "yard", "deck": "balcony", "shaft": "open", "other": "room",
+    "parking": "parking", "pool": "pool", "deck": "balcony", "shaft": "open", "other": "room",
 }  # fmt: skip
 # plans/room_types.py BoqType: what the parser decided a room is used for.
 BOQ_TYPES = {
@@ -218,22 +205,9 @@ def _is_horizontal(r: Sequence[float]) -> bool:
 
 
 def room_type_from_name(name: str) -> str | None:
-    """PlanTo3D's room type for a room label, by detect.py's keyword rule.
-
-    Unlike detect.py the parts of a dotted word are looked at too, so "ENT.LOBBY" is a
-    passage and "M.BED" a bedroom.
-    """
-    tokens: list[str] = []
-    for raw in re.split(r"[\s/]+", name):
-        whole = raw.strip(".,:()").upper()
-        tokens.append(whole)
-        tokens += [part for part in whole.split(".") if part]
-    for room_type, keys in ROOM_TYPES:
-        for key in keys:
-            k = key.strip(".")
-            if any(t == k or (len(key) >= 3 and t.startswith(k)) for t in tokens):
-                return room_type
-    return None
+    """PlanTo3D's room type for a room label (rooms.classify: whole words, abbreviations,
+    near spellings), or None when no rule knows the label."""
+    return ROOMS.classify(name)[0] if name else None
 
 
 def room_type(room: Mapping[str, Any]) -> str:
@@ -250,6 +224,8 @@ def room_type(room: Mapping[str, Any]) -> str:
     boq = room.get("boq_type")
     if isinstance(boq, str) and boq in BOQ_TYPES:
         return BOQ_TYPES[boq]
+    if _text(room.get("name")):
+        return UNKNOWN  # a name no rule knows: never a silent guess from the room's kind
     kind = room.get("boq_kind") if room.get("kind") is None else room.get("kind")
     return ROOM_KINDS.get(kind, "room") if isinstance(kind, str) else "room"
 
@@ -628,10 +604,16 @@ def _floor(
             continue
         if approximated:
             say(f"room {shown} has slanted edges: its floor is made of {len(rects)} rectangles.")
+        typ = room_type(raw)
+        if typ == UNKNOWN:
+            say(
+                f"room {shown}: the label is not known; it is built as an unfurnished room. "
+                "Choose its type."
+            )
         rooms.append(
             {
                 "region": len(rooms) + 2,  # detect.py numbers its flood-fill regions from 2
-                "type": room_type(raw),
+                "type": typ,
                 "area": area,
                 "label": label,
                 "dims": None,

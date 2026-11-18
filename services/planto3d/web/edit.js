@@ -9,11 +9,13 @@ const EMBED = new URLSearchParams(location.search).has('embed') && parent !== wi
 const tell = (m) => EMBED && parent.postMessage({ source: 'planto3d', job, ...m }, '*');
 if (EMBED) document.body.classList.add('embed');
 const cv = $('cv'), g = cv.getContext('2d');
-const TYPES = ['bedroom', 'toilet', 'kitchen', 'living', 'dining', 'puja', 'wash', 'store', 'study', 'passage',
-  'balcony', 'garden', 'open', 'parking', 'yard', 'stair', 'room', 'duct', 'dress'];
-const ZCOL = { bedroom: '#c8a2c8', toilet: '#8fc7e8', kitchen: '#f2c48d', living: '#e9d48a', dining: '#e7b7a0', puja: '#f0a0a0',
-  wash: '#a8d5c2', store: '#bbb', study: '#b8c9a0', passage: '#d9d2c3', balcony: '#b6dfa0', garden: '#7fc97f', open: '#9fd8d0',
-  parking: '#c9c9d6', yard: '#cfe6b8', stair: '#c49a6c', room: '#dcdcdc', duct: '#999', dress: '#e3d2b8' };
+// room types, their names and colours: rooms.json (the list the detector and the builder use); filled in by poll()
+let TYPES = [], TYPE_LABEL = {};
+const ZCOL = {};
+const typesReady = fetch('rooms.json').then((r) => r.json()).then((v) => {
+  TYPES = Object.keys(v.types);
+  for (const [t, d] of Object.entries(v.types)) { ZCOL[t] = d.colour; TYPE_LABEL[t] = d.label; }
+}).catch(() => { TYPES = ['room']; });
 const D = 100 / 72;          // page image px per PDF point
 const FT_100 = 72 / 25.4 * 304.8 / 100;      // page points per foot at 1:100 (server.py FT_100)
 // what each reader's plan needs checking for (the reader's own notice, from the server, follows)
@@ -439,7 +441,7 @@ function ui() {
     };
   } else if (sel.kind === 'room') {
     const z = f.rooms[sel.i];
-    const rt = el('select', { id: 'rt' }, ...TYPES.map((t) => new Option(t, t)));
+    const rt = el('select', { id: 'rt' }, ...TYPES.map((t) => new Option(TYPE_LABEL[t] || t, t)));
     const rl = el('input', { type: 'text', id: 'rl', style: 'width:160px', value: z.label || '' });
     P.append(el('h3', { textContent: 'Room' }), row(el('span', { textContent: 'Type' }), rt),
       el('div', { className: 'row', style: 'margin-top:6px' }, el('span', { textContent: 'Label' }), rl),
@@ -747,7 +749,7 @@ $('build').onclick = async () => {
   if (!r.ok) { alert(j.error); $('build').disabled = false; return; }
   buildStatus({ stage: 'queued', progress: 0, message: 'Queued' });
 };
-poll();
+typesReady.then(poll);
 if (EMBED) addEventListener('message', async (e) => {         // only the page that frames this one is listened to
   if (e.source !== parent || !e.data || e.data.source !== 'planto3d-host' || e.data.type !== 'save') return;
   if (!plan) return tell({ type: 'saved', ok: false, error: 'The plan is not loaded yet.' });
