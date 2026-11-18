@@ -13,6 +13,9 @@ cd "$(dirname "$0")/../services/planto3d"
 for arg in "$@"; do
   case "$arg" in
     --host|--cors) echo "run_planto3d.sh always binds 127.0.0.1 and never enables CORS."; exit 2 ;;
+    # developers: the review page (opened directly at http://127.0.0.1:<port>/web/edit.html?job=<id>) offers
+    # "Save as reference", which writes the corrected plan to docs/reference/truth/ (git-ignored)
+    --dev) export PLAN3D_TRUTH_DIR="$(cd ../.. && pwd)/docs/reference/truth" ;;
   esac
 done
 if [ -z "${BLENDER:-}" ] && ! command -v blender >/dev/null 2>&1; then

@@ -727,6 +727,15 @@ $('save').onclick = async () => {        // a traced plan is long work: keep it 
   $('saved').className = r.ok ? 'muted' : 'err';
   setTimeout(() => { $('saved').textContent = ''; }, 2500);
 };
+// developers only (the server has PLAN3D_TRUTH_DIR): keep the corrected plan as a reference for tools/score_plan.py
+fetch('../api/system').then((r) => r.json()).then((s) => { $('truth').hidden = !s.truth || EMBED; }).catch(() => {});
+$('truth').onclick = async () => {
+  const r = await fetch(`../api/jobs/${job}/reference`, { method: 'POST', body: JSON.stringify(plan) });
+  const b = await r.json().catch(() => ({}));
+  $('saved').textContent = r.ok ? `Reference saved: ${b.name}` : (b.error || 'Not saved');
+  $('saved').className = r.ok ? 'muted' : 'err';
+  setTimeout(() => { $('saved').textContent = ''; }, 4000);
+};
 $('build').onclick = async () => {
   const why = checkBuildable();
   if (why) { $('why').classList.remove('flash'); void $('why').offsetWidth; $('why').classList.add('flash'); return; }

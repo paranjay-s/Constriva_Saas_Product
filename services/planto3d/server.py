@@ -61,6 +61,11 @@ assets_job = dict(running=False, done=0, total=0, failed=[])
 export_lock = threading.Lock()
 
 
+# Developers only: with PLAN3D_TRUTH_DIR set, the review page offers "Save as reference", which writes the corrected
+# plan there as <drawing name>.json, to score the readers against (tools/score_plan.py). Unset in production.
+TRUTH_DIR = os.environ.get("PLAN3D_TRUTH_DIR") or ""
+
+
 def system():
     """what must be in place before a plan is accepted (shown on the home page, enforced on upload and build)"""
     global _blender
@@ -75,7 +80,7 @@ def system():
         pdf_tools=dict(ok=all(shutil.which(c) for c in ("pdftocairo", "pdftotext", "pdfinfo"))),
         viewer=dict(ok=os.path.isfile(os.path.join(THREE, "build", "three.module.js"))),
         materials=dict(ok=not fetch_assets.missing(), **assets_job))
-    return dict(ready=all(c["ok"] for c in checks.values()), **checks)
+    return dict(ready=all(c["ok"] for c in checks.values()), truth=bool(TRUTH_DIR), **checks)
 
 
 def fetch_materials():
@@ -708,6 +713,17 @@ class H(BaseHTTPRequestHandler):
                 reading.add(jid)
                 threading.Thread(target=run_detect, args=(jid,), daemon=True).start()
                 return self.send(200, {"id": jid})
+            m = re.match(r"^/api/jobs/([a-f0-9]{12})/reference$", p)
+            if m and TRUTH_DIR and os.path.isdir(jdir(m.group(1))):
+                plan = json.loads(self.body() or b"null")
+                if not isinstance(plan, dict) or not isinstance(plan.get("floors"), list) or not plan["floors"]:
+                    return self.send(400, {"error": "invalid plan"})
+                stem = os.path.splitext((read_status(m.group(1)) or {}).get("name") or m.group(1))[0]
+                stem = re.sub(r"[^A-Za-z0-9._-]+", "_", stem).strip("._")[:100] or m.group(1)
+                os.makedirs(TRUTH_DIR, exist_ok=True)
+                with open(os.path.join(TRUTH_DIR, stem + ".json"), "w") as fh:
+                    json.dump(plan, fh, indent=1)
+                return self.send(200, {"ok": True, "name": stem + ".json"})
             m = re.match(r"^/api/jobs/([a-f0-9]{12})/import$", p)
             if m and os.path.isdir(jdir(m.group(1))):
                 return self.import_plan(m.group(1))

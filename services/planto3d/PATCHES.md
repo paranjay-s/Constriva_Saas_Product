@@ -176,3 +176,14 @@ the sample in eleven ways and reads each (in `tests/run_all.sh`). Known limit: a
 /Rotate 90 or 180, or drawn turned) is read as it lies: every wall, opening and room is found, but the house is a
 quarter turn round and a sideways title is not found, so the floor is named "Floor 0". The sample, OPT 5, the SF plan
 and paranjay-villa.pdf are read exactly as before.
+
+## 14. Reference plans and a scorecard, for developers (server.py, web/edit.html, edit.js, tools/score_plan.py)
+
+Why: accuracy has to be measured against plans corrected by hand before readers are changed.
+
+What: with `PLAN3D_TRUTH_DIR` set (`scripts/run_planto3d.sh --dev` sets it to `docs/reference/truth/`, which git
+ignores), `GET /api/system` says `truth: true`, the standalone review page shows "Save as reference", and
+`POST /api/jobs/{id}/reference` writes the plan as `<drawing name>.json` there. Without the setting the endpoint is a
+404 and the button stays hidden; it is never shown in embed mode. `tools/score_plan.py detected.json reference.json`
+reports wall length recall and precision (within 0.15 m, parallel), doors and windows found (same type, centre within
+0.5 m), room type accuracy and room area error, per floor.
