@@ -17,11 +17,12 @@ export function entrance(meta) {
   return { x: (q[0] + q[1]) / 2, y: (q[2] + q[3]) / 2 };
 }
 
-/** storey k has a floor at (x, y): the ground storey everywhere (it stands on the site), an upper storey only on its
- *  slab. A house built before the slab outline was written (no `floor`) keeps the old rule: everywhere. */
+/** storey k has a floor at (x, y): a storey on the ground everywhere (it stands on the site), one above the ground
+ *  only on its slab (`floor`, also written for a lone upper storey built on a block). A house built before the slab
+ *  outline was written (no `floor`) keeps the old rule: everywhere. */
 export function onFloor(meta, k, x, y) {
   const f = meta.floors[k];
-  return k === 0 || !f.floor || f.floor.some((r) => inRect(r, x, y, 0.01));
+  return !f.floor || f.floor.some((r) => inRect(r, x, y, 0.01));
 }
 
 /** what the page names as where you are: the room of storey lv under (x, y), or '' */

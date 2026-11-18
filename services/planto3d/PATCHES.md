@@ -112,3 +112,13 @@ storey a floor only there (houses built earlier keep the old rule); the map in `
 where it has a floor, and `walk.roomAt` names the room. `tests/test_storeys.mjs` walks from every outdoor room of
 every upper storey in four directions and fails if the walker leaves that storey's height or its rooms; it is in
 `tests/run_all.sh`. `tests/test_openings.mjs` asks an opening to be passable only where there is floor on both sides.
+
+## 10. A plan of an upper storey alone is built at its own height (blender/gen.py, web/walk.js, tests/test_storeys.mjs)
+
+Why: a drawing of one upper storey (for example a plan titled SECOND FLOOR) was built on the ground. Its terraces
+and lawns became real ground with garden furniture, and the walker named "Second Floor" walked out onto the site.
+
+What: when the lowest storey's title says FIRST, SECOND, THIRD, FOURTH or FIFTH, `gen.py` raises the whole house by
+that many storeys (`BASE`), builds a plain block under the outline for the storeys that are not drawn, puts the storey
+on a slab with parapets at its open edges, and writes its `floor` to `meta.json`, so `walk.js` (`onFloor`, now keyed
+on `floor` alone) keeps the walker on it. `tests/test_storeys.mjs` covers every storey that has a `floor`.

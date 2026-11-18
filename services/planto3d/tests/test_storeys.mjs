@@ -14,7 +14,7 @@ const overRooms = (f, p) => f.rooms.some((r) => r.type !== 'open' && r.rects.som
 const onStairs = (k, p) => [k - 1, k].some((j) => (meta.floors[j]?.stairs || []).some((s) => walk.inRect(s.rect, p.x, p.y, 0.25)));
 
 meta.floors.forEach((f, k) => {
-  if (k === 0) return;
+  if (!f.floor) return;                 // on the ground: walking off it is fine
   for (const room of f.rooms.filter((r) => OUTDOOR.includes(r.type))) {
     for (const q of room.rects) {
       const cx = (q[0] + q[1]) / 2, cy = (q[2] + q[3]) / 2;

@@ -29,6 +29,11 @@ FFH = H + SLAB
 lib.WALL_H = H
 floors = plan["floors"]
 NF = len(floors)
+# A plan whose lowest storey is titled FIRST, SECOND... FLOOR is an upper storey drawn on its own: it is built at its
+# own height, on a plain block that stands for the storeys that are not drawn, so its terraces are not the ground.
+UPPER_TITLES = ["FIRST", "SECOND", "THIRD", "FOURTH", "FIFTH"]
+_title = (floors[0].get("title") or floors[0].get("name") or "").upper() if floors else ""
+BASE = next((i + 1 for i, t in enumerate(UPPER_TITLES) if t in _title.split()), 0)
 progress(2, "building walls")
 
 mat("tile", tex="large_floor_tiles_02", tile=1.5)
@@ -471,10 +476,10 @@ stair_box_prev = None
 HEADROOM = 7.0
 well_prev = []
 for k, f in enumerate(floors):
-    z = k * FFH
+    z = (k + BASE) * FFH
     set_level(z)
     before = set(bpy.data.objects)
-    low_h = 5.0 if k == 0 else 3.5
+    low_h = 5.0 if k == 0 and not BASE else 3.5      # boundary walls on the ground, parapets above it
     cuts, wins, door_list = [], [], []
     for o in f["openings"]:
         x0, x1, y0, y1 = o["rect"]
@@ -571,7 +576,16 @@ for k, f in enumerate(floors):
     # slab under this storey (k >= 1, see upper_slab), with parapets where its edge drops away
     bb = bboxes[k]
     guards = []
-    if k == 0:
+    if k == 0 and BASE:
+        # the storeys below are not drawn: a plain block under the outline, and this storey's floor is a slab on it
+        mesh_from_boxes("plinth", [(bb[0] - 0.2, bb[1] + 0.2, bb[2] - 0.2, bb[3] + 0.2, -z - 0.6, -z - 0.02, "concrete")])
+        mesh_from_boxes("storeys_below", [(*bb, -z - 0.02, -SLAB, "exterior")])
+        slab = [(*bb, -SLAB, -0.02)]
+        mesh_from_boxes(f"slab_{k}", [(*b[:4], -SLAB, -0.02, "ceiling") for b in slab])
+        guards = edge_guards(f, slab, well)
+        if guards:
+            mesh_from_boxes(f"guards_{k}", [(*b, "exterior") for b in guards])
+    elif k == 0:
         mesh_from_boxes("plinth", [(bb[0] - 0.2, bb[1] + 0.2, bb[2] - 0.2, bb[3] + 0.2, -0.6, -0.02, "concrete")])
     else:
         mesh_from_boxes(f"slab_{k}", [(*b[:4], -SLAB, -0.02, "ceiling") for b in slab])
@@ -616,7 +630,7 @@ for k, f in enumerate(floors):
         colliders=[m(b) for b in subtract_all([(*w[:4], 0, 1) for w in f["walls"]] + sills,
                                               [(c[0], c[1], c[2], c[3], 0, 1) for c in cuts if c[4] < 1])] + [m(b) for b in guards],
         # an upper storey can be walked on only where its slab is; the ground storey everywhere
-        **({"floor": [m(b) for b in slab]} if k else {}),
+        **({"floor": [m(b) for b in slab]} if k or BASE else {}),
         # what was built at each opening of the plan, in plan order: glazed with a sill (window), or cut to the
         # floor with a door frame (door / plain opening). tests/test_openings.mjs holds it against plan.json.
         openings=[dict(type=o["type"], built="window" if c[4] > 0 else "doorway", rect=m(o["rect"]),
@@ -629,7 +643,7 @@ for k, f in enumerate(floors):
     progress(5 + 25 * (k + 1) / NF, f"built {f.get('name', k)}")
 
 # ------------------------------------------------------------------ roof + parapet + stair cabin (mumty)
-top = NF * FFH
+top = (NF + BASE) * FFH
 set_level(top)
 before = set(bpy.data.objects)
 bb = bboxes[-1]
