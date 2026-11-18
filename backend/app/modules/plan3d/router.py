@@ -27,6 +27,7 @@ GET | POST | DELETE /embed/{token}/{path}
 """
 
 import logging
+import re
 from collections.abc import AsyncIterator
 from typing import Annotated, Any
 
@@ -61,6 +62,26 @@ from app.modules.plan3d.store import JobStore, get_job_store
 from app.modules.projects.service import user_owns_project
 
 logger = logging.getLogger("construtiva.plan3d.router")
+
+
+class RedactEmbedTokens(logging.Filter):
+    """An embed token is a credential in the URL: access logs show /embed/<redacted>/..."""
+
+    PATTERN = re.compile(r"(/api/v1/3d/embed/)[^/\s\"?]+")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                self.PATTERN.sub(r"\1<redacted>", a) if isinstance(a, str) else a
+                for a in record.args
+            )
+        if isinstance(record.msg, str):
+            record.msg = self.PATTERN.sub(r"\1<redacted>", record.msg)
+        return True
+
+
+for _name in ("uvicorn.access", "uvicorn.error", "construtiva"):
+    logging.getLogger(_name).addFilter(RedactEmbedTokens())
 router = APIRouter()
 
 User = Annotated[AuthenticatedUser, Depends(get_current_user)]
@@ -401,6 +422,10 @@ async def embedded(token: str, path: str, request: Request, planto3d: Service) -
     passed = {name: upstream.headers[name] for name in PASSED_HEADERS if name in upstream.headers}
     # The token is in the URL: do not leak it in a Referer, and let only our frontend frame this.
     passed["Referrer-Policy"] = "no-referrer"
+    # never kept by a shared cache (the URL carries the token), whatever PlanTo3D said
+    upstream_cc = passed.get("cache-control", "")
+    passed.pop("cache-control", None)
+    passed["Cache-Control"] = "private" + (f", {upstream_cc}" if upstream_cc else "")
     passed["X-Content-Type-Options"] = "nosniff"
     passed["Content-Security-Policy"] = f"frame-ancestors {service.frame_ancestors()}"
     if path.endswith(".zip"):

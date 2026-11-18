@@ -459,7 +459,7 @@ def test_embedded_responses_are_framed_only_by_our_frontend_and_leak_nothing(cli
     assert policy.startswith("frame-ancestors 'self' ") and app_settings.frontend_origin in policy
     assert page.headers["referrer-policy"] == "no-referrer"
     assert page.headers["x-content-type-options"] == "nosniff"
-    assert page.headers["cache-control"] == "no-cache"
+    assert page.headers["cache-control"] == "private, no-cache"
     assert "PlanTo3D" not in page.headers.get("server", "")  # only chosen headers pass
     assert "access-control-allow-origin" not in page.headers
 
@@ -623,3 +623,30 @@ def test_the_page_proxy_is_the_only_gateway_route_without_bearer_auth():
     )
     assert open_routes == ["/embed/{token}/{path:path}"]
     assert len(router.routes) == 14
+
+
+def test_embed_tokens_are_redacted_from_logs_and_responses_are_private(client, planto3d):
+    import logging
+
+    from app.modules.plan3d.router import RedactEmbedTokens
+
+    job_id = upload(client)
+    base = embed(client, job_id)["base_url"]
+    r = client.get(f"{base}/web/edit.html")
+    assert r.headers["cache-control"].startswith("private")
+    assert r.headers["referrer-policy"] == "no-referrer"
+    token = base.rsplit("/", 1)[-1]
+    rec = logging.LogRecord(
+        "uvicorn.access",
+        logging.INFO,
+        "",
+        0,
+        '%s - "%s %s"',
+        ("1.2.3.4", "GET", f"{base}/web/edit.html"),
+        None,
+    )
+    RedactEmbedTokens().filter(rec)
+    assert (
+        token not in rec.getMessage()
+        and "/api/v1/3d/embed/<redacted>/web/edit.html" in rec.getMessage()
+    )
