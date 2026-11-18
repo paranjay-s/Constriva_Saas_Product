@@ -36,25 +36,34 @@ export function blockedAt(meta, lv, x, y) {
 }
 
 /** every walkable height under (x, y): storey floors, the roof, stair flights (a ramp) and landings */
+// The floor above a stair is cut only where the steps below come within head height of it, and over landings
+// (gen.py builds the same hole): over the first steps of a flight there is floor.
+export const HEADROOM = 2.1;
+
+function stepHeight(s, x, y) {
+  if (s.landing) return s.z0;
+  const a = s.axis === 'x' ? x : y;
+  const len = s.axis === 'x' ? s.rect[1] - s.rect[0] : s.rect[3] - s.rect[2];
+  const t = Math.min(1, Math.max(0, (a - s.start) * s.dir / len));
+  return s.z0 + (s.z1 - s.z0) * t;
+}
+
 export function heights(meta, x, y) {
-  const planes = [...meta.floors.map((f) => f.z), meta.roof_z];
+  const levels = [...meta.floors.map((f) => f.z), meta.roof_z];
+  const planes = [...levels];
   const out = [];
   const shut = closed(meta);
   meta.floors.forEach((f, k) => {
     if (k === shut) return;
     for (const s of f.stairs || []) {
       if (!inRect(s.rect, x, y, 0.05)) continue;
-      planes[k] = planes[k + 1] = null;      // steps cover this floor; the slab above has the stairwell hole
+      planes[k] = null;                      // steps cover this floor
+      if (stepHeight(s, x, y) > levels[k + 1] - HEADROOM) planes[k + 1] = null;   // the stairwell hole above
     }
   });
   out.push(...planes.filter((z) => z !== null));
   for (const f of meta.floors.filter((_, k) => k !== shut)) for (const s of f.stairs || []) {
-    if (!inRect(s.rect, x, y, 0.05)) continue;
-    if (s.landing) { out.push(s.z0); continue; }
-    const a = s.axis === 'x' ? x : y;
-    const len = s.axis === 'x' ? s.rect[1] - s.rect[0] : s.rect[3] - s.rect[2];
-    const t = Math.min(1, Math.max(0, (a - s.start) * s.dir / len));
-    out.push(s.z0 + (s.z1 - s.z0) * t);
+    if (inRect(s.rect, x, y, 0.05)) out.push(stepHeight(s, x, y));
   }
   return out;
 }

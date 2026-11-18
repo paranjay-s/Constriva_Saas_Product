@@ -80,3 +80,18 @@ the walker's colliders, and writes what it built at every opening to `meta.json`
 as window or doorway, rect, sill, head). `tests/test_doorway.py` (detector) and `tests/test_openings.mjs` (every
 opening of a built house against `plan.json`: type, position, sill, and whether the walker can pass) are in
 `tests/run_all.sh`. The sample plan and OPT 5 are read exactly as before.
+
+## 8. Stairs climb from their UP mark, and the floor above a stair is cut only where it must be (blender/gen.py, web/walk.js, tests/test_walk.mjs)
+
+Why: two defects. (a) Stairs ran in reverse. The detector marks every flight near an UP word as `up`, and the two
+flights of a dog-leg lie side by side, so both got it; `stair_parts` started the climb on whichever flight was listed
+first, which in OPT 5 and the SF plan was the flight that holds DN, so the bottom step was built at the top end.
+(b) The walker could not climb from the first floor to the roof. The floor above a stair was cut over the whole stair
+of the storey below, including over its first steps, which is exactly the strip in front of the next storey's own
+first step; with no floor there the walker could not reach it. The roof slab had no opening for the top stair.
+
+What: `stair_parts` starts on the flight nearest the UP word (falls back to the old rule when there is none). The
+floor and slab above a stair are cut only over landings and steps that come within 7 ft (2.1 m) of the storey above,
+in `gen.py` (`well_prev`, `HEADROOM`) and in `walk.js` (`heights`, `HEADROOM`, `stepHeight`), and the roof slab is cut
+over the top storey's stair (its parapet stays whole). `tests/test_walk.mjs` also walks back down every stair and
+checks that each climb starts on the flight and at the end where the plan writes UP.

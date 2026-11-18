@@ -158,7 +158,13 @@ def stair_parts(f, rise):
     fl = [dict(s) for s in f["stairs"]]
     if not fl:
         return [], []
-    up = [s for s in fl if s["up"]] or fl[:1]
+    # The detector gives every flight near an UP word "up", and the flights of a dog-leg lie side by side, so both
+    # get it: the climb starts on the flight that holds the word (nearest to it), not on whichever is listed first.
+    words = [(p[1], p[2]) for s in fl for p in s.get("words") or [] if p[0].startswith("UP")]
+    def gap(s, p):
+        x0, x1, y0, y1 = s["rect"]
+        return math.hypot(max(x0 - p[0], 0, p[0] - x1), max(y0 - p[1], 0, p[1] - y1))
+    up = [min(fl, key=lambda s: gap(s, words[0]))] if words else [s for s in fl if s["up"]] or fl[:1]
     order = [up[0]] + [s for s in fl if s is not up[0]]
     boxes, meta = [], []
     z = 0.0
@@ -402,6 +408,10 @@ def new_objects(before):
 
 bboxes = [bbox_of([w[:4] for w in f["walls"]]) for f in floors]
 stair_box_prev = None
+# The floor above a stair is cut only where the steps below come within head height of it (and over landings): over
+# the first steps of a flight there is floor, and on the storey above that floor is where its own stair begins.
+HEADROOM = 7.0
+well_prev = []
 for k, f in enumerate(floors):
     z = k * FFH
     set_level(z)
@@ -476,7 +486,7 @@ for k, f in enumerate(floors):
     mesh_from_boxes(f"door_frames_{k}", frames, bevel=0.004)
     # floors per zone (none over the stairwell coming up from below)
     fl = {}
-    well = [(*stair_box_prev, -9, 99)] if stair_box_prev else []
+    well = [(*r, -9, 99) for r in well_prev]
     for zn in f["rooms"]:
         m = FLOOR_MAT.get(zn["type"], "tile")
         fl.setdefault(m, []).extend((*b[:4], -0.02, 0.0, m) for r in zn["rects"] for b in subtract_all([(*r, -0.02, 0.0)], well))
@@ -507,17 +517,16 @@ for k, f in enumerate(floors):
     else:
         prev = floors[k - 1]
         holes += [(*r, -9, 99) for zn in prev["rooms"] if zn["type"] in OPEN_SKY for r in zn["rects"]]
-        sb = stair_box_prev
-        if sb:
-            holes.append((*sb, -9, 99))
+        holes += [(*r, -9, 99) for r in well_prev]
         mesh_from_boxes(f"slab_{k}", [(*b[:4], -SLAB, -0.02, "ceiling") for b in boxes_minus((*bb, -SLAB, -0.02), holes)])
     # stairs rising from this storey
     sboxes, smeta = stair_parts(f, FFH)
     if sboxes:
         mesh_from_boxes(f"stairs_{k}", sboxes)
         stair_box_prev = bbox_of([b[:4] for b in sboxes])
+        well_prev = [b[:4] for b in sboxes if b[5] > FFH - HEADROOM]
     else:
-        stair_box_prev = None
+        stair_box_prev, well_prev = None, []
     # furniture: none if the review page's "Furniture" box was unticked; hand-placed items win over the rules
     items = [] if plan.get("furnish") is False else f.get("items") or furnish.furnish_floor(f)
     for it in items:
@@ -564,7 +573,8 @@ set_level(top)
 before = set(bpy.data.objects)
 bb = bboxes[-1]
 holes = [(*r, -9, 99) for zn in floors[-1]["rooms"] if zn["type"] in OPEN_SKY for r in zn["rects"]]
-mesh_from_boxes("roof", [(*b[:4], -SLAB, 0.0, "terrace") for b in boxes_minus((*bb, -SLAB, 0.0), holes)])
+well = [(*r, -9, 99) for r in well_prev]            # the top storey's stairs come up through the roof
+mesh_from_boxes("roof", [(*b[:4], -SLAB, 0.0, "terrace") for b in boxes_minus((*bb, -SLAB, 0.0), holes + well)])
 t = 0.33
 mesh_from_boxes("parapet", [(*b, "exterior") for b in disjoint(subtract_all([      # (none along open courtyards)
     (bb[0], bb[1], bb[2], bb[2] + t, 0, 3.5), (bb[0], bb[1], bb[3] - t, bb[3], 0, 3.5),

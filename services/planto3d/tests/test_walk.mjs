@@ -4,6 +4,10 @@ import fs from 'node:fs';
 import * as walk from '../web/walk.js';
 
 const meta = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+// the plan next to it, when there is one: where the drawing writes UP (plan feet; meta metres)
+const planFile = process.argv[2].replace(/meta\.json$/, 'plan.json');
+const plan = fs.existsSync(planFile) ? JSON.parse(fs.readFileSync(planFile, 'utf8')) : null;
+const F = 0.3048;
 let fails = 0;
 const check = (ok, msg) => { console.log(`${ok ? 'ok  ' : 'FAIL'} ${msg}`); if (!ok) fails++; };
 
@@ -45,6 +49,23 @@ meta.floors.forEach((f, k) => {
   }
   check(ok, `${f.name}: walked up all ${flights.length} flight(s) without getting stuck (at ${p.x.toFixed(2)}, ${p.y.toFixed(2)})`);
   check(Math.abs(p.z - target) < 0.05, `${f.name}: arrived at height ${p.z.toFixed(2)} m (next level ${target.toFixed(2)} m)`);
+  // and back down the same way, to the floor where the climb started
+  let down = true;
+  for (const s of [...flights].reverse()) {
+    down = down && goTo(p, s.axis === 'x' ? p.x : mid(s.rect, 'y'), s.axis === 'x' ? mid(s.rect, 'x') : p.y);
+    down = down && goTo(p, s.axis === 'x' ? s.start - s.dir * 0.3 : p.x, s.axis === 'x' ? p.y : s.start - s.dir * 0.3);
+  }
+  check(down && Math.abs(p.z - f.z) < 0.05, `${f.name}: walked back down to ${f.z.toFixed(2)} m (at height ${p.z.toFixed(2)})`);
+  // the climb starts where the drawing writes UP: on the flight that holds the word, at the word's end of it
+  const up = (plan?.floors[k]?.stairs || []).flatMap((st) => st.words || []).find((w) => w[0].startsWith('UP'));
+  if (up) {
+    const at = [up[1] * F, up[2] * F];
+    const gap = (r) => Math.hypot(Math.max(r[0] - at[0], 0, at[0] - r[1]), Math.max(r[2] - at[1], 0, at[1] - r[3]));
+    const nearest = flights.reduce((a, b) => (gap(b.rect) < gap(a.rect) ? b : a));
+    const a = s0.axis === 'x' ? at[0] : at[1], ends = s0.axis === 'x' ? [s0.rect[0], s0.rect[1]] : [s0.rect[2], s0.rect[3]];
+    const foot = Math.abs(a - ends[0]) < Math.abs(a - ends[1]) ? ends[0] : ends[1];
+    check(nearest === s0 && Math.abs(s0.start - foot) < 0.01, `${f.name}: the stair starts at its UP mark (${up[1].toFixed(1)}, ${up[2].toFixed(1)} ft)`);
+  }
 });
 
 // walls block: walking straight at the first collider of the ground floor must stop before it
