@@ -122,3 +122,22 @@ What: when the lowest storey's title says FIRST, SECOND, THIRD, FOURTH or FIFTH,
 that many storeys (`BASE`), builds a plain block under the outline for the storeys that are not drawn, puts the storey
 on a slab with parapets at its open edges, and writes its `floor` to `meta.json`, so `walk.js` (`onFloor`, now keyed
 on `floor` alone) keeps the walker on it. `tests/test_storeys.mjs` covers every storey that has a `floor`.
+
+## 11. Any plan opens in the review page: imports, tracing and the page as background (server.py, web/edit.html, edit.js, style.css, tests/test_review.mjs)
+
+Why: a plan reached the review page only when the detector read it; a scan or a drawing in another style ended on
+an error. Our backend now reads such PDFs with other readers (an AI plan reader, the floor plan generator's stored
+plan), and as a last resort the person traces the walls over the page.
+
+What: `POST /api/upload` with `X-Detect: 0` draws the page images of any PDF (vector or scanned; `render_pages`) and
+leaves the job at `uploaded`. `POST /api/jobs/{id}/import` takes `{plan | null, reader, notice}`, checks every value
+(types, finite numbers, ranges, list lengths, text without control characters, no hand-placed furniture), writes
+`plan.json` afresh and sets `reader` and `notice` in the status (409 while the detector or a build runs; an import and
+a build of the same job are serialised by `plan_lock`). `plan: null` makes an empty floor over page 1 for tracing.
+A build refuses a plan with no walls. The review page shows the PDF page behind every plan, with a toggle, page
+choice and quarter turns; a floor's `bg` (page, rot, pt_per_ft, origin_pt, fit) places a plan that is not in the PDF's
+own coordinates, and "Line up drawing" fits it by matching two points. New tools: Draw wall (snapped, the plan's wall
+thickness), Add door / window / stairs, Set scale (two points and a typed distance: 12'6", 3.8 m, 380 cm), Undo,
+rooms that follow the walls. A notice says which reader made the plan; in embed mode the 'ready' message carries
+`reader`, `notice`, `buildable` and `problem`, a new 'buildable' message follows edits, and the page's own notice bar
+is hidden. The detector flow, patch 2's messages and patch 6 are unchanged.

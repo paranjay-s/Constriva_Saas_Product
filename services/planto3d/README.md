@@ -154,8 +154,9 @@ sequenceDiagram
 | Call | Does |
 |---|---|
 | `GET /api/system` | What is installed: `{ ready, blender, pdf_tools, viewer, materials }` |
-| `POST /api/upload` | Body: the PDF. Header `X-Filename`. Returns `{ id }` and starts detection |
-| `GET /api/jobs/{id}` | `{ stage, progress, message, floors, eta_left }`. Stages: `detecting`, `detected`, `queued`, `building`, `done`, `failed` |
+| `POST /api/upload` | Body: the PDF. Header `X-Filename`. Returns `{ id }` and starts detection. With `X-Detect: 0` it only draws the page images (any PDF, scans too) and the job waits at `uploaded` for an import |
+| `POST /api/jobs/{id}/import` | Body `{ "plan": <plan JSON> \| null, "reader": "ai" \| "stored" \| "trace" \| "manual", "notice": "<300 characters at most>" }`: a plan read by another program, or (`plan: null`) an empty plan to trace over the page. Checked strictly; 400 with the reason, 409 while the job is read or built |
+| `GET /api/jobs/{id}` | `{ stage, progress, message, floors, eta_left, reader, notice, pages }` (`reader`: `detector` or the import's). Stages: `detecting`, `detected`, `queued`, `building`, `done`, `failed` |
 | `GET /jobs/{id}/plan.json` | The detected plan (feet): walls, openings, rooms, stairs per storey |
 | `POST /api/jobs/{id}/plan` | Save an edited plan. `"furnish": false` builds empty rooms |
 | `POST /api/jobs/{id}/build` | Body `{ "quality": "draft" \| "high" }`. Builds run one at a time |

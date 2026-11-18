@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Review Plan</title>
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 <style>
   body { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
   header { display: flex; gap: 10px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
@@ -34,7 +34,21 @@
   @media (prefers-reduced-motion: reduce) { #bspin path { animation: none; } }
   #wait { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); flex-direction: column; gap: 10px; padding: 16px; text-align: center; }
   /* ?embed: the page that frames this one starts the build and shows its progress */
-  .embed #home, .embed #back, .embed #quality, .embed #build, .embed #furnrow, .embed #buildbox { display: none !important; }
+  .embed #home, .embed #back, .embed #quality, .embed #build, .embed #save, .embed #saved, .embed #furnrow, .embed #buildbox { display: none !important; }
+  /* ... and says which reader made the plan (the 'ready' message carries reader and notice) */
+  .embed #notice { display: none !important; }
+  #notice { display: flex; gap: 10px; align-items: flex-start; padding: 8px 16px; background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+            border-bottom: 1px solid var(--line); font-size: 14px; }
+  #notice[hidden] { display: none; }
+  #notice div { flex: 1; }
+  #nmore { display: block; color: var(--muted); }
+  #nmore:empty { display: none; }
+  #nclose { border: 0; background: none; color: var(--ink); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 4px; }
+  #topts:empty { display: none; }
+  .row[hidden] { display: none; }
+  #topts { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .turn { display: flex; gap: 6px; }
+  .turn button { flex: 1; }
   @media (max-width: 760px) { main { flex-direction: column; } aside { width: auto; max-height: 45vh; border-left: 0; border-top: 1px solid var(--line); } }
 </style>
 </head>
@@ -49,8 +63,11 @@
     <option value="draft">Draft (fast)</option>
     <option value="high" selected>High quality</option>
   </select>
+  <span id="saved" role="status"></span>
+  <button class="btn ghost" id="save" type="button" title="Keep the changes without building">Save</button>
   <button class="btn" id="build">Build 3D</button>
 </header>
+<div id="notice" hidden role="status"><div><b id="ntext"></b> <span id="nmore"></span></div><button id="nclose" type="button" title="Hide">×</button></div>
 <main>
   <div id="stage"><canvas id="cv"></canvas>
     <div id="wait"><b id="wmsg">Reading the drawing…</b><div class="bar" style="width:260px"><i id="wbar"></i></div><a href="../" id="back" hidden>Upload another file</a></div>
@@ -63,12 +80,24 @@
         <button data-t="wall">Draw wall</button>
         <button data-t="door">Add door</button>
         <button data-t="window">Add window</button>
+        <button data-t="stair">Add stairs</button>
         <button data-t="scale">Set scale</button>
+        <button data-t="lineup">Line up drawing</button>
         <button id="undo">Undo</button>
       </div>
-      <p class="muted" style="font-size:12px;margin:6px 0 0" id="hint">Click a wall, opening or room to edit it, or another floor plan to switch to it. Drag to pan, scroll to zoom.</p>
+      <div id="topts"></div>
+      <p class="muted" style="font-size:12px;margin:6px 0 0" id="hint">Click a wall, opening, stair or room to edit it, or another floor plan to switch to it. Drag to pan, scroll to zoom.</p>
+      <p class="err" id="why" hidden style="font-size:13px;margin:8px 0 0"></p>
     </div>
     <div id="props"></div>
+    <div>
+      <h3>Drawing</h3>
+      <label><input type="checkbox" id="showbg" checked> Show the PDF page</label>
+      <div class="row" id="bgpagerow" style="margin-top:6px" hidden><span>Page</span><select id="bgpage"></select></div>
+      <div class="turn" style="margin-top:6px"><button class="btn ghost" id="turnl" type="button" title="Turn the page a quarter to the left">⟲ Turn</button>
+        <button class="btn ghost" id="turnr" type="button" title="Turn the page a quarter to the right">Turn ⟳</button></div>
+      <p id="bgstate" class="muted" style="font-size:12px;margin:6px 0 0"></p>
+    </div>
     <div>
       <h3>Furniture</h3>
       <label id="furnrow" title="Untick to build empty rooms: walls, floors, doors, windows and lights only"><input type="checkbox" id="furn" checked> Furnish the rooms</label>
@@ -78,6 +107,11 @@
       <h3>Floor</h3>
       <div class="row"><span>Name</span><input type="text" id="fname" style="width:150px"></div>
       <div class="row" style="margin-top:6px"><span>Ceiling height (ft)</span><input type="number" id="fh" min="8" max="14" step="0.5" style="width:70px"></div>
+      <label style="display:block;margin-top:8px;font-size:14px" title="Rooms are found again between the walls, doors and windows after every change; each keeps its type and label">
+        <input type="checkbox" id="autorooms"> Rooms follow the walls</label>
+      <div class="turn" style="margin-top:6px"><button class="btn ghost" id="findrooms" type="button" title="Find the rooms between the walls now (types and labels are kept where a room stays)">Find rooms</button>
+        <button class="btn ghost" id="addfloor" type="button" title="Add a storey on top of this one">Add floor</button></div>
+      <button class="btn ghost" id="delfloor" type="button" style="margin-top:6px;width:100%" hidden>Remove this floor</button>
     </div>
     <div class="legend">
       <span><i style="background:#e53935"></i>wall</span><span><i style="background:#d81bd8"></i>low wall</span>
