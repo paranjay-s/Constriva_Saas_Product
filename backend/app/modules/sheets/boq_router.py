@@ -1,6 +1,8 @@
 """BOQ endpoints, mounted at /api/v1/sheets/boq.
 
 POST /                       multipart `file` (PDF, within the upload limits) -> 202 {job_id}
+                             optional fields: `false_ceiling_share` (0 to 1, default 1) and
+                             `plot_perimeter_m` (metres; replaces the estimated hoarding length)
 GET  /jobs/{job_id}          job state with every event so far
 GET  /jobs/{job_id}/events   SSE progress (replays, then live): uploading, parsing, calculating
 GET  /jobs/{job_id}/result   the BOQ once the job is done
@@ -12,7 +14,7 @@ A job belongs to the user who started it; anyone else gets 404.
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response, StreamingResponse
 
 from app.core.security import AuthenticatedUser, get_current_user
@@ -59,6 +61,14 @@ async def start_boq(
     jobs: Jobs,
     parse_pdf: Parser,
     file: Annotated[UploadFile, File(description="Floor plan PDF")],
+    false_ceiling_share: Annotated[
+        float,
+        Form(ge=0.0, le=1.0, description="Share of the dry indoor area with a false ceiling"),
+    ] = 1.0,
+    plot_perimeter_m: Annotated[
+        float | None,
+        Form(gt=0.0, le=100_000.0, description="Plot perimeter in metres, for the site hoarding"),
+    ] = None,
 ) -> BoqJobCreated:
     # The same check as the 2D-to-3D import: PDF only, within the size and page limits.
     # A rejected upload starts no job and never reaches a model.
@@ -68,7 +78,15 @@ async def start_boq(
         raise HTTPException(
             getattr(rejected, "http_status", status.HTTP_400_BAD_REQUEST), str(rejected)
         ) from rejected
-    job = start_boq_job(jobs, user.id, file.filename or "plan.pdf", pdf_bytes, parse_pdf)
+    job = start_boq_job(
+        jobs,
+        user.id,
+        file.filename or "plan.pdf",
+        pdf_bytes,
+        parse_pdf,
+        false_ceiling_share=false_ceiling_share,
+        plot_perimeter_m=plot_perimeter_m,
+    )
     return BoqJobCreated(job_id=job.id)
 
 

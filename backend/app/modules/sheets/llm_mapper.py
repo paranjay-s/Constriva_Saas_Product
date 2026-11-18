@@ -23,12 +23,23 @@ if _backend_root not in sys.path:
 
 import math
 import json
+import re
 import logging
 from typing import Dict, Any, List, Optional, Tuple
 
 from app.modules.plans.room_kind import is_open_void_label
 from app.modules.plans.room_types import stored_or_derived_boq_type
 from app.modules.sheets.boq_rows import build_boq_rows
+from app.modules.sheets.formulas import calculation_warnings, compute_items
+from app.modules.sheets.primitives import (
+    LevelFact,
+    OpeningFact,
+    PlanFacts,
+    Primitives,
+    RoomFact,
+    ceil,
+    derive_primitives,
+)
 from app.modules.sheets.constants import (  # noqa: F401  (re-exported)
     CEMENT_BAGS_PER_M3,
     CEMENT_WASTE_FACTOR,
@@ -36,7 +47,6 @@ from app.modules.sheets.constants import (  # noqa: F401  (re-exported)
     DEFAULT_WALL_HEIGHT_M,
     DOOR_OPENING_AREA_M2,
     DRY_VOLUME_MULTIPLIER,
-    EXTERNAL_WET_WALL_SHARE,
     EXT_PLASTER_CEMENT_BAGS_PER_M2,
     EXT_PLASTER_SAND_THICKNESS_M,
     FLOOR_STEEL_KG_PER_M2,
@@ -48,7 +58,6 @@ from app.modules.sheets.constants import (  # noqa: F401  (re-exported)
     GYPSUM_WALL_THICKNESS_M,
     GYPSUM_WASTE_FACTOR,
     INDIA_BRICKS_PER_M2,
-    INTERNAL_DRY_WALL_SHARE,
     M20_TOTAL_PARTS,
     MASONRY_WASTE_FACTOR,
     MIN_NET_WALL_RATIO,
@@ -205,6 +214,9 @@ def _compute_7_materials_for_scope(
     tile_size_mm: str,
     pattern_key: str,
     scope_room_ids: Optional[List[str]] = None,
+    *,
+    s_gyp: float = 0.0,
+    s_cem: float = 1.0,
 ) -> Dict[str, Dict[str, Any]]:
     """
     Universal 7-Material Engine used for:
@@ -213,6 +225,13 @@ def _compute_7_materials_for_scope(
       3. Full Project scope
     Returns a dictionary keyed by the 7 material IDs with explicit metrics/units,
     including 3D model highlighting metadata.
+
+    `s_gyp` and `s_cem` are the plan's shares of wall faces that get gypsum plaster and
+    cement plaster (spec section 3; they add up to 1). They are computed once per plan
+    from the wall model and passed to every scope, so room and level values add up to
+    the project totals:
+      gypsum-plastered wall area of a scope = 2 x s_gyp x a_net_wall
+      cement-plastered area of a scope      = 2 x s_cem x a_net_wall + 2 x a_parapet_wall
     """
     room_ids_ref = scope_room_ids or []
 
@@ -320,29 +339,32 @@ def _compute_7_materials_for_scope(
     a_total_masonry = a_net_wall_m2 + a_plinth_wall_m2 + a_parapet_wall_m2
     v_wet = a_built_m2 * SLAB_THICKNESS_M * RCC_STRUCTURAL_MULTIPLIER
     v_dry = v_wet * DRY_VOLUME_MULTIPLIER
+    # The wall model (spec section 3): which wall faces of this scope get which plaster.
+    a_gyp_wall_m2 = 2.0 * s_gyp * a_net_wall_m2
+    a_cem_plaster_m2 = 2.0 * s_cem * a_net_wall_m2 + 2.0 * a_parapet_wall_m2
 
     # 1. AAC Blocks (`pieces` & `m2`)
-    aac_blocks_pieces = math.ceil((a_total_masonry / UAE_AAC_BLOCK_AREA_M2) * MASONRY_WASTE_FACTOR)
-    aac_superstructure_only = math.ceil((a_net_wall_m2 / UAE_AAC_BLOCK_AREA_M2) * MASONRY_WASTE_FACTOR)
-    india_bricks_pieces = math.ceil(a_total_masonry * INDIA_BRICKS_PER_M2 * MASONRY_WASTE_FACTOR)
+    aac_blocks_pieces = ceil((a_total_masonry / UAE_AAC_BLOCK_AREA_M2) * MASONRY_WASTE_FACTOR)
+    aac_superstructure_only = ceil((a_net_wall_m2 / UAE_AAC_BLOCK_AREA_M2) * MASONRY_WASTE_FACTOR)
+    india_bricks_pieces = ceil(a_total_masonry * INDIA_BRICKS_PER_M2 * MASONRY_WASTE_FACTOR)
 
     # 2. Steel / Rebar (`metric_tons`, `kg`, & `rods_12m`)
     plinth_steel_kg = (a_ground_share_m2 * PLINTH_STEEL_KG_PER_M2) * STEEL_WASTE_FACTOR
     super_steel_kg = (a_built_m2 * FLOOR_STEEL_KG_PER_M2) * STEEL_WASTE_FACTOR
     total_steel_kg = plinth_steel_kg + super_steel_kg
     total_steel_metric_tons = round(total_steel_kg / 1000.0, 2)
-    tmt_12m_rods_count = math.ceil(total_steel_kg / TMT_12MM_ROD_WEIGHT_KG)
+    tmt_12m_rods_count = ceil(total_steel_kg / TMT_12MM_ROD_WEIGHT_KG)
 
     # 3. Cement (`bags_50kg`, `metric_tons`, & `kg`)
     bags_rcc = ((1.0 / M20_TOTAL_PARTS) * v_dry) * CEMENT_BAGS_PER_M3
     bags_mortar = a_total_masonry * MORTAR_CEMENT_BAGS_PER_M2
-    bags_ext_plaster = (a_net_wall_m2 * 2.0 * EXTERNAL_WET_WALL_SHARE) * EXT_PLASTER_CEMENT_BAGS_PER_M2
-    total_cement_bags_50kg = math.ceil((bags_rcc + bags_mortar + bags_ext_plaster) * CEMENT_WASTE_FACTOR)
+    bags_ext_plaster = a_cem_plaster_m2 * EXT_PLASTER_CEMENT_BAGS_PER_M2
+    total_cement_bags_50kg = ceil((bags_rcc + bags_mortar + bags_ext_plaster) * CEMENT_WASTE_FACTOR)
 
     # 4. Sand (`metric_tons`, `m3`, & `cubic_feet`)
     v_sand_rcc_m3 = (1.5 / M20_TOTAL_PARTS) * v_dry
     v_sand_mortar_m3 = a_total_masonry * MORTAR_SAND_THICKNESS_M
-    v_sand_ext_plaster_m3 = a_net_wall_m2 * 2.0 * EXTERNAL_WET_WALL_SHARE * EXT_PLASTER_SAND_THICKNESS_M
+    v_sand_ext_plaster_m3 = a_cem_plaster_m2 * EXT_PLASTER_SAND_THICKNESS_M
     v_sand_screed_m3 = a_built_m2 * TILE_BEDDING_SCREED_THICKNESS_M
     v_sand_m3 = v_sand_rcc_m3 + v_sand_mortar_m3 + v_sand_ext_plaster_m3 + v_sand_screed_m3
     total_sand_metric_tons = round(v_sand_m3 * SAND_BULK_DENSITY_TONS_M3 * SAND_WASTE_FACTOR, 2)
@@ -354,19 +376,20 @@ def _compute_7_materials_for_scope(
     total_gitti_cubic_feet = round(v_gitti_m3 * CFT_PER_M3, 1)
 
     # 6. Plaster (`bags_30kg`, `kg`, & `m2_total_coverage`)
-    a_gypsum_m2 = (a_net_wall_m2 * 2.0 * INTERNAL_DRY_WALL_SHARE) + a_built_m2
+    a_gypsum_m2 = a_gyp_wall_m2 + a_built_m2
     v_gypsum_m3 = (
-        (a_net_wall_m2 * 2.0 * INTERNAL_DRY_WALL_SHARE * GYPSUM_WALL_THICKNESS_M)
+        (a_gyp_wall_m2 * GYPSUM_WALL_THICKNESS_M)
         + (a_built_m2 * GYPSUM_CEILING_THICKNESS_M)
     ) * GYPSUM_WASTE_FACTOR
     gypsum_weight_kg = round(v_gypsum_m3 * GYPSUM_DENSITY_KG_M3, 1)
     gypsum_weight_tons = round(gypsum_weight_kg / 1000.0, 2)
-    gypsum_bags_30kg = math.ceil(gypsum_weight_kg / GYPSUM_BAG_WEIGHT_KG)
-    a_ext_cement_plaster_m2 = round(a_net_wall_m2 * 2.0 * EXTERNAL_WET_WALL_SHARE, 2)
+    gypsum_bags_30kg = ceil(v_gypsum_m3 * GYPSUM_DENSITY_KG_M3 / GYPSUM_BAG_WEIGHT_KG)
+    a_ext_cement_plaster_m2 = round(a_cem_plaster_m2, 2)
 
     # 7. Tiles (`pieces` & `m2`)
-    a_tile_total_m2 = round((a_built_m2 + a_skirting_m2) * w_pattern, 2)
-    total_tile_pieces = math.ceil(a_tile_total_m2 / single_tile_area_m2)
+    tile_area_exact_m2 = (a_built_m2 + a_skirting_m2) * w_pattern
+    a_tile_total_m2 = round(tile_area_exact_m2, 2)
+    total_tile_pieces = ceil(tile_area_exact_m2 / single_tile_area_m2)
 
     return {
         "aac_blocks": {
@@ -477,6 +500,7 @@ def _compute_7_materials_for_scope(
             "waste_multiplier": GYPSUM_WASTE_FACTOR,
             "details": {
                 "internal_gypsum_area_m2": round(a_gypsum_m2, 2),
+                "internal_gypsum_wall_area_m2": round(a_gyp_wall_m2, 2),
                 "internal_gypsum_volume_m3": round(v_gypsum_m3, 3),
                 "internal_gypsum_weight_kg": gypsum_weight_kg,
                 "internal_gypsum_metric_tons": gypsum_weight_tons,
@@ -511,19 +535,244 @@ def _compute_7_materials_for_scope(
 # 3. MAIN TASK 2 FUNCTION: PlanJSON ➔ ROOM, FLOOR & PROJECT RAW MATERIALS
 # =============================================================================
 
+def _tile_dims_mm(tile_size_mm: str) -> tuple[float, float]:
+    """(a, b) in mm of a tile size such as "600x600"; 600 x 600 when it cannot be read."""
+    match = re.fullmatch(
+        r"\s*(\d+(?:\.\d+)?)\s*[xX×]\s*(\d+(?:\.\d+)?)\s*", str(tile_size_mm or "")
+    )
+    if match:
+        a, b = float(match.group(1)), float(match.group(2))
+        if a > 0 and b > 0:
+            return a, b
+    return 600.0, 600.0
+
+
+def _opening_size_m(value: Any, unit_scale: float) -> float | None:
+    """A positive opening size in metres, or None when the plan gives none."""
+    if isinstance(value, bool):
+        return None
+    try:
+        size = float(value) * unit_scale
+    except (TypeError, ValueError):
+        return None
+    return size if math.isfinite(size) and size > 0 else None
+
+
+def _box_dims_m(points: list[tuple[float, float]]) -> tuple[float, float]:
+    """(width, depth) of the bounding box of points already in metres."""
+    if not points:
+        return 0.0, 0.0
+    xs = [pt[0] for pt in points]
+    ys = [pt[1] for pt in points]
+    return max(xs) - min(xs), max(ys) - min(ys)
+
+
+def _measure_level(
+    lvl: dict[str, Any],
+    lvl_idx: int,
+    unit_scale: float,
+    global_ceiling_height_m: float | None,
+    use_standard_11ft_default: bool,
+    warnings: list[str],
+    room_serial_start: int,
+) -> dict[str, Any]:
+    """Everything measured on one level: rooms, wall areas, openings and bounding boxes.
+
+    `unit_scale` is applied to every coordinate before anything is measured.
+    """
+    rooms = lvl.get("rooms", [])
+    openings = lvl.get("openings", [])
+    walls = lvl.get("walls", [])
+
+    built_area = 0.0
+    gross_wall_area = 0.0
+    skirting_area = 0.0
+    records: list[dict[str, Any]] = []
+    built_points: list[tuple[float, float]] = []
+    all_points: list[tuple[float, float]] = []
+
+    for r in rooms:
+        poly = r.get("polygon", [])
+        if not isinstance(poly, list) or len(poly) < 3:
+            continue
+
+        r_id = str(r.get("id", f"room_{room_serial_start + len(records) + 1}"))
+        r_kind = _classify_room_kind(r)
+        area_m2 = compute_polygon_area_m2(poly, unit_scale)
+        perim_m = compute_polygon_perimeter_m(poly, unit_scale)
+        len_m, brd_m = compute_bounding_dims_m(poly, unit_scale)
+        h_room = _resolve_room_height_m(r, lvl, global_ceiling_height_m, use_standard_11ft_default)
+        points = [(float(pt[0]) * unit_scale, float(pt[1]) * unit_scale) for pt in poly]
+
+        counts_as_built = r_kind in ("indoor", "semi_open")
+        # Indoor rooms only. A plan stored without `boq_type` gets it from the name.
+        r_boq_type = (
+            stored_or_derived_boq_type(r.get("name"), r.get("boq_type"))
+            if r_kind == "indoor"
+            else None
+        )
+        r_gross_wall = (perim_m * SHARED_WALL_REDUCTION_FACTOR * h_room) if counts_as_built else 0.0
+        r_skirting = (perim_m * SKIRTING_HEIGHT_M) if counts_as_built else 0.0
+
+        # An outline with no area is not a room: it is listed, but nothing is counted for it.
+        has_area = area_m2 > 0.0
+        if has_area:
+            all_points.extend(points)
+        if counts_as_built and has_area:
+            built_area += area_m2
+            gross_wall_area += r_gross_wall
+            skirting_area += r_skirting
+            built_points.extend(points)
+
+        records.append({
+            "raw_room": r,
+            "id": r_id,
+            "name": str(r.get("name") or "Room"),
+            "kind": r_kind,
+            "boq_type": r_boq_type,
+            "poly": poly,
+            "area_m2": area_m2,
+            "perim_m": perim_m,
+            "len_m": len_m,
+            "brd_m": brd_m,
+            "h_room": h_room,
+            "counts_as_built": counts_as_built,
+            "has_area": has_area,
+            "r_gross_wall": r_gross_wall if has_area else 0.0,
+            "r_skirting": r_skirting if has_area else 0.0,
+        })
+
+    label = lvl.get("name") or f"Level {lvl_idx + 1}"
+    height = _resolve_room_height_m({}, lvl, global_ceiling_height_m, use_standard_11ft_default)
+    if (
+        global_ceiling_height_m is None
+        and use_standard_11ft_default
+        and lvl.get("wall_height_source") != "stated"
+        and abs(
+            float(lvl.get("wall_height") or PARSER_FALLBACK_WALL_HEIGHT_M)
+            - PARSER_FALLBACK_WALL_HEIGHT_M
+        )
+        < 0.05
+    ):
+        warnings.append(
+            f"{label}: the drawing states no ceiling height; {DEFAULT_WALL_HEIGHT_M} m was assumed."
+        )
+
+    # The exterior outline: the bounding box of the built rooms, or of the walls when the
+    # level has walls but no usable rooms.
+    width, depth = _box_dims_m(built_points)
+    if built_area <= 0.0 and walls:
+        warnings.append(
+            f"{label}: no usable rooms were found; areas were estimated from the wall outline."
+        )
+        wall_points = [
+            (float(pt[0]) * unit_scale, float(pt[1]) * unit_scale)
+            for w in walls
+            for pt in (w["start"], w["end"])
+        ]
+        width, depth = _box_dims_m(wall_points)
+        built_area = width * depth
+        total_wall_len = sum(
+            math.hypot(
+                (float(w["end"][0]) - float(w["start"][0])) * unit_scale,
+                (float(w["end"][1]) - float(w["start"][1])) * unit_scale,
+            )
+            for w in walls
+        )
+        gross_wall_area = total_wall_len * height
+        # No rooms, so no room perimeters: the level has floor tiles but no skirting.
+        skirting_area = 0.0
+
+    opening_facts: list[OpeningFact] = []
+    for op in openings:
+        op_type = str(op.get("type", "")).lower()
+        if op_type in ("door", "window"):
+            opening_facts.append(
+                OpeningFact(
+                    type=op_type,
+                    width=_opening_size_m(op.get("width"), unit_scale),
+                    height=_opening_size_m(op.get("height"), unit_scale),
+                )
+            )
+    doors = sum(1 for o in opening_facts if o.type == "door")
+    windows = sum(1 for o in opening_facts if o.type == "window")
+    openings_area = (doors * DOOR_OPENING_AREA_M2) + (windows * WINDOW_OPENING_AREA_M2)
+
+    net_wall_area = max(gross_wall_area - openings_area, MIN_NET_WALL_RATIO * gross_wall_area)
+    if gross_wall_area > 0 and openings_area > (1.0 - MIN_NET_WALL_RATIO) * gross_wall_area:
+        warnings.append(
+            f"{label}: openings exceed {int((1.0 - MIN_NET_WALL_RATIO) * 100)}% of the wall area; "
+            "the net wall area was held at the minimum."
+        )
+
+    return {
+        "label": label,
+        "records": records,
+        "built_area": built_area,
+        "gross_wall_area": gross_wall_area,
+        "skirting_area": skirting_area,
+        "openings_area": openings_area,
+        "net_wall_area": net_wall_area,
+        "height": height,
+        "width": width,
+        "depth": depth,
+        "all_rooms_box": _box_dims_m(all_points),
+        "openings": opening_facts,
+        "doors": doors,
+        "windows": windows,
+        "columns": len(lvl.get("columns", [])),
+    }
+
+
+def _derived_summary(p: Primitives) -> dict[str, Any]:
+    """The derived quantities of spec section 3, for display and checking."""
+
+    def r(value: float) -> float:
+        return round(value, 4)
+
+    return {
+        "A_built": r(p.a_built), "A_in": r(p.a_in), "A_ground": r(p.a_ground),
+        "A_netwall": r(p.a_netwall), "A_netwall_0": r(p.a_netwall_0),
+        "N_door": p.n_door, "N_win": p.n_win, "L": p.L,
+        "A_bath": r(p.a_bath), "P_bath": r(p.p_bath), "N_bath": p.n_bath, "N_shower": p.n_shower,
+        "A_kit": r(p.a_kit), "P_kit": r(p.p_kit), "N_kit": p.n_kit,
+        "A_lau": r(p.a_lau), "P_lau": r(p.p_lau), "N_lau": p.n_lau,
+        "A_wet": r(p.a_wet), "P_wet": r(p.p_wet), "A_dry": r(p.a_dry),
+        "N_bed": p.n_bed, "N_liv": p.n_liv, "N_din": p.n_din, "N_ac": p.n_ac, "N_wh": p.n_wh,
+        "P_ext": [r(v) for v in p.p_ext], "roof_level": p.roof_level,
+        "A_roof": r(p.a_roof), "P_roof": r(p.p_roof), "d_roof": r(p.d_roof),
+        "G_ext": r(p.g_ext), "A_ext": r(p.a_ext), "A_int": r(p.a_int),
+        "A_plinth": r(p.a_plinth), "A_parapet": r(p.a_parapet), "A_masonry": r(p.a_masonry),
+        "T_wall": r(p.t_wall), "T_floor": r(p.t_floor),
+        "A_gyp_wall": r(p.a_gyp_wall), "A_cem": r(p.a_cem),
+        "s_gyp": round(p.s_gyp, 6), "s_cem": round(p.s_cem, 6),
+        "E_net": r(p.e_net), "V_dry": r(p.v_dry),
+        "A_pave": r(p.a_pave), "P_pave": r(p.p_pave), "P_site": r(p.p_site),
+        "open_plan_kitchens": p.open_plan_kitchens,
+    }
+
+
 def map_plan_to_materials(
-    plan_payload: Dict[str, Any],
+    plan_payload: dict[str, Any],
     tile_pattern: str = "standard",
     tile_size_mm: str = "600x600",
-    global_ceiling_height_m: Optional[float] = None,
+    global_ceiling_height_m: float | None = None,
     use_standard_11ft_default: bool = True,
-) -> Dict[str, Any]:
+    false_ceiling_share: float = 1.0,
+    plot_perimeter_m: float | None = None,
+) -> dict[str, Any]:
     """
-    Task 2 Primary Entrypoint:
-    Computes the 7 raw materials with explicit metrics at:
-      - Project-Wide level (`materials` & `materials_by_key`)
-      - Floor-Wise level (`level_summaries[i]["materials"]` & `materials_by_key`)
-      - Room-Wise level (`room_breakdown[i]["materials"]` & `materials_by_key`)
+    Task 2 Primary Entrypoint: PlanJSON -> the bill of quantities.
+
+    Follows docs/materials_formula_spec.md:
+      - `items`: every row of the bill (59 items, 64 rows), at project scope.
+      - The seven core materials (items 1 to 7) are also given per level and per room:
+          Project-Wide level (`materials` & `materials_by_key`)
+          Floor-Wise level (`level_summaries[i]["materials"]` & `materials_by_key`)
+          Room-Wise level (`room_breakdown[i]["materials"]` & `materials_by_key`)
+
+    `false_ceiling_share` (f_fc, 0 to 1) is the share of the dry indoor area that gets a
+    false ceiling. `plot_perimeter_m`, when given, is used for the site hoarding.
     """
     plan = _extract_core_plan_json(plan_payload)
     unit_scale = _get_unit_scale(plan)
@@ -537,173 +786,121 @@ def map_plan_to_materials(
         if pattern_key in ("herringbone", "diagonal", "chevron", "complex")
         else TILE_WASTE_STANDARD
     )
-    tile_size_map = {"600x600": 0.36, "800x800": 0.64, "1200x600": 0.72}
-    single_tile_area_m2 = tile_size_map.get(tile_size_mm, STANDARD_TILE_AREA_M2)
+    tile_a_mm, tile_b_mm = _tile_dims_mm(tile_size_mm)
+    single_tile_area_m2 = tile_a_mm * tile_b_mm / 1_000_000.0
 
     num_levels = len(levels)
-    level_summaries: List[Dict[str, Any]] = []
-    room_breakdown: List[Dict[str, Any]] = []
-    warnings: List[str] = [str(w) for w in (plan.get("warnings") or []) if isinstance(w, str)]
-    built_rooms_count = 0
-    bathrooms_count = 0
+    warnings: list[str] = [str(w) for w in (plan.get("warnings") or []) if isinstance(w, str)]
 
-    a_ground = 0.0
-    a_built_total = 0.0
-    a_net_wall_total = 0.0
-    a_net_wall_ground = 0.0
-    a_skirting_total = 0.0
-
-    total_doors_all_levels = 0
-    total_windows_all_levels = 0
-    total_columns_all_levels = 0
-    all_built_room_ids: List[str] = []
-
+    # ---- Pass 1: measure every level, in the order the plan lists them.
+    measured: list[dict[str, Any]] = []
+    rooms_seen = 0
     for lvl_idx, lvl in enumerate(levels):
-        rooms = lvl.get("rooms", [])
-        openings = lvl.get("openings", [])
-        columns = lvl.get("columns", [])
-        walls = lvl.get("walls", [])
+        level = _measure_level(
+            lvl, lvl_idx, unit_scale, global_ceiling_height_m, use_standard_11ft_default,
+            warnings, rooms_seen,
+        )
+        rooms_seen += len(level["records"])
+        measured.append(level)
 
-        lvl_built_area = 0.0
-        lvl_gross_wall_area = 0.0
-        lvl_skirting_area = 0.0
-        lvl_room_records: List[Dict[str, Any]] = []
-        lvl_built_room_ids: List[str] = []
-
-        # Pass 1: Measure every room on this floor
-        for r in rooms:
-            poly = r.get("polygon", [])
-            if not isinstance(poly, list) or len(poly) < 3:
-                continue
-
-            r_id = str(r.get("id", f"room_{len(room_breakdown) + 1}"))
-            r_kind = _classify_room_kind(r)
-            area_m2 = compute_polygon_area_m2(poly, unit_scale)
-            perim_m = compute_polygon_perimeter_m(poly, unit_scale)
-            len_m, brd_m = compute_bounding_dims_m(poly, unit_scale)
-            h_room = _resolve_room_height_m(
-                r, lvl, global_ceiling_height_m, use_standard_11ft_default
+    # ---- The plan's derived quantities (spec section 3), computed once.
+    site_width, site_depth = measured[0]["all_rooms_box"]
+    building_type = str(plan.get("building_type") or "villa").lower().strip()
+    facts = PlanFacts(
+        levels=tuple(
+            LevelFact(
+                built_area=level["built_area"],
+                width=level["width"],
+                depth=level["depth"],
+                height=level["height"],
             )
-
-            counts_as_built = r_kind in ("indoor", "semi_open")
-            # Indoor rooms only. A plan stored without `boq_type` gets it from the name.
-            r_boq_type = (
-                stored_or_derived_boq_type(r.get("name"), r.get("boq_type"))
-                if r_kind == "indoor"
-                else None
+            for level in measured
+        ),
+        rooms=tuple(
+            RoomFact(
+                name=rec["name"],
+                kind=rec["kind"],
+                area=rec["area_m2"],
+                perimeter=rec["perim_m"],
+                boq_type=rec["boq_type"],
+                level=lvl_idx,
             )
-            r_gross_wall = (perim_m * SHARED_WALL_REDUCTION_FACTOR * h_room) if counts_as_built else 0.0
-            r_skirting = (perim_m * SKIRTING_HEIGHT_M) if counts_as_built else 0.0
+            for lvl_idx, level in enumerate(measured)
+            for rec in level["records"]
+            if rec["has_area"]
+        ),
+        openings=tuple(o for level in measured for o in level["openings"]),
+        a_netwall=sum(level["net_wall_area"] for level in measured),
+        a_netwall_0=measured[0]["net_wall_area"],
+        site_width=site_width,
+        site_depth=site_depth,
+        building_type=building_type,
+        f_fc=min(max(float(false_ceiling_share), 0.0), 1.0),
+        plot_perimeter=(
+            float(plot_perimeter_m) if plot_perimeter_m and plot_perimeter_m > 0 else None
+        ),
+        tile_a_mm=tile_a_mm,
+        tile_b_mm=tile_b_mm,
+        tile_waste=w_pattern,
+    )
+    p = derive_primitives(facts)
 
-            if counts_as_built:
-                lvl_built_area += area_m2
-                lvl_gross_wall_area += r_gross_wall
-                lvl_skirting_area += r_skirting
+    def scope(**areas: Any) -> dict[str, dict[str, Any]]:
+        return _compute_7_materials_for_scope(
+            w_pattern=w_pattern,
+            single_tile_area_m2=single_tile_area_m2,
+            tile_size_mm=tile_size_mm,
+            pattern_key=pattern_key,
+            s_gyp=p.s_gyp,
+            s_cem=p.s_cem,
+            **areas,
+        )
+
+    # ---- Pass 2: the seven core materials per room and per level.
+    level_summaries: list[dict[str, Any]] = []
+    room_breakdown: list[dict[str, Any]] = []
+    all_built_room_ids: list[str] = []
+    built_rooms_count = 0
+
+    for lvl_idx, (lvl, level) in enumerate(zip(levels, measured, strict=True)):
+        lvl_built_area = level["built_area"]
+        lvl_gross_wall_area = level["gross_wall_area"]
+        lvl_net_wall_area = level["net_wall_area"]
+        # The plinth belongs to the ground level; the top level carries the parapet.
+        lvl_plinth_wall = p.a_plinth if lvl_idx == 0 else 0.0
+        lvl_parapet_wall = p.a_parapet if lvl_idx == num_levels - 1 else 0.0
+        lvl_ground_steel_area = lvl_built_area if lvl_idx == 0 else 0.0
+        lvl_built_room_ids: list[str] = []
+
+        for rec in level["records"]:
+            r = rec["raw_room"]
+            r_id = rec["id"]
+            if rec["counts_as_built"]:
                 lvl_built_room_ids.append(r_id)
                 all_built_room_ids.append(r_id)
                 built_rooms_count += 1
-                bathrooms_count += 1 if r_boq_type == "BATH" else 0
-
-            lvl_room_records.append({
-                "raw_room": r,
-                "id": r_id,
-                "kind": r_kind,
-                "boq_type": r_boq_type,
-                "poly": poly,
-                "area_m2": area_m2,
-                "perim_m": perim_m,
-                "len_m": len_m,
-                "brd_m": brd_m,
-                "h_room": h_room,
-                "counts_as_built": counts_as_built,
-                "r_gross_wall": r_gross_wall,
-                "r_skirting": r_skirting,
-            })
-
-        lvl_label = lvl.get("name") or f"Level {lvl_idx + 1}"
-        if (
-            global_ceiling_height_m is None
-            and use_standard_11ft_default
-            and lvl.get("wall_height_source") != "stated"
-            and abs(float(lvl.get("wall_height") or PARSER_FALLBACK_WALL_HEIGHT_M) - PARSER_FALLBACK_WALL_HEIGHT_M) < 0.05
-        ):
-            warnings.append(
-                f"{lvl_label}: the drawing states no ceiling height; {DEFAULT_WALL_HEIGHT_M} m was assumed."
-            )
-
-        # Fallback if a level has walls but 0 rooms
-        if lvl_built_area <= 0.0 and walls:
-            warnings.append(
-                f"{lvl_label}: no usable rooms were found; areas were estimated from the wall outline."
-            )
-            xs = [float(pt[0]) * unit_scale for w in walls for pt in (w["start"], w["end"])]
-            ys = [float(pt[1]) * unit_scale for w in walls for pt in (w["start"], w["end"])]
-            lvl_built_area = (max(xs) - min(xs)) * (max(ys) - min(ys))
-            h_default = _resolve_room_height_m({}, lvl, global_ceiling_height_m, use_standard_11ft_default)
-            total_wall_len = sum(
-                math.hypot(
-                    (float(w["end"][0]) - float(w["start"][0])) * unit_scale,
-                    (float(w["end"][1]) - float(w["start"][1])) * unit_scale,
-                )
-                for w in walls
-            )
-            lvl_gross_wall_area = total_wall_len * h_default
-            lvl_skirting_area = total_wall_len * SKIRTING_HEIGHT_M
-
-        lvl_doors = sum(1 for op in openings if str(op.get("type", "")).lower() == "door")
-        lvl_windows = sum(1 for op in openings if str(op.get("type", "")).lower() == "window")
-        lvl_openings_area = (lvl_doors * DOOR_OPENING_AREA_M2) + (lvl_windows * WINDOW_OPENING_AREA_M2)
-
-        lvl_net_wall_area = max(
-            lvl_gross_wall_area - lvl_openings_area,
-            MIN_NET_WALL_RATIO * lvl_gross_wall_area,
-        )
-        if lvl_gross_wall_area > 0 and lvl_openings_area > (1.0 - MIN_NET_WALL_RATIO) * lvl_gross_wall_area:
-            warnings.append(
-                f"{lvl_label}: openings exceed {int((1.0 - MIN_NET_WALL_RATIO) * 100)}% of the wall area; "
-                "the net wall area was held at the minimum."
-            )
-
-        if lvl_idx == 0:
-            a_ground = lvl_built_area
-            a_net_wall_ground = lvl_net_wall_area
-
-        # Plinth belongs to Ground Floor (lvl_idx == 0); Parapet belongs to Top Floor (lvl_idx == num_levels - 1)
-        lvl_plinth_wall = (PLINTH_WALL_FACTOR * lvl_net_wall_area) if lvl_idx == 0 else 0.0
-        lvl_parapet_wall = (4.0 * math.sqrt(a_ground) * PARAPET_HEIGHT_M) if (lvl_idx == num_levels - 1) else 0.0
-        lvl_ground_steel_area = lvl_built_area if lvl_idx == 0 else 0.0
-
-        # Pass 2: Compute Room-Wise 7 Raw Materials for every room on this floor
-        for rec in lvl_room_records:
-            r = rec["raw_room"]
-            r_id = rec["id"]
             if rec["counts_as_built"] and lvl_gross_wall_area > 0 and lvl_built_area > 0:
                 wall_share = rec["r_gross_wall"] / lvl_gross_wall_area
                 area_share = rec["area_m2"] / lvl_built_area
-
                 r_net_wall = lvl_net_wall_area * wall_share
-                r_plinth_share = lvl_plinth_wall * wall_share
-                r_parapet_share = lvl_parapet_wall * area_share
-                r_ground_steel_share = lvl_ground_steel_area * area_share
-
-                room_mats_by_key = _compute_7_materials_for_scope(
+                room_mats_by_key = scope(
                     a_built_m2=rec["area_m2"],
-                    a_ground_share_m2=r_ground_steel_share,
+                    a_ground_share_m2=lvl_ground_steel_area * area_share,
                     a_net_wall_m2=r_net_wall,
-                    a_plinth_wall_m2=r_plinth_share,
-                    a_parapet_wall_m2=r_parapet_share,
+                    a_plinth_wall_m2=lvl_plinth_wall * wall_share,
+                    a_parapet_wall_m2=lvl_parapet_wall * area_share,
                     a_skirting_m2=rec["r_skirting"],
-                    w_pattern=w_pattern,
-                    single_tile_area_m2=single_tile_area_m2,
-                    tile_size_mm=tile_size_mm,
-                    pattern_key=pattern_key,
                     scope_room_ids=[r_id],
                 )
             else:
                 r_net_wall = 0.0
-                room_mats_by_key = _compute_7_materials_for_scope(
-                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                    w_pattern, single_tile_area_m2, tile_size_mm, pattern_key,
+                room_mats_by_key = scope(
+                    a_built_m2=0.0,
+                    a_ground_share_m2=0.0,
+                    a_net_wall_m2=0.0,
+                    a_plinth_wall_m2=0.0,
+                    a_parapet_wall_m2=0.0,
+                    a_skirting_m2=0.0,
                     scope_room_ids=[r_id],
                 )
 
@@ -727,69 +924,53 @@ def map_plan_to_materials(
                 "materials_by_key": room_mats_by_key,
             })
 
-        # Compute Floor-Wise (Level-Wise) 7 Raw Materials
-        lvl_mats_by_key = _compute_7_materials_for_scope(
+        lvl_mats_by_key = scope(
             a_built_m2=lvl_built_area,
             a_ground_share_m2=lvl_ground_steel_area,
             a_net_wall_m2=lvl_net_wall_area,
             a_plinth_wall_m2=lvl_plinth_wall,
             a_parapet_wall_m2=lvl_parapet_wall,
-            a_skirting_m2=lvl_skirting_area,
-            w_pattern=w_pattern,
-            single_tile_area_m2=single_tile_area_m2,
-            tile_size_mm=tile_size_mm,
-            pattern_key=pattern_key,
+            a_skirting_m2=level["skirting_area"],
             scope_room_ids=lvl_built_room_ids,
         )
 
         level_summaries.append({
             "level_index": lvl_idx,
-            "level_name": f"Level {lvl_idx + 1}" if num_levels > 1 else (plan.get("subject") or "Ground Floor"),
+            "level_name": (
+                f"Level {lvl_idx + 1}"
+                if num_levels > 1
+                else (plan.get("subject") or "Ground Floor")
+            ),
             "elevation_m": float(lvl.get("elevation", 0.0)),
             "built_area_m2": round(lvl_built_area, 2),
             "built_area_sqft": round(lvl_built_area * 10.7639, 2),
             "gross_wall_area_m2": round(lvl_gross_wall_area, 2),
-            "openings_area_m2": round(lvl_openings_area, 2),
+            "openings_area_m2": round(level["openings_area"], 2),
             "net_wall_area_m2": round(lvl_net_wall_area, 2),
             "plinth_wall_area_m2": round(lvl_plinth_wall, 2),
             "parapet_wall_area_m2": round(lvl_parapet_wall, 2),
-            "doors_count": lvl_doors,
-            "windows_count": lvl_windows,
-            "columns_count": len(columns),
+            "exterior_perimeter_m": round(p.p_ext[lvl_idx], 2),
+            "wall_height_m": level["height"],
+            "doors_count": level["doors"],
+            "windows_count": level["windows"],
+            "columns_count": level["columns"],
             "materials": list(lvl_mats_by_key.values()),
             "materials_by_key": lvl_mats_by_key,
         })
 
-        a_built_total += lvl_built_area
-        a_net_wall_total += lvl_net_wall_area
-        a_skirting_total += lvl_skirting_area
-        total_doors_all_levels += lvl_doors
-        total_windows_all_levels += lvl_windows
-        total_columns_all_levels += len(columns)
-
-    # Project-Wide Totals
-    a_plinth_wall_total = PLINTH_WALL_FACTOR * a_net_wall_ground
-    a_parapet_wall_total = 4.0 * math.sqrt(a_ground) * PARAPET_HEIGHT_M
-    a_total_masonry = a_net_wall_total + a_plinth_wall_total + a_parapet_wall_total
-    v_wet_total = a_built_total * SLAB_THICKNESS_M * RCC_STRUCTURAL_MULTIPLIER
-    v_dry_total = v_wet_total * DRY_VOLUME_MULTIPLIER
-
-    project_materials_by_key = _compute_7_materials_for_scope(
-        a_built_m2=a_built_total,
-        a_ground_share_m2=a_ground,
-        a_net_wall_m2=a_net_wall_total,
-        a_plinth_wall_m2=a_plinth_wall_total,
-        a_parapet_wall_m2=a_parapet_wall_total,
-        a_skirting_m2=a_skirting_total,
-        w_pattern=w_pattern,
-        single_tile_area_m2=single_tile_area_m2,
-        tile_size_mm=tile_size_mm,
-        pattern_key=pattern_key,
+    # ---- Project totals, from project-level quantities (never by adding up rooms).
+    project_materials_by_key = scope(
+        a_built_m2=p.a_built,
+        a_ground_share_m2=p.a_ground,
+        a_net_wall_m2=p.a_netwall,
+        a_plinth_wall_m2=p.a_plinth,
+        a_parapet_wall_m2=p.a_parapet,
+        a_skirting_m2=SKIRTING_HEIGHT_M * p.sum_p_built,
         scope_room_ids=all_built_room_ids,
     )
+    v_wet_total = p.a_built * SLAB_THICKNESS_M * RCC_STRUCTURAL_MULTIPLIER
 
-    if a_built_total <= 0.0:
-        warnings.append("No built area was found in the plan, so every quantity is zero.")
+    warnings.extend(calculation_warnings(p, facts))
     seen_warnings: set = set()
     warnings = [w for w in warnings if not (w in seen_warnings or seen_warnings.add(w))]
 
@@ -806,24 +987,32 @@ def map_plan_to_materials(
             "schema_version": plan.get("schema_version") or "1.0",
         },
         "geometry_summary": {
-            "a_ground_m2": round(a_ground, 2),
-            "a_ground_sqft": round(a_ground * 10.7639, 2),
-            "a_built_total_m2": round(a_built_total, 2),
-            "a_built_total_sqft": round(a_built_total * 10.7639, 2),
-            "a_net_wall_m2": round(a_net_wall_total, 2),
-            "a_plinth_wall_m2": round(a_plinth_wall_total, 2),
-            "a_parapet_wall_m2": round(a_parapet_wall_total, 2),
-            "a_total_masonry_m2": round(a_total_masonry, 2),
+            "a_ground_m2": round(p.a_ground, 2),
+            "a_ground_sqft": round(p.a_ground * 10.7639, 2),
+            "a_built_total_m2": round(p.a_built, 2),
+            "a_built_total_sqft": round(p.a_built * 10.7639, 2),
+            "a_net_wall_m2": round(p.a_netwall, 2),
+            "a_plinth_wall_m2": round(p.a_plinth, 2),
+            "a_parapet_wall_m2": round(p.a_parapet, 2),
+            "a_total_masonry_m2": round(p.a_masonry, 2),
+            "a_exterior_wall_m2": round(p.a_ext, 2),
+            "a_interior_wall_m2": round(p.a_int, 2),
+            "a_gypsum_wall_faces_m2": round(p.a_gyp_wall, 2),
+            "a_cement_plaster_m2": round(p.a_cem, 2),
+            "a_roof_m2": round(p.a_roof, 2),
             "v_wet_concrete_m3": round(v_wet_total, 2),
-            "v_dry_concrete_m3": round(v_dry_total, 2),
-            "total_doors": total_doors_all_levels,
-            "total_windows": total_windows_all_levels,
-            "total_columns": total_columns_all_levels,
+            "v_dry_concrete_m3": round(p.v_dry, 2),
+            "total_doors": p.n_door,
+            "total_windows": p.n_win,
+            "total_columns": sum(level["columns"] for level in measured),
             "levels_count": num_levels,
             "rooms_count": built_rooms_count,
-            "bathrooms_count": bathrooms_count,
+            "bathrooms_count": p.n_bath,
+            "kitchens_count": p.n_kit,
+            "bedrooms_count": p.n_bed,
         },
-        "items": build_boq_rows(project_materials_by_key),
+        "derived_quantities": _derived_summary(p),
+        "items": build_boq_rows(compute_items(p, facts), project_materials_by_key),
         "warnings": warnings,
         "materials": list(project_materials_by_key.values()),
         "materials_by_key": project_materials_by_key,

@@ -6,9 +6,37 @@ Location: `backend/app/modules/sheets/` and `frontend/src/features/sheets/`. The
 PDF upload -> parse (parsing module, cached) -> calculate (llm_mapper) -> rows -> table / PDF / Excel
 ```
 
-## Status
+## The calculator
 
-The calculator produces the **seven core materials** (serials 1 to 7). Serials 8 to 59, the single wall model and the room-type rules are defined in `docs/materials_formula_spec.md`, which is not in the repository yet. Everything around the calculator (endpoint, row contract, category plan for all 59 serials, exports, UI) is in place and needs no change when those rows are added.
+[materials_formula_spec.md](materials_formula_spec.md) is the source of truth for every quantity: the room types, the derived quantities, the 59 formulas, the warnings and the test fixture. The code follows it section by section.
+
+```
+PlanJSON -> measure each level -> PlanFacts -> derive_primitives -> Primitives -> compute_items -> rows
+            (llm_mapper)          (spec section 1)                  (section 3)   (section 4)
+```
+
+| Step | Where | What it does |
+|---|---|---|
+| Room type | `plans/room_types.py` | `boq_type` of each indoor room (spec section 2). Shared with the plan parser, which writes it; the calculator derives it from the name when a stored plan has none. |
+| Measure | `llm_mapper._measure_level` | Applies the unit scale, then measures rooms, wall areas, openings and bounding boxes of one level. |
+| Derive | `primitives.derive_primitives` | The derived quantities, computed once per plan: wet and dry areas, room counts, the roof level, and the wall model (`A_ext`, `A_int`, `A_gyp_wall`, `A_cem`, `s_gyp`, `s_cem`). |
+| Formulas | `formulas.compute_items` | One formula per item, written as the spec states it. Pure functions of numbers, so they are tested without a drawing. |
+| Rows | `boq_rows.build_boq_rows` | 64 rows from the catalog: 59 items, with 17, 18, 47, 53 and 57 split into two lettered rows. |
+
+Rules that hold everywhere:
+
+- **Items 8 to 59 are project scope only.** The seven core materials (items 1 to 7) are also given per level and per room, from `_compute_7_materials_for_scope`. That engine takes the plan's `s_gyp` and `s_cem`, so room and level values add up to the project totals. The top level carries the parapet and the ground level the plinth.
+- **Project totals come from project-level quantities**, never from adding up rooms.
+- **`ceil` is `math.ceil(round(x, 6))`** and waste is applied once, at the end of a formula.
+- **Nothing is invented.** A room or opening the plan does not show gives 0 and a warning.
+- **Apartment rule.** When `building_type` is `apartment`, items 8, 10, 20, 21, 22, 23, 26, 30, 31 and 58 are 0 with a note, and a warning says composite items still include roof and plinth terms.
+- **Every number is a named constant** in `constants.py`.
+
+Optional inputs of `map_plan_to_materials` (and of `POST /sheets/boq`): `false_ceiling_share` (0 to 1, default 1) and `plot_perimeter_m` (replaces the estimated hoarding length). The BOQ page does not ask for them yet.
+
+The result also carries `derived_quantities`: every symbol of spec section 3 for this plan, for checking a quantity by hand.
+
+Warnings the calculator adds: no bathroom or kitchen detected; more than 30% of the indoor area has no recognised room type; opening widths absent (items 28 and 29 are 0); no paved outdoor rooms (items 22 and 23 are 0); the exterior wall area was capped by the net wall area; the gypsum-plastered wall area was clamped to 0; no built area.
 
 ## Row contract
 
@@ -16,23 +44,23 @@ Every row, in the API, the exports and the UI:
 
 | Field | Meaning |
 |---|---|
-| `serial_no` | 1 to 59. A split item carries a letter (`"17a"`, `"17b"`) and sorts after its number. |
+| `serial_no` | 1 to 59. A split item is two rows with a letter (`"17a"`, `"17b"`), which sort after their number. |
 | `item_code` | Stable code of the item. |
 | `category_code`, `category`, `sub_category` | Placement from `CATEGORY_PLAN` in `boq_rows.py` (A to F). |
-| `name`, `unit`, `quantity` | What to buy and how much. |
-| `quantity_decimals` | 0 for counted units, 2 for measured units (`MEASURE_UNITS`). |
-| `components` | Breakdown as `[{label, quantity, unit, quantity_decimals}]`. |
+| `name`, `unit`, `quantity` | What to buy and how much. `quantity` is the exact value of the formula. |
+| `quantity_decimals` | How to show the quantity: 0 for counts and for quantities the formula rounds up, 2 for measures. |
+| `components` | Breakdown of one product as `[{label, quantity, unit, quantity_decimals}]`: rods of steel, tonnes of sand, tile pieces, boards, cable coils, sockets and switches, breakers, tank sizes. |
 | `calc_type` | `geometry`, `count` or `allowance`. |
 | `quote_status` | `INCLUDED` or `EXCLUDED_FROM_QUOTE`. |
 | `note` | Free text shown in Remarks. |
 
-Rows of the seven core materials also keep that material's earlier keys (`id`, `surface_tag`, `highlight_3d`, `secondary_quantity`, `secondary_unit`, `waste_multiplier`, `details`). The calculator's earlier output keys (`project_metadata`, `geometry_summary`, `materials`, `materials_by_key`, `level_summaries`, `room_breakdown`) are unchanged; `items` and `warnings` were added next to them.
+Rows of the seven core materials also keep that material's earlier keys (`id`, `surface_tag`, `highlight_3d`, `secondary_quantity`, `secondary_unit`, `waste_multiplier`, `details`). The rows use the spec's units (steel in kg, sand and aggregate in m³, tiles in m²); `materials_by_key` keeps the units it always had (tonnes, pieces). The calculator's earlier output keys (`project_metadata`, `geometry_summary`, `materials`, `materials_by_key`, `level_summaries`, `room_breakdown`) are unchanged; `items`, `warnings` and `derived_quantities` were added next to them.
 
 ## Endpoints (`/api/v1/sheets/boq`)
 
 | Method and path | Purpose |
 |---|---|
-| `POST /` | Multipart `file` (PDF, up to 50 MB). Returns `202 {job_id}`. |
+| `POST /` | Multipart `file` (PDF, within the upload limits of [04-parsing-module.md](04-parsing-module.md)), plus the optional fields `false_ceiling_share` and `plot_perimeter_m`. Returns `202 {job_id}`. |
 | `GET /jobs/{job_id}` | Job state with every event so far. |
 | `GET /jobs/{job_id}/events` | SSE progress: `uploading`, `parsing`, `calculating`, then `done` or `failed`. |
 | `GET /jobs/{job_id}/result` | The BOQ once the job is done (`409` before, or when it failed). |
@@ -48,9 +76,11 @@ Jobs run in an in-process thread pool and live in memory for one hour, like the 
 
 | File | Purpose |
 |---|---|
-| `llm_mapper.py` | `map_plan_to_materials(plan)`: the calculator and its entry point (aliases `calculate_raw_materials_from_plan`, `generate_material_sheet`). |
+| `llm_mapper.py` | `map_plan_to_materials(plan)`: reads the plan, measures it and returns the bill (aliases `calculate_raw_materials_from_plan`, `generate_material_sheet`). Also the seven-material engine for room and level scopes. |
+| `primitives.py` | `PlanFacts` (what is measured), `Primitives` (the derived quantities) and `derive_primitives`. |
+| `formulas.py` | `compute_items`: the 59 formulas. `calculation_warnings`. The apartment rule. |
 | `constants.py` | Every engineering constant. The one place to recalibrate. |
-| `boq_rows.py` | Row contract, `CATEGORY_PLAN`, units, rows of the core materials. |
+| `boq_rows.py` | Row contract, `CATALOG` (name, unit, type and quote status of each of the 64 rows), `CATEGORY_PLAN`. |
 | `boq_service.py` | PDF to result: parse, calculate, attach the source file name. |
 | `boq_jobs.py` | Background jobs and their progress events. |
 | `boq_router.py`, `boq_schemas.py` | Endpoints and their models. |
@@ -64,4 +94,5 @@ Jobs run in an in-process thread pool and live in memory for one hour, like the 
 
 ## Tests
 
-`backend/tests/unit/test_boq.py`: row contract, category plan, calculator keys, determinism, the endpoints with a fake plan parser, and both exports.
+- `backend/tests/unit/test_boq_formulas.py`: the fixture of spec section 8 on the formula layer (every derived quantity and all 64 rows), one test per edge case of section 7, every warning, the apartment rule, and that room and level values add up to the project totals.
+- `backend/tests/unit/test_boq.py`: row contract, category plan, calculator keys, determinism, the endpoints with a fake plan parser, and both exports.

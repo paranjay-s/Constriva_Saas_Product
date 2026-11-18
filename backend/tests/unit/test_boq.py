@@ -24,6 +24,7 @@ from app.modules.sheets.boq_export import (
 from app.modules.sheets.boq_jobs import BoqJobManager, get_boq_jobs
 from app.modules.sheets.boq_router import get_pdf_parser
 from app.modules.sheets.boq_rows import (
+    CATALOG,
     CATEGORY_PLAN,
     TOTAL_SERIALS,
     build_boq_rows,
@@ -107,15 +108,22 @@ def test_category_plan_places_all_59_serials_exactly_once():
 
 def test_every_row_has_the_contract_fields(result):
     rows = result["items"]
-    assert [r["serial_no"] for r in rows] == [1, 2, 3, 4, 5, 6, 7]
+    assert len(rows) == 64  # 59 items, five of them split into two lettered rows
+    assert [r["serial_no"] for r in rows] == [item.serial for item in CATALOG]
     for row in rows:
         assert ROW_KEYS <= set(row)
-        assert row["category"] == "Structure and Masonry" and row["category_code"] == "A"
-        assert row["calc_type"] == "geometry" and row["quote_status"] == "INCLUDED"
-        assert isinstance(row["quantity"], (int, float)) and row["quantity"] > 0
+        assert row["calc_type"] in ("geometry", "count", "allowance")
+        assert row["quote_status"] in ("INCLUDED", "EXCLUDED_FROM_QUOTE")
+        assert isinstance(row["quantity"], (int, float)) and row["quantity"] >= 0
+        assert isinstance(row["note"], str)
         for part in row["components"]:
             assert set(part) == {"label", "quantity", "unit", "quantity_decimals"}
-    assert [r["sub_category"] for r in rows] == [
+    core = rows[:7]
+    for row in core:
+        assert row["category"] == "Structure and Masonry" and row["category_code"] == "A"
+        assert row["calc_type"] == "geometry" and row["quote_status"] == "INCLUDED"
+        assert row["quantity"] > 0
+    assert [r["sub_category"] for r in core] == [
         "Masonry",
         "Reinforcement",
         "Concrete and binders",
@@ -126,29 +134,42 @@ def test_every_row_has_the_contract_fields(result):
     ]
 
 
-def test_rows_carry_the_calculator_quantities_and_keep_the_earlier_keys(result):
+def test_core_rows_agree_with_the_calculator_and_keep_the_earlier_keys(result):
     by_key = result["materials_by_key"]
-    for row in result["items"]:
-        material = by_key[row["item_code"]]
-        assert row["quantity"] == material["quantity"]
-        assert row["name"] == material["name"]
+    rows = {r["item_code"]: r for r in result["items"]}
+    for code, material in by_key.items():
         for kept in (
             "id",
             "surface_tag",
             "highlight_3d",
             "secondary_quantity",
             "secondary_unit",
+            "waste_multiplier",
             "details",
         ):
-            assert row[kept] == material[kept]
-    steel = next(r for r in result["items"] if r["item_code"] == "steel_rebar")
-    assert (steel["unit"], steel["quantity_decimals"]) == ("t", 2)
-    labels = {c["label"]: c for c in steel["components"]}
-    assert labels["Steel weight"]["unit"] == "kg"
-    assert (
-        labels["12 m bars (12 mm average)"]["quantity"]
-        == by_key["steel_rebar"]["secondary_quantity"]
+            assert rows[code][kept] == material[kept]
+
+    # Rows are in the spec's units; `materials_by_key` keeps the units it always had.
+    for code in ("aac_blocks", "cement", "plaster"):
+        assert rows[code]["quantity"] == by_key[code]["quantity"]
+    steel = rows["steel_rebar"]
+    assert (steel["unit"], steel["quantity_decimals"]) == ("kg", 2)
+    assert steel["quantity"] == pytest.approx(
+        by_key["steel_rebar"]["details"]["total_steel_kg"], abs=0.05
     )
+    rods = next(c for c in steel["components"] if c["label"].startswith("12 m rods"))
+    assert rods["quantity"] == by_key["steel_rebar"]["secondary_quantity"]
+    for code in ("sand", "ballast_gitti"):  # row in m3, tonnes as a component
+        assert rows[code]["unit"] == "m³"
+        assert rows[code]["quantity"] == pytest.approx(
+            by_key[code]["secondary_quantity"], abs=0.005
+        )
+        weight = rows[code]["components"][0]
+        assert weight["unit"] == "t"
+        assert weight["quantity"] == pytest.approx(by_key[code]["quantity"], abs=0.005)
+    tiles = rows["tiles"]
+    assert tiles["quantity"] == pytest.approx(by_key["tiles"]["secondary_quantity"], abs=0.005)
+    assert tiles["components"][0]["quantity"] == by_key["tiles"]["quantity"]
 
 
 def test_the_calculator_keeps_every_key_it_returned_before(result):
@@ -185,8 +206,12 @@ def test_result_summary_metadata_and_warnings(result):
     meta = result["project_metadata"]
     assert meta["source_file_name"] == "Second Floor Plan.pdf"
     assert meta["building_type"] == "other"
+    # an older stored plan: its abbreviated labels ("KIT.", "DRG.") have no boq_type
     assert result["warnings"] == [
-        "Level 1: the drawing states no ceiling height; 3.35 m was assumed."
+        "Level 1: the drawing states no ceiling height; 3.35 m was assumed.",
+        "No kitchen was detected, so kitchen items are 0. Check the room labels.",
+        "38% of the indoor area has no recognised room type. Room-based quantities may be low.",
+        "No paved outdoor rooms were found, so items 22 and 23 are 0.",
     ]
 
 
@@ -253,10 +278,12 @@ def test_serials_sort_naturally_with_lettered_rows():
     assert sorted(serials, key=serial_sort_key) == [2, "10", 17, "17a", "17b", 18]
 
 
-def test_make_row_places_lettered_rows_and_rounds_by_unit():
+def test_make_row_places_lettered_rows_and_shows_by_unit():
     row = make_row("17a", "paint", "Paint", "l", 412.3456)
     assert (row["category_code"], row["sub_category"]) == ("B", "Painting")
-    assert (row["quantity"], row["quantity_decimals"]) == (412.35, 2)
+    # the exact value is kept; `quantity_decimals` says how to show it
+    assert (row["quantity"], row["quantity_decimals"]) == (412.3456, 2)
+    assert make_row("17a", "paint", "Paint", "l", 412.3456, decimals=0)["quantity"] == 412
     count = make_row(1, "blocks", "Blocks", "nos", 6143.0)
     assert (count["quantity"], count["quantity_decimals"]) == (6143, 0)
     assert quantity_decimals("m2") == 2 and quantity_decimals("bags (50 kg)") == 0
@@ -331,7 +358,7 @@ def test_excel_export_rows_columns_and_formatting():
 
 def test_excel_export_of_a_real_result(result):
     wb = load_workbook(io.BytesIO(build_boq_xlsx(**_export_args(result))))
-    assert wb["BOQ"].max_row == 1 + len(result["items"]) == 8
+    assert wb["BOQ"].max_row == 1 + len(result["items"]) == 65
 
 
 def _export_args(result: dict) -> dict:
@@ -454,9 +481,37 @@ def test_boq_upload_parse_calculate_and_result(boq_client):
     body = result.json()
     assert {"items", "warnings", "geometry_summary", "project_metadata"} <= set(body)
     assert {"materials", "materials_by_key", "level_summaries", "room_breakdown"} <= set(body)
-    assert len(body["items"]) == 7
+    assert len(body["items"]) == 64
     assert body["project_metadata"]["source_file_name"] == "My Plan.pdf"
     assert body["geometry_summary"]["bathrooms_count"] == 4
+
+
+def test_boq_upload_takes_the_optional_user_inputs(boq_client):
+    def run(**fields) -> dict:
+        started = boq_client.post(
+            "/api/v1/sheets/boq",
+            files={"file": ("p.pdf", minimal_pdf(), "application/pdf")},
+            data=fields,
+        )
+        assert started.status_code == 202, started.text
+        job_id = started.json()["job_id"]
+        wait_for_job(boq_client, job_id)
+        rows = boq_client.get(f"/api/v1/sheets/boq/jobs/{job_id}/result").json()["items"]
+        return {str(r["serial_no"]): r["quantity"] for r in rows}
+
+    default = run()
+    custom = run(false_ceiling_share="0.5", plot_perimeter_m="120")
+    assert custom["18b"] == pytest.approx(default["18b"] / 2)
+    assert custom["58"] == 120 and default["58"] != 120
+    assert {s for s in default if default[s] != custom[s]} == {"18b", "58"}
+
+    for bad in ({"false_ceiling_share": "1.5"}, {"plot_perimeter_m": "-3"}):
+        rejected = boq_client.post(
+            "/api/v1/sheets/boq",
+            files={"file": ("p.pdf", minimal_pdf(), "application/pdf")},
+            data=bad,
+        )
+        assert rejected.status_code == 422
 
 
 def test_boq_progress_is_streamed_as_sse(boq_client):
@@ -536,7 +591,7 @@ def test_boq_exports_are_built_from_the_posted_rows(boq_client, result):
     assert pdf.content.startswith(b"%PDF")
     assert pdf.headers["content-disposition"] == 'attachment; filename="BOQ_Second_Floor_Plan.pdf"'
     text = "\n".join(p.get_text() for p in pymupdf.open(stream=pdf.content, filetype="pdf"))
-    assert "AAC Blocks" in text and "6,120" in text
+    assert "AAC blocks" in text and "6,164" in text
 
     xlsx = boq_client.post("/api/v1/sheets/boq/export/xlsx", json=payload)
     assert xlsx.status_code == 200
@@ -545,7 +600,7 @@ def test_boq_exports_are_built_from_the_posted_rows(boq_client, result):
         xlsx.headers["content-disposition"] == 'attachment; filename="BOQ_Second_Floor_Plan.xlsx"'
     )
     sheet = load_workbook(io.BytesIO(xlsx.content))["BOQ"]
-    assert sheet.max_row == 8 and sheet.cell(row=2, column=6).value == 6120
+    assert sheet.max_row == 65 and sheet.cell(row=2, column=6).value == 6164
 
 
 def test_boq_export_rejects_a_malformed_payload(boq_client):

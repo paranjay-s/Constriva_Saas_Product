@@ -147,6 +147,10 @@ def test_map_plan_to_materials_smt_geeta_gaud():
     Mandatory Verification Test (Task 2):
     Feeds SMT. GEETA GAUD (36'6" X 55' (E) AT SHALIMAR GREENS) PlanJSON
     into map_plan_to_materials() and verifies all exact QS geometric and material quantities.
+
+    Wall areas follow the wall model of docs/materials_formula_spec.md (section 3): the
+    parapet is 1.0 m x the exterior perimeter (55.54 m), and the gypsum / cement plaster
+    split comes from the exterior, interior and wet-wall areas of this plan.
     """
     import json
     from pathlib import Path
@@ -166,13 +170,13 @@ def test_map_plan_to_materials_smt_geeta_gaud():
     # 1. Geometric base assertions
     assert geo["a_built_total_m2"] == 159.62
     assert geo["a_net_wall_m2"] == 519.08
-    assert geo["a_total_masonry_m2"] == 699.39
+    assert geo["a_total_masonry_m2"] == 704.39  # 519.08 + 129.77 + parapet 55.54
 
     # 2. The 7 Core Materials Exact Assertions
     # AAC Blocks & Bricks
-    assert mats["aac_blocks"]["quantity"] == 6120
+    assert mats["aac_blocks"]["quantity"] == 6164
     assert mats["aac_blocks"]["unit"] == "pieces"
-    assert mats["aac_blocks"]["details"]["india_clay_bricks_equivalent"] == 40390
+    assert mats["aac_blocks"]["details"]["india_clay_bricks_equivalent"] == 40679
 
     # Steel Rebar
     assert mats["steel_rebar"]["quantity"] == 9.83
@@ -181,13 +185,13 @@ def test_map_plan_to_materials_smt_geeta_gaud():
     assert mats["steel_rebar"]["secondary_unit"] == "rods_12m"
 
     # Cement
-    assert mats["cement"]["quantity"] == 337
+    assert mats["cement"]["quantity"] == 336
     assert mats["cement"]["unit"] == "bags_50kg"
 
     # Sand
-    assert mats["sand"]["quantity"] == 47.74
+    assert mats["sand"]["quantity"] == 47.45
     assert mats["sand"]["unit"] == "metric_tons"
-    assert mats["sand"]["secondary_quantity"] == 29.33
+    assert mats["sand"]["secondary_quantity"] == 29.15
     assert mats["sand"]["secondary_unit"] == "m3"
 
     # Ballast / Gitti
@@ -197,9 +201,9 @@ def test_map_plan_to_materials_smt_geeta_gaud():
     assert mats["ballast_gitti"]["secondary_unit"] == "m3"
 
     # Plaster
-    assert mats["plaster"]["quantity"] == 348
+    assert mats["plaster"]["quantity"] == 405
     assert mats["plaster"]["unit"] == "bags_30kg"
-    assert mats["plaster"]["details"]["external_wet_cement_plaster_area_m2"] == 363.36
+    assert mats["plaster"]["details"]["external_wet_cement_plaster_area_m2"] == 350.15
 
     # Tiles
     assert mats["tiles"]["quantity"] == 534

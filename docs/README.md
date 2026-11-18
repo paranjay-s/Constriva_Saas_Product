@@ -10,7 +10,8 @@ This folder explains how the repository is organised and why. Read the files in 
 | [04-parsing-module.md](04-parsing-module.md) | The PDF-to-plan pipeline, file by file |
 | [05-data-and-storage.md](05-data-and-storage.md) | Database tables, plan JSON, S3 layout, migrations |
 | [06-workers-and-realtime.md](06-workers-and-realtime.md) | Celery queues, job lifecycle and SSE progress events |
-| [07-boq.md](07-boq.md) | The BOQ flow: row contract, endpoints, exports |
+| [07-boq.md](07-boq.md) | The BOQ flow: the calculator, row contract, endpoints, exports |
+| [materials_formula_spec.md](materials_formula_spec.md) | Source of truth for the 59 material formulas, room types, warnings and the test fixture |
 | [plan-json.md](plan-json.md) | The PlanJSON contract, including the schema 2.0 fields |
 
 Keep these files in sync with the code. When you add, move or remove a folder, update the matching file in the same commit.

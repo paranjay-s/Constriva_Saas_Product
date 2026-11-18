@@ -26,12 +26,22 @@ def default_pdf_parser(pdf_bytes: bytes) -> dict[str, Any]:
     return parse_plan_pdf(pdf_bytes, min_rooms=1)
 
 
-def build_boq_result(plan: dict[str, Any], source_file_name: str = "") -> dict[str, Any]:
+def build_boq_result(
+    plan: dict[str, Any],
+    source_file_name: str = "",
+    *,
+    false_ceiling_share: float = 1.0,
+    plot_perimeter_m: float | None = None,
+) -> dict[str, Any]:
     """PlanJSON -> the BOQ response: item rows, warnings, geometry summary, metadata.
 
-    Keeps every key `map_plan_to_materials` already returned.
+    Keeps every key `map_plan_to_materials` already returned. The two optional inputs are
+    the user inputs of the formula spec: the share of the dry indoor area that gets a false
+    ceiling (0 to 1), and the plot perimeter in metres for the site hoarding.
     """
-    result = map_plan_to_materials(plan)
+    result = map_plan_to_materials(
+        plan, false_ceiling_share=false_ceiling_share, plot_perimeter_m=plot_perimeter_m
+    )
     result["project_metadata"]["source_file_name"] = source_file_name
     return result
 
@@ -42,6 +52,9 @@ def start_boq_job(
     filename: str,
     pdf_bytes: bytes,
     parse_pdf: PlanPdfParser = default_pdf_parser,
+    *,
+    false_ceiling_share: float = 1.0,
+    plot_perimeter_m: float | None = None,
 ) -> BoqJob:
     def work(job: BoqJob) -> dict[str, Any]:
         job.emit("uploading")
@@ -54,7 +67,12 @@ def start_boq_job(
             raise BoqJobFailure(str(e), code) from e
         job.emit("calculating")
         try:
-            return build_boq_result(plan, filename)
+            return build_boq_result(
+                plan,
+                filename,
+                false_ceiling_share=false_ceiling_share,
+                plot_perimeter_m=plot_perimeter_m,
+            )
         except ValueError as e:
             raise BoqJobFailure(
                 f"Quantities could not be calculated: {e}", "calculation_failed"
