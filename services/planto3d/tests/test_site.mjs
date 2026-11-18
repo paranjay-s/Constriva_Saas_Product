@@ -8,12 +8,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import assert from 'node:assert';
+import { fileURLToPath } from 'node:url';
 import { entrance } from '../web/walk.js';
 const [pdf, base = 'http://127.0.0.1:8080'] = process.argv.slice(2);
 const sleep = (t) => new Promise((r) => setTimeout(r, t));
 const CH = process.env.CHROME || 'chromium';
+// WebGL backend of the headless browser: EGL on Linux, Metal on a Mac (set ANGLE to choose another)
+const ANGLE = process.env.ANGLE || (process.platform === 'darwin' ? 'metal' : 'gl-egl');
 const port = 9400 + Math.floor(Math.random() * 400);
-const ch = spawn(CH, ['--headless=new', '--no-sandbox', `--remote-debugging-port=${port}`, '--use-angle=gl-egl', '--ignore-gpu-blocklist', '--enable-gpu', 'about:blank'], { stdio: 'ignore' });
+const ch = spawn(CH, ['--headless=new', '--no-sandbox', `--remote-debugging-port=${port}`, `--use-angle=${ANGLE}`, '--ignore-gpu-blocklist', '--enable-gpu', 'about:blank'], { stdio: 'ignore' });
 let job;
 try {
   let targets;
@@ -30,7 +33,7 @@ try {
   };
   await cdp('Page.navigate', { url: base + '/' });
   await sleep(1000);
-  await choose(new URL(import.meta.url).pathname);               // this script: not a PDF
+  await choose(fileURLToPath(import.meta.url));                  // this script: not a PDF (a URL's pathname keeps %20 for a space)
   for (let i = 0; i < 50 && !(await ev(`document.getElementById('msg').className`)); i++) await sleep(100);
   assert.match(await ev(`document.getElementById('msg').textContent`), /PDF/, 'a non-PDF should be refused with a message');
   assert.equal(await ev(`document.getElementById('drop').classList.contains('busy')`), false, 'upload box should be usable again');

@@ -39,3 +39,20 @@ queued, and it never changes.
 
 What: `waiting` lists the queued job ids in order. `GET /api/jobs/{id}` adds `queue_position` (1 = next)
 while the job's stage is `queued`.
+
+## 4. The browser test finds itself in a folder with a space (tests/test_site.mjs)
+
+Why: the test uploads its own source file as the "not a PDF" case and took its path from
+`new URL(import.meta.url).pathname`, which keeps `%20` for a space. In a checkout such as
+`.../constriva saas/...` the browser was handed a file that does not exist and the first
+assertion failed with "Failed to fetch".
+
+What: the path now comes from `fileURLToPath(import.meta.url)`.
+
+## 5. Headless WebGL backend follows the platform (tests/test_site.mjs, tools/record.mjs)
+
+Why: both start Chromium with `--use-angle=gl-egl`, which exists on Linux only. On macOS
+WebGL then never starts, the walkthrough stays on "Loading…" and the test fails at the
+recording step.
+
+What: the backend is `gl-egl` on Linux and `metal` on macOS, or whatever `ANGLE` is set to.

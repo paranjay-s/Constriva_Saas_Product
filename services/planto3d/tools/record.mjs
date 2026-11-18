@@ -6,9 +6,11 @@ import fs from 'node:fs';
 const [job, framesFile, out, base = 'http://127.0.0.1:8080'] = process.argv.slice(2);
 const frames = JSON.parse(fs.readFileSync(framesFile, 'utf8'));
 const CH = process.env.CHROME || 'chromium';
+// WebGL backend of the headless browser: EGL on Linux, Metal on a Mac (set ANGLE to choose another)
+const ANGLE = process.env.ANGLE || (process.platform === 'darwin' ? 'metal' : 'gl-egl');
 const port = 9400 + Math.floor(Math.random() * 400);
 const ch = spawn(CH, ['--headless=new', '--no-sandbox', `--remote-debugging-port=${port}`, '--window-size=1280,720',
-  '--hide-scrollbars', '--use-angle=gl-egl', '--ignore-gpu-blocklist', '--enable-gpu', 'about:blank'], { stdio: 'ignore' });
+  '--hide-scrollbars', `--use-angle=${ANGLE}`, '--ignore-gpu-blocklist', '--enable-gpu', 'about:blank'], { stdio: 'ignore' });
 const sleep = (t) => new Promise((r) => setTimeout(r, t));
 let targets;
 for (let i = 0; i < 100 && !targets; i++) { try { targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); } catch { await sleep(200); } }
