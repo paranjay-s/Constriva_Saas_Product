@@ -71,7 +71,9 @@ async def ping() -> Dict[str, str]:
     response_model=MaterialCatalogueResponse,
     summary="Retrieve master catalogue of the 7 standard construction materials"
 )
-async def get_materials_catalogue():
+async def get_materials_catalogue(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
     """
     Returns master specifications, market rates, and surface tags for:
     Brick, Steel/rebar rod, Cement, Sand, Ballast, Plaster, and Tiles.

@@ -28,11 +28,25 @@ Cross-cutting infrastructure. Nothing here knows about floor plans.
 | File | Purpose |
 |---|---|
 | `config.py` | Reads environment variables into one typed settings object. |
-| `security.py` | Verifies the Supabase JWT and provides the `current_user` dependency. Passwords are never handled here. |
+| `security.py` | Verifies the Supabase JWT and provides the `get_current_user` dependency. A request with no token gets `401`; see "Authentication" below. Passwords are never handled here. |
 | `db.py` | Async SQLAlchemy engine, session dependency and the declarative `Base` that every module's models inherit from. |
 | `redis.py` | Shared Redis connection (used by Celery, pub/sub and rate limits). |
 | `storage.py` | S3 helper: create presigned upload and download URLs, read and write objects. Works with MinIO locally. |
 | `logging.py` | Structured logging setup. |
+
+### Authentication
+
+Every endpoint except `/health`, `/health/deep`, the module `/ping` probes and the sign-in endpoints (`/auth/login`, `/auth/signup`, `/auth/refresh`) uses one dependency, `get_current_user`:
+
+- A valid Supabase access token in `Authorization: Bearer ...` identifies the user.
+- No token, or an expired or invalid one, gets `401`. There is no shared or fallback user.
+- Endpoints that return a user's data also check that it is theirs, and answer someone else's data with the same `404` as data that does not exist. A parsing job belongs to the user who started it; a plan belongs to the owner of its project (`projects/service.user_owns_project`).
+
+Browsers cannot attach the header to an `EventSource` or an `<img>` tag, so the frontend reads progress streams and protected images with `fetch()`.
+
+**Demo access** is off by default. With `AUTH_ALLOW_DEMO_USER=true`, a request with no token acts as one dedicated demo profile, whose UUID is given in `AUTH_DEMO_USER_ID`. The server refuses to start when the flag is on and that UUID is missing. The code creates no account and holds no password; an operator creates the demo profile. Do not turn it on for a deployment with real customer data.
+
+`tests/unit/test_auth.py` checks that every protected operation in the OpenAPI document refuses a request without a token, and `tests/unit/test_endpoint_ownership.py` pins the list of open endpoints and the ownership checks.
 
 ## `app/modules/`
 

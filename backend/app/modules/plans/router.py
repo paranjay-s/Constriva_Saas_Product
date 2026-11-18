@@ -170,24 +170,35 @@ async def update_plan(
 )
 async def download_plan_png(
     plan_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """
     Returns the printable, high-resolution CAD working drawing PNG image
     for the specified plan ID.
+
+    Only the owner of the plan's project can download it. Someone else's plan and a plan
+    that does not exist both give the same 404.
     """
     import base64
     from fastapi.responses import Response
+
+    from app.modules.projects.service import user_owns_project
 
     clean_id = clean_uuid(plan_id)
     plan_name = "Architectural_Working_Plan"
     png_bytes = None
 
-    if clean_id and os.environ.get("TESTING") != "1":
+    if clean_id:
         try:
             supabase = get_supabase_client()
-            res = supabase.table("plans").select("name, generation_metadata").eq("id", clean_id).execute()
-            if res.data:
-                row = res.data[0]
+            res = (
+                supabase.table("plans")
+                .select("name, project_id, generation_metadata")
+                .eq("id", clean_id)
+                .execute()
+            )
+            row = res.data[0] if res.data else None
+            if row and user_owns_project(row.get("project_id"), current_user.id):
                 plan_name = row.get("name") or plan_name
                 meta = row.get("generation_metadata") or {}
                 b64_str = meta.get("png_base64")

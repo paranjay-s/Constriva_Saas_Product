@@ -69,3 +69,62 @@ def unauthenticated_client() -> TestClient:
     app.dependency_overrides.clear()
     test_client = TestClient(app)
     yield test_client
+
+
+class FakeDb:
+    """An in-memory stand-in for the Supabase client, for read paths.
+
+        FakeDb(jobs=[{...}], projects=[{...}]).table("jobs").select("*").eq("id", x).execute()
+
+    `select`, `order` and `limit` are accepted; `eq` filters the rows. Storage signs any
+    path as https://storage.test/<path>.
+    """
+
+    def __init__(self, **tables: list[dict]) -> None:
+        self.tables = {name: list(rows) for name, rows in tables.items()}
+        self.storage = MagicMock()
+        self.storage.from_.return_value.create_signed_url.side_effect = lambda path, expires_in: {
+            "signedURL": f"https://storage.test/{path}"
+        }
+
+    def table(self, name: str) -> "FakeDb._Query":
+        return FakeDb._Query(self.tables.get(name, []))
+
+    class _Query:
+        def __init__(self, rows: list[dict]) -> None:
+            self.rows = rows
+
+        def select(self, *_columns: str) -> "FakeDb._Query":
+            return self
+
+        def order(self, *_args, **_kwargs) -> "FakeDb._Query":
+            return self
+
+        def eq(self, column: str, value) -> "FakeDb._Query":
+            return FakeDb._Query([r for r in self.rows if str(r.get(column)) == str(value)])
+
+        def limit(self, count: int) -> "FakeDb._Query":
+            return FakeDb._Query(self.rows[:count])
+
+        def execute(self) -> MagicMock:
+            return MagicMock(data=list(self.rows))
+
+
+@pytest.fixture
+def fake_db(monkeypatch):
+    """Install a FakeDb wherever the routers and the ownership check read the database.
+
+        db = fake_db(jobs=[...], projects=[...], plans=[...])
+    """
+
+    def install(**tables: list[dict]) -> FakeDb:
+        db = FakeDb(**tables)
+        for module in (
+            "app.modules.parsing.router",
+            "app.modules.plans.router",
+            "app.modules.projects.service",
+        ):
+            monkeypatch.setattr(f"{module}.get_supabase_client", lambda: db)
+        return db
+
+    return install

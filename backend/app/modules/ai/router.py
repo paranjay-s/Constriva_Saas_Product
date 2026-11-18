@@ -142,12 +142,14 @@ async def ai_chat(
 )
 async def get_ai_plan_png(
     plan_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """
     Direct route to fetch and download the high-resolution CAD working drawing PNG.
+    Same rule as /plans/{plan_id}/download-png: the owner of the plan's project only.
     """
     from app.modules.plans.router import download_plan_png
-    return await download_plan_png(plan_id)
+    return await download_plan_png(plan_id, current_user)
 
 
 # New 2D floor plan generator (brief -> background job -> validated plan, chat edits,

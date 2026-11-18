@@ -15,7 +15,7 @@ import json
 import uuid
 import asyncio
 import logging
-from typing import Optional
+from typing import Any, Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, status, BackgroundTasks
 from fastapi.responses import StreamingResponse, Response, RedirectResponse
 from app.core.supabase import get_supabase_client
@@ -118,12 +118,39 @@ def get_or_create_default_project(user_id: str, filename: Optional[str] = None) 
     "/upload-limits",
     summary="The size and page limits a plan PDF must meet"
 )
-async def get_upload_limits():
+async def get_upload_limits(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
     """
     Returns the limits every plan upload is checked against, so a client can say them
     up front. They are set by PLAN_PARSER_MAX_PDF_MB and PLAN_PARSER_MAX_PDF_PAGES.
     """
     return upload_limits()
+
+
+def _own_job(supabase, task_id: str, user_id: str) -> dict[str, Any]:
+    """The parsing job if it belongs to the user, else 404 (no hint whether it exists)."""
+    clean_tid = clean_uuid(task_id)
+    if not clean_tid:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parsing job not found.")
+    try:
+        res = (
+            supabase.table("jobs")
+            .select("*")
+            .eq("id", clean_tid)
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:
+        logger.error(f"Could not read parsing job {clean_tid}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The job could not be read right now. Please try again in a moment.",
+        ) from e
+    if not res.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parsing job not found.")
+    return res.data[0]
 
 
 @router.post(
@@ -217,15 +244,24 @@ async def process_blueprint(
     "/stream/{task_id}",
     summary="Subscribe to Server-Sent Events (SSE) for blueprint extraction progress"
 )
-async def stream_parsing_progress(task_id: str):
+async def stream_parsing_progress(
+    task_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
     """
     Streams Server-Sent Events (SSE) reporting the real-time progress of a parsing job
     (0% to 100%) to drive the frontend upload progress bar.
+
+    Only the user who started the job can follow it; anyone else gets 404. A browser reads
+    this stream with fetch(), which can send the Authorization header (EventSource cannot).
 
     Args:
         task_id (str): UUID of the background parsing job.
     """
     supabase = get_supabase_client()
+    # Checked before the stream opens, so a stranger gets a plain 404 and no events.
+    task_id = str(_own_job(supabase, task_id, current_user.id)["id"])
+    owner_id = current_user.id
 
     async def event_generator():
         last_progress = -1
@@ -233,7 +269,13 @@ async def stream_parsing_progress(task_id: str):
 
         while True:
             try:
-                res = supabase.table("jobs").select("*").eq("id", task_id).execute()
+                res = (
+                    supabase.table("jobs")
+                    .select("*")
+                    .eq("id", task_id)
+                    .eq("user_id", owner_id)
+                    .execute()
+                )
                 if not res.data:
                     yield f"event: error\ndata: {json.dumps({'error': 'Job not found'})}\n\n"
                     break
@@ -287,26 +329,24 @@ async def stream_parsing_progress(task_id: str):
     "/job/{task_id}/image",
     summary="Directly view or redirect to the extracted blueprint image for a parsing task",
 )
-async def get_job_image(task_id: str):
+async def get_job_image(
+    task_id: str,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+):
     """
     Retrieves the high-resolution extracted PNG image for a background parsing job.
-    Redirects (HTTP 307) directly to the Supabase Storage signed URL, so it can be viewed
-    in the browser or rendered directly in an HTML <img> tag.
+    Redirects (HTTP 307) to a Supabase Storage signed URL that expires in an hour.
+
+    Only the user who started the job can get it; anyone else gets 404. A browser fetches
+    it with the Authorization header and shows the result (an <img> tag cannot send one).
 
     Args:
         task_id (str): UUID of the background parsing job.
     """
     supabase = get_supabase_client()
-    clean_tid = clean_uuid(task_id)
-    if not clean_tid:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid task_id UUID format.")
+    job = _own_job(supabase, task_id, current_user.id)
 
     try:
-        res = supabase.table("jobs").select("*").eq("id", clean_tid).execute()
-        if not res.data:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parsing job not found.")
-
-        job = res.data[0]
         result = job.get("result") or {}
 
         # 1. If signed preview URL was already cached in result, redirect directly
@@ -425,6 +465,7 @@ async def rasterize_pdf_endpoint(
     file: UploadFile = File(..., description="Architectural floor plan PDF document"),
     dpi: int = 300,
     page_number: int = 0,
+    current_user: AuthenticatedUser = Depends(get_current_user),
 ):
     """
     Directly converts an uploaded architectural PDF page into a crisp PNG image stream (300 DPI).
@@ -438,17 +479,16 @@ async def rasterize_pdf_endpoint(
     Returns:
         Response: PNG image stream (image/png) with width/height headers.
     """
-    if not file.filename or not file.filename.lower().endswith(".pdf"):
+    # The same check as the plan uploads: PDF only, within the size and page limits.
+    try:
+        pdf_bytes = await read_plan_upload(file)
+    except ValueError as rejected:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Uploaded file must be a PDF document (.pdf)."
-        )
+            status_code=getattr(rejected, "http_status", status.HTTP_400_BAD_REQUEST),
+            detail=str(rejected),
+        ) from rejected
 
     try:
-        pdf_bytes = await file.read()
-        if len(pdf_bytes) == 0:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty.")
-
         from app.modules.parsing.pdf_to_image import convert_pdf_page_to_png
         png_bytes, width, height = convert_pdf_page_to_png(pdf_bytes, page_number=page_number, dpi=dpi)
 

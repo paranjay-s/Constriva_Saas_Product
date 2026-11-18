@@ -148,7 +148,8 @@ def test_no_template_plan_or_hard_coded_client_remains_in_the_import_or_download
         assert "GEETA" not in source
 
 
-def test_downloading_a_drawing_that_does_not_exist_is_a_404_not_another_plan(client):
+def test_downloading_a_drawing_that_does_not_exist_is_a_404_not_another_plan(client, fake_db):
+    fake_db()  # an empty database
     response = client.get("/api/v1/plans/44444444-4444-4444-4444-444444444444/download-png")
     assert response.status_code == 404
     assert response.json()["detail"] == "This plan has no downloadable drawing."
