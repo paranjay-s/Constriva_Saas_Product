@@ -1,6 +1,8 @@
 # Materials Formula Spec: 59 items (UAE)
 
-Version 1.1. Source of truth for the BOQ material calculator. Quantities are estimates from a 2D plan. Items typed A are allowances.
+Version 1.2. Source of truth for the BOQ material calculator. Quantities are estimates from a 2D plan. Items typed A are allowances.
+
+Changes in 1.2: `boq_kind` (parking is paved outdoor area; semi-open wet rooms are indoor), whole-word abbreviations in the room-type rules, combined dressing and toilet rooms, small pantries, item 58, item 53b in the apartment rule, the steel row in tonnes, a warning for under-read doors, and the double-height exterior wall noted as a known limit.
 
 ## 0. Conventions
 
@@ -8,50 +10,70 @@ Version 1.1. Source of truth for the BOQ material calculator. Quantities are est
 - `[x]` is 1 if x is true, else 0.
 - `ceil(x)` always means `math.ceil(round(x, 6))`.
 - `clamp(x, lo, hi) = min(max(x, lo), hi)`.
-- Built rooms have kind `indoor` or `semi_open`. Indoor rooms have kind `indoor`.
+- Kind always means `boq_kind` (section 2). Built rooms have `boq_kind` `indoor` or `semi_open`. Indoor rooms have `boq_kind` `indoor`.
 
 ## 1. Inputs read from PlanJSON
 
 | Input | Source | Default if missing |
 |---|---|---|
-| `A_r`, `P_r`, `kind_r` per room | polygon, `_classify_room_kind` | none |
+| `A_r`, `P_r` per room | polygon | none |
+| `room.kind` per room | plan, else `_classify_room_kind` | derived from the name |
+| `boq_kind` per room | `room.boq_kind`, else derived by section 2 | derived |
 | `boq_type` per indoor room | `room.boq_type`, else derived by section 2 | derived |
 | `A_built`, `A_built_l`, `A_ground` | existing code (built rooms) | none |
 | `A_netwall`, `A_netwall_0` | `a_net_wall_total`, `a_net_wall_ground` | none |
 | `N_door`, `N_win`, `L` (levels) | existing code | 0 |
 | `H_l` | `_resolve_room_height_m({}, lvl)` | 3.35 |
 | Opening `width`, `height` (optional) | `openings[]` | door 0.90 × 2.10, window 1.20 × 1.20 |
-| `building_type` (optional) | plan | villa |
+| `building_type` (optional) | plan, or user input | villa |
 | `f_fc`, plot perimeter (optional user inputs) | request parameter | 1.0, none |
+| Ceiling height, tile size, tile pattern (optional user inputs) | request parameter | per level, 600 × 600, standard |
 
-## 2. Room type (`boq_type`)
+## 2. Room kind and type (`boq_kind`, `boq_type`)
 
-`room.type` belongs to the 3D adapter. Never read or write it for BOQ.
+`room.kind` and `room.type` belong to the 3D adapter. The BOQ never changes them, and never reads `room.type`. Both BOQ keys are derived in one shared module and stored on the room; a plan stored without them gets them derived the same way.
 
-Lowercase the room name; the first matching rule wins. Only indoor rooms are typed.
+### 2.1 `boq_kind`
 
-1. BATH: bath, toilet, toi, wc, w.c, washroom, powder, lavatory, restroom, shower, ensuite
-2. KITCHEN: kitchen, pantry
-3. LAUNDRY: laundry, utility, wash
-4. CIRC: hallway, corridor, passage, lobby, foyer, stair, lift, entrance
-5. LIVING: living, majlis, family, lounge, drawing, sitting
-6. DINING: dining
-7. STORE: store, storage, closet, dressing, wardrobe
-8. BED: bed, master, guest, maid, driver, nanny
-9. STUDY: study, office, library
-10. LIVING: hall
-11. OTHER: everything else
+Start from `room.kind`. The first matching rule wins:
 
-- The keyword rules are primary. If they return OTHER and the parser's model supplied a valid `boq_type` for that room, use the model's value. This covers Arabic and abbreviated labels.
-- Open-plan kitchen: if a name matches KITCHEN and also contains living, dining, family, lounge or hall, the room is LIVING and one kitchen is counted. Its kitchen portion is `A_k = min(12, A_r / 3)` with `P_k = 4 × sqrt(A_k)`. Add `A_k` to `A_kit`, `P_k` to `P_kit`, 1 to `N_kit`, and 6 sockets to item 33. For every other formula the room is a LIVING room with its full area.
+1. A void stays a void.
+2. The lowercased name contains parking, car park, car porch, carport or driveway: `boq_kind = outdoor`. The room is paved area (`A_pave`, `P_pave`) and is not part of the built area.
+3. `room.kind` is `semi_open` and the first matching rule of section 2.2 for the name is BATH, KITCHEN or LAUNDRY: `boq_kind = indoor`, and the room is typed.
+4. Otherwise `boq_kind = room.kind`.
+
+Stairs, verandahs, balconies and terraces therefore stay semi-open. Every use of kind in this spec, including items 1–7 and the bounding boxes, is `boq_kind`.
+
+### 2.2 `boq_type`
+
+Only rooms with `boq_kind` `indoor` are typed. Lowercase the room name; the first matching rule wins. A rule matches when the name contains one of its keywords, or when one of its abbreviations is a whole word of the name. Words are the runs of letters in the name, so `KIT.`, `DRG./DIN.` and `BR-2` give the words kit; drg, din; br.
+
+| # | Type | Keywords (anywhere in the name) | Abbreviations (whole words) |
+|---|---|---|---|
+| 1 | BATH | bath, toilet, toi, wc, w.c, washroom, powder, lavatory, restroom, shower, ensuite | bth |
+| 2 | KITCHEN | kitchen, pantry | kit |
+| 3 | LAUNDRY | laundry, utility, wash | util |
+| 4 | CIRC | hallway, corridor, passage, lobby, foyer, stair, lift, entrance | |
+| 5 | LIVING | living, majlis, family, lounge, drawing, sitting | drg, liv, lvg |
+| 6 | DINING | dining | din |
+| 7 | STORE | store, storage, closet, dress, wardrobe | |
+| 8 | BED | bed, master, guest, maid, driver, nanny | br, bdr, mbr |
+| 9 | STUDY | study, office, library | |
+| 10 | LIVING | hall | |
+| 11 | OTHER | everything else | |
+
+- The rules are primary. If they return OTHER and the parser's model supplied a valid `boq_type` for that room, use the model's value. This covers Arabic labels and abbreviations not listed here.
+- Open-plan kitchen: if a name matches KITCHEN and also matches the LIVING or DINING rule (rules 5, 6 or 10, keywords or abbreviations), the room is LIVING and one kitchen is counted. Its kitchen portion is `A_k = min(12, A_r / 3)` with `P_k = 4 × sqrt(A_k)`. Add `A_k` to `A_kit`, `P_k` to `P_kit`, 1 to `N_kit`, and 6 sockets to item 33. For every other formula the room is a LIVING room with its full area.
+- Small pantry: a room that matches KITCHEN only through the keyword pantry and has `A_r < 4` is STORE, not KITCHEN.
+- Combined dressing and toilet: a room that matches BATH and whose name also contains dress, closet or wardrobe is BATH with a bath portion `A_b = A_r / 2` and `P_b = 4 × sqrt(A_b)`. For every other BATH room `A_b = A_r` and `P_b = P_r`. `A_b` and `P_b` are what `A_bath`, `P_bath`, `N_shower`, wall tiles, waterproofing and the bathroom lights (item 40) use. The other half of a combined room is dry area. For every other formula the room is a BATH room.
 
 ## 3. Derived quantities (computed once per plan)
 
 | Symbol | Definition |
 |---|---|
 | `A_in` | sum of `A_r` over indoor rooms |
-| `A_bath`, `P_bath`, `N_bath` | area, perimeter, count of BATH rooms |
-| `N_shower` | BATH rooms with `A_r ≥ 2.5` |
+| `A_bath`, `P_bath`, `N_bath` | sum of `A_b`, sum of `P_b`, count of BATH rooms (section 2.2) |
+| `N_shower` | BATH rooms with `A_b ≥ 2.5` |
 | `A_kit`, `P_kit`, `N_kit` | KITCHEN rooms plus open-plan kitchen portions |
 | `A_lau`, `P_lau`, `N_lau` | LAUNDRY rooms |
 | `A_wet`, `P_wet` | bath + kitchen + laundry |
@@ -75,10 +97,12 @@ Lowercase the room name; the first matching rule wins. Only indoor rooms are typ
 | `s_gyp`, `s_cem` | `s_gyp = A_gyp_wall / (2 × A_netwall)` if `A_netwall > 0` else 0; `s_cem = 1 − s_gyp` |
 | `E_net` | `A_ext + 2 × A_parapet` |
 | `V_dry` | `A_built × 0.115 × 1.35 × 1.54` |
-| `A_pave`, `P_pave` | outdoor rooms whose name has no lawn, garden, grass, plant or pool |
+| `A_pave`, `P_pave` | outdoor rooms whose name has no lawn, garden, grass, plant or pool. Parking and driveways are outdoor by section 2.1 |
 | `P_site` | bounding-box perimeter of all rooms of any kind on level 0 |
 
 Identity to test: when `A_gyp_wall` is not clamped, `A_cem = E_net + T_wall`.
+
+Known limit: `G_ext` uses the level height `H_l`, while `A_netwall` uses each room's own height. A double-height room on an exterior wall therefore has its exterior wall area understated and its interior wall area overstated by the same amount.
 
 ## 4. Formulas
 
@@ -91,7 +115,7 @@ Constants, units and output keys stay as in the existing code. Only the wall are
 | # | Material | Unit | Formula |
 |---|---|---|---|
 | 1 | AAC blocks | pieces | `ceil(A_masonry / 0.12 × 1.05)` |
-| 2 | Steel rebar | kg | `(34 × A_ground + 22 × A_built) × 1.10`; rods = `ceil(kg / 10.656)` |
+| 2 | Steel rebar | t | kg = `(34 × A_ground + 22 × A_built) × 1.10`; tonnes = `kg / 1000`; rods = `ceil(kg / 10.656)` |
 | 3 | Cement | 50 kg bags | `ceil((V_dry / 5.5 × 28.8 + 0.10 × A_masonry + 0.14 × A_cem) × 1.05)` |
 | 4 | Sand | m³ | `1.5 / 5.5 × V_dry + 0.012 × A_masonry + 0.018 × A_cem + 0.025 × A_built`; tonnes = `m³ × 1.55 × 1.05` |
 | 5 | Coarse aggregate | m³ | `3 / 5.5 × V_dry × 1.05`; tonnes = `m³ × 1.50` |
@@ -154,7 +178,7 @@ Items 28 and 29 return 0 with a warning when openings carry no width.
 | 37 | Exhaust fans | Nos | `N_bath + N_kit` | C |
 | 38 | Water heaters | Nos | `N_wh` | C |
 | 39 | Chandeliers | Nos | `N_liv + N_din + ceil(N_bed / 2)` | A |
-| 40 | Bathroom IP65 lights | Nos | sum over BATH rooms of `max(1, ceil(A_r / 2))` | G |
+| 40 | Bathroom IP65 lights | Nos | sum over BATH rooms of `max(1, ceil(A_b / 2))` | G |
 | 41 | LED strip | LM | `(0.75 × ΣP_r over LIVING and BED rooms + 2.5 × N_bath) × 1.05` | A |
 | 42 | Aluminium LED channel | LM | same as item 41 | A |
 | 43 | Thermostats | Nos | `N_ac` | C |
@@ -191,7 +215,7 @@ Items 28 and 29 return 0 with a warning when openings carry no width.
 
 | # | Material | Unit | Formula | Type |
 |---|---|---|---|---|
-| 58 | Site hoarding | LM | plot perimeter if supplied, else `max(P_site, P_ext_0 + 24) × 1.05` | G |
+| 58 | Site hoarding | LM | `B × 1.05 × [A_built > 0]`, where `B` is the plot perimeter if supplied, else `max(P_site, P_ext_0 + 24)` | G |
 | 59 | Project signboard | No. | `[A_built > 0]` | C |
 
 ## 5. Scope, categories and rows
@@ -204,9 +228,9 @@ Items 28 and 29 return 0 with a warning when openings carry no width.
   - D Electrical and HVAC: Cabling and containment 32, 42; Wiring devices 33; Distribution and protection 34, 35; Lighting 36, 39, 40, 41; Ventilation and controls 37, 43; Water heating 38
   - E Plumbing and Sanitary: Drainage 44, 53, 54, 57; Valves and fittings 45–47; Sanitary fixtures 48, 49, 50, 55, 56; Pumps and storage 51, 52
   - F Site Setup: Preliminaries 58, 59
-- Lettered rows (17a/b, 18a/b, 47a/b, 53a/b, 57a/b) are separate rows in the API, table and exports. Breakdowns of one product (33, 35, 52, coils in 32, pieces in 23, rods in 2) go in `components` and `note`.
+- Lettered rows (17a/b, 18a/b, 47a/b, 53a/b, 57a/b) are separate rows in the API, table and exports. Breakdowns of one product (33, 35, 52, coils in 32, pieces in 23, kg and rods in 2) go in `components` and `note`.
 - Each row: `serial_no`, `item_code`, `category`, `sub_category`, `name`, `unit`, `quantity`, `components` (label, quantity, unit), `calc_type` (geometry, count, allowance), `quote_status` (INCLUDED or EXCLUDED_FROM_QUOTE), `note`. Items 1–7 also keep their existing keys.
-- Apartment rule: if `building_type` is `apartment`, items 8, 10, 20, 21, 22, 23, 26, 30, 31 and 58 return 0 with a note, and a warning says composite items still include roof and plinth terms.
+- Apartment rule: if `building_type` is `apartment`, items 8, 10, 20, 21, 22, 23, 26, 30, 31, 53b and 58 return 0 with a note, and a warning says composite items still include roof and plinth terms.
 
 ## 6. Determinism rules
 
@@ -224,6 +248,8 @@ Warnings to emit:
 - No paved outdoor rooms, so items 22 and 23 are 0.
 - `A_ext` was capped by `A_netwall`.
 - `A_gyp_wall` was clamped to 0.
+- Doors look under-read: `N_door < N_bath + N_bed`.
+- A parking or driveway room sits under an upper floor, so slab quantities exclude it. It sits under an upper floor when the level above has built rooms and their bounding box overlaps the room's bounding box.
 
 ## 7. Edge cases (each needs a test)
 
@@ -238,6 +264,12 @@ Warnings to emit:
 - Open-plan "Living / Dining / Kitchen": LIVING with one kitchen counted.
 - Old PlanJSON without `boq_type` or opening sizes still calculates.
 - Same input twice gives identical output.
+- Parking under an upper floor: outdoor and paved, out of the built area, with the warning.
+- A semi-open "Wash" yard or "Washroom": indoor, typed LAUNDRY or BATH. A semi-open staircase stays semi-open and untyped.
+- Abbreviations are whole words: `KIT.` is KITCHEN, `KITTY ROOM` is not; `DRG./DIN.` is LIVING; `BR 2` is BED, `LIBRARY` is STUDY.
+- "DRESS/TOI.": BATH with half its area as the bath portion; "DRESS" alone is STORE.
+- A pantry under 4 m² is STORE; "Kitchen / Pantry" of any size is KITCHEN.
+- Double-height room on an exterior wall: known limit (section 3), no correction.
 
 ## 8. Test fixture
 
@@ -266,7 +298,7 @@ Derived: `ΣP_r = 175.2`, `N_bath = 3`, `N_shower = 2`, `P_bath = 23.2`, `A_wet 
 | # | Expected | # | Expected | # | Expected |
 |---|---|---|---|---|---|
 | 1 | 6,143 pieces | 17b | 87 L | 40 | 7 |
-| 2 | 9,856 kg; 925 rods | 18a | 29.70 m²; 11 boards | 41 | 66.15 LM |
+| 2 | 9.856 t; 9,856 kg; 925 rods | 18a | 29.70 m²; 11 boards | 41 | 66.15 LM |
 | 3 | 331 bags | 18b | 146.30 m²; 51 boards | 42 | 66.15 LM |
 | 4 | 28.536592 m³; 46.44 t | 19 | 38 L | 43 | 7 |
 | 5 | 21.90888 m³; 32.86 t | 20 | 273.966 m² | 44 | 62.475 LM |
@@ -289,3 +321,21 @@ Derived: `ΣP_r = 175.2`, `N_bath = 3`, `N_shower = 2`, `P_bath = 23.2`, `A_wet 
 | | | 37 | 4 | 58 | 79.80 LM |
 | | | 38 | 4 | 59 | 1 |
 | | | 39 | 4 | | |
+
+### 8.1 Rule checks added in 1.2
+
+The fixture above has no parking, combined room or pantry, so its values are the same as in 1.1 (item 2 is now shown in tonnes). These small cases pin the new rules:
+
+| Case | Expected |
+|---|---|
+| "DRESS/TOI." of 8.0 m², perimeter 12.0 | BATH; `A_b = 4.0`, `P_b = 8.0`; adds 4.0 to `A_bath` and to the dry area; 1 shower; item 40 gives 2 lights |
+| "TOI." of 2.6 m², perimeter 6.6 | BATH; `A_b = 2.6`, `P_b = 6.6`; 1 shower |
+| "DRESS/TOI." of 4.0 m² | BATH; `A_b = 2.0`; no shower |
+| "Pantry" of 3.5 m² | STORE |
+| "Pantry" of 4.0 m² | KITCHEN |
+| "KIT./DIN." of 30 m² | LIVING; one kitchen counted with `A_k = 10` |
+| "PARKING 18X18'6", `room.kind` semi_open | `boq_kind` outdoor; in `A_pave`; not in `A_built` |
+| "WASH 5' WD.", `room.kind` semi_open | `boq_kind` indoor; LAUNDRY |
+| "STAIRCASE", `room.kind` semi_open | `boq_kind` semi_open; no type |
+| Supplied plot perimeter 100 | item 58 = 105.00 LM |
+| `A_built = 0` | item 58 = 0 |
