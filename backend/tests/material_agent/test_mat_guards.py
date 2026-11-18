@@ -67,7 +67,7 @@ def test_schema_field_names_have_no_money_fields():
 def test_api_schema_has_no_money_fields():
     spec = app.openapi()
     paths = {p: v for p, v in spec["paths"].items() if "/material-analysis" in p}
-    assert len(paths) == 6
+    assert len(paths) == 7  # incl. the history list and the analysed-photo endpoint
     assert "/api/v1/ai/analyze-materials" not in spec["paths"]  # the old cost endpoint is gone
     text = json.dumps(paths).lower()
     for bad in ("cost", "price", "budget", "currency", "inr"):
