@@ -97,17 +97,24 @@ function roomSpot(G, r) {
   return c && { cell: c, area: r.rects.reduce((s, p) => s + (p[1] - p[0]) * (p[3] - p[2]), 0), label: r.label || r.type };
 }
 
-/** the front door: a ground-storey door with no room on one side; -> {outside: [x, y], inside: [x, y]} */
+/** the front door: a ground-storey door with no room on one side; -> {outside: [x, y], inside: [x, y]}. A door whose
+ *  roomless side is beyond the house's bounds wins (the other kind may open on an unlabelled hall or a light well);
+ *  of those, the lowest (the plan's entrance side). */
 function frontDoor(meta) {
   const f = meta.floors[0];
   const inRoom = (x, y) => f.rooms.some((r) => r.rects.some((q) => walk.inRect(q, x, y)));
+  const beyond = ([x, y]) => !walk.inRect(meta.bounds, x, y, -0.1);
+  let best = null;
   for (const o of f.openings || []) {
     if (o.type === 'window' || o.built === 'window') continue;
     const r = o.rect, cx = (r[0] + r[1]) / 2, cy = (r[2] + r[3]) / 2, across = r[1] - r[0] < r[3] - r[2];
     const a = across ? [r[0] - 2.5, cy] : [cx, r[2] - 2.5], b = across ? [r[1] + 2.5, cy] : [cx, r[3] + 2.5];
-    if (inRoom(...a) !== inRoom(...b)) return inRoom(...a) ? { outside: b, inside: a } : { outside: a, inside: b };
+    if (inRoom(...a) === inRoom(...b)) continue;
+    const d = inRoom(...a) ? { outside: b, inside: a } : { outside: a, inside: b };
+    const rank = [beyond(d.outside) ? 0 : 1, cy];
+    if (!best || rank[0] < best.rank[0] || (rank[0] === best.rank[0] && rank[1] < best.rank[1])) best = { ...d, rank };
   }
-  return null;
+  return best && { outside: best.outside, inside: best.inside };
 }
 
 /** -> [{x, y, z, room, pause}] : the whole route, ending on the top storey reached */
@@ -134,10 +141,21 @@ export function plan(meta) {
     let todo = f.rooms.filter((r) => !SKIP.has(r.type) && r.rects.length).map((r) => roomSpot(G, r)).filter(Boolean);
     while (todo.length) {                       // nearest room next
       const dist = bfs(G, at);
-      todo = todo.filter((t) => dist[t.cell[1] * G.nx + t.cell[0]] >= 0);
-      if (!todo.length) break;
-      todo.sort((a, b) => dist[a.cell[1] * G.nx + a.cell[0]] - dist[b.cell[1] * G.nx + b.cell[0]]);
-      const t = todo.shift();
+      const reach = todo.filter((t) => dist[t.cell[1] * G.nx + t.cell[0]] >= 0);
+      if (!reach.length) {
+        // the rest cannot be walked to from here (a wing reached only through a closed court, a door the plan
+        // misses): jump to the nearest of them; the player moves the walker there at once
+        const [x, y] = centre(G, ...at);
+        todo.sort((a, b) => Math.hypot(...centre(G, ...a.cell).map((v, i) => v - [x, y][i])) -
+                            Math.hypot(...centre(G, ...b.cell).map((v, i) => v - [x, y][i])));
+        const t = todo.shift();
+        push(G, [t.cell], { jump: true, pause: t.area >= 9 ? 2 : 0, visit: t.label });
+        at = t.cell;
+        continue;
+      }
+      const d = (t) => dist[t.cell[1] * G.nx + t.cell[0]];
+      const t = reach.reduce((a, b) => (d(b) < d(a) ? b : a));       // the nearest one that can be walked to
+      todo = todo.filter((u) => u !== t);
       push(G, shortcut(G, pathTo(G, dist, t.cell)).slice(1), { pause: t.area >= 9 ? 2 : 0, visit: t.label });
       at = t.cell;
     }

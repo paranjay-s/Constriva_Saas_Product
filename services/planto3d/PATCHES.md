@@ -271,3 +271,12 @@ as well: the closed-stairs rule does not apply to platforms). The tour's grid co
 house bounds plus 6 m. Checked on a generated plan with five AI-specified areas (helipad, koi pond, putting green,
 archery range, horse stable): the walker steps up onto the helipad (0.306 m), is kept out of the recessed koi pond,
 and the tour visits 14 of 14 rooms and areas (11 before the grid change). No stored job's tour changed.
+
+## 21. The tour starts at the real front door and jumps to parts it cannot walk to (web/tour.js, web/view.js, tests/test_tour.mjs)
+
+What: the front door is a door whose side without a room lies beyond the house's bounds, and of those the lowest. Before,
+it was the first door with a room on only one side, which could open on an unlabelled inner hall or court. When the
+remaining rooms cannot be walked to from where the tour is (a wing reached only through a closed court, or a door the
+reader missed), the route jumps to the nearest of them (`jump: true`), and the Guided tour moves the walker there at
+once. The test allows at most one jump per three rooms and does not walk a leg that ends in a jump. On the 8 stored jobs,
+unvisited rooms went from 19 / 23 / 1 / 1 to 0, with 0-4 jumps per plan (dock house 4, 25f602b2a296 4).

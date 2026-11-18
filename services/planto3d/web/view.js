@@ -115,6 +115,12 @@ function tourStep(dt) {
   if (tour.wait > 0) { tour.wait -= dt; return; }
   const t = tour.route[tour.i];
   if (!t) { stopTour(); return; }
+  if (t.jump) {        // a part of the house the tour cannot walk to (tour.js): there at once
+    Object.assign(p, { x: t.x, y: t.y, z: t.z });
+    if (t.pause) tour.wait = t.pause;
+    tour.i++;
+    return;
+  }
   const dx = t.x - p.x, dy = t.y - p.y, d = Math.hypot(dx, dy);
   if (d > 0.05) {      // plan axes: yaw 0 looks along +y; heading to (dx, dy) is atan2(-dx, dy)
     const want = Math.atan2(-dx, dy);

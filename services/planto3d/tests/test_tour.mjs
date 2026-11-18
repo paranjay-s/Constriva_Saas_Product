@@ -22,17 +22,20 @@ meta.floors.forEach((f, k) => {
     check(visited || !reachable, `${f.name} ${r.label || r.type} is not visited`);
   }
 });
+const jumps = route.filter((p) => p.jump).length, visits = route.filter((p) => p.visit).length;
+check(jumps * 3 <= Math.max(3, visits), `${jumps} jumps for ${visits} rooms`);
 const storeys = new Set(route.map((p) => walk.levelOf(meta, p.z)));
 const climbable = meta.floors.filter((f) => (f.stairs || []).some((s) => !s.landing)).length;
 check(storeys.size >= Math.min(meta.floors.length, climbable + 1), `visits ${storeys.size} of ${meta.floors.length} storeys`);
-// never in a wall, water or furniture; never a jump (consecutive points are walkable in between)
+// never in a wall, water or furniture; consecutive points are walkable in between, except at a jump to a part
+// of the house that cannot be walked to (at most one jump per three rooms)
 for (let n = 0; n < route.length; n++) {
   const p = route[n], k = walk.levelOf(meta, p.z);
   if (!p.stair) {
     check(!walk.blockedAt(meta, k, p.x, p.y), `point ${n} (${p.x.toFixed(2)}, ${p.y.toFixed(2)}) is in a wall or water`);
     check(!(meta.floors[k].furniture || []).some((r) => walk.inRect(r, p.x, p.y)), `point ${n} is in furniture`);
   }
-  if (n && !p.stair && !route[n - 1].stair) {
+  if (n && !p.stair && !p.jump && !route[n - 1].stair) {     // (a jump is not walked: tour.js)
     const a = route[n - 1], d = Math.hypot(p.x - a.x, p.y - a.y), steps = Math.ceil(d / 0.1);
     for (let i = 1; i < steps; i++) {
       const x = a.x + (p.x - a.x) * i / steps, y = a.y + (p.y - a.y) * i / steps;
