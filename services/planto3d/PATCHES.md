@@ -159,3 +159,20 @@ neighbouring wall is recognised; an open passage parts the rooms either side of 
 arc flattened into a polyline back into a curve. The sample is read exactly as before; OPT 5 and the SF plan keep
 their openings and rooms (the SF plan's outer corners now close; four 4-inch stubs on OPT 5's first floor are full
 height instead of parapet height). `paranjay-villa.pdf` (generator style): 53 walls, 10 doors, 12 windows, 12 rooms.
+
+## 13. Drawings nested in forms, other SVG writers, metric and area labels (vector.py, detect.py, tests/test_reader.py)
+
+Why: PDFs from other programs draw the plan inside a form or transparency group (poppler hands it over as `<use>`),
+inside clip paths, or with transforms other than one `matrix()`; `vector.read_page` skipped `<use>` and stopped at any
+other transform. Size labels in metres, centimetres or millimetres (4.20 x 3.60 m, 420X360, 4200 x 3600) and room
+areas (15.1 m², 163 sq.ft) gave no scale, so the plan fell back to an assumed scale.
+
+What: `read_page` follows `<use>` references (not glyphs: text comes from pdftotext), applies rectangular clip paths
+(`_clip_seg`), reads every SVG transform (`_matrix`: matrix, translate, scale, rotate, skewX, skewY) and relative,
+H, V and Q path commands, and keeps what it read of a truncated path. `parse_size` reads metric sizes, with or
+without a unit; `scale_from_labels` settles unmarked units by the main wall's thickness (4 to 19 inches) and, with no
+size label at all, takes the scale from two or more agreeing room areas (`parse_area`). `tests/test_reader.py` writes
+the sample in eleven ways and reads each (in `tests/run_all.sh`). Known limit: a sheet that reads sideways (page
+/Rotate 90 or 180, or drawn turned) is read as it lies: every wall, opening and room is found, but the house is a
+quarter turn round and a sideways title is not found, so the floor is named "Floor 0". The sample, OPT 5, the SF plan
+and paranjay-villa.pdf are read exactly as before.

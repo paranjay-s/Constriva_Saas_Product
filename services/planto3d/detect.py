@@ -48,17 +48,54 @@ def room_type(words):
     return None
 
 
-def parse_dims(s):
-    s = s.replace("’", "'").replace("”", '"').replace(" ", "")
+METRIC = re.compile(r"^(\d+(?:\.\d+)?)(MM|CM|M)?[X×](\d+(?:\.\d+)?)(MM|CM|M)?$")
+AREA = re.compile(r"^(\d[\d,]*(?:\.\d+)?)(SQ\.?M(?:T|TR)?\.?|M2|M²|SQ\.?FT\.?|SFT|FT2|FT²)$")
+TO_FT = {"ft": 1.0, "m": 1 / 0.3048, "cm": 1 / 30.48, "mm": 1 / 304.8}
+
+
+def parse_size(s):
+    """a room size label -> (a, b, unit), a and b in feet. unit is 'ft', 'm', 'cm' or 'mm' when the label says so,
+    'm?' for unmarked decimals (4.20x3.60) and 'cm?' for unmarked numbers above 60 (420 X 360, could be mm): no room
+    is 420 ft long, and feet drawings mark feet or write small whole numbers. scale_from_labels settles the guesses."""
+    s = s.replace("’", "'").replace("”", '"').replace("′", "'").replace("″", '"').replace(" ", "")
     m = DIM.match(s)
+    if m and ("'" in s or '"' in s or max(int(m.group(1)), int(m.group(3))) <= 60):
+        a = int(m.group(1)) + int(m.group(2) or 0) / 12
+        b = int(m.group(3)) + int(m.group(4) or 0) / 12
+        return (a, b, "ft") if a > 0 and b > 0 else None
+    m = METRIC.match(s.upper())
     if not m:
         return None
-    a = int(m.group(1)) + int(m.group(2) or 0) / 12
-    b = int(m.group(3)) + int(m.group(4) or 0) / 12
-    return (a, b) if a > 0 and b > 0 else None
+    a, b = float(m.group(1)), float(m.group(3))
+    unit = (m.group(2) or m.group(4) or "").lower()
+    if not unit:
+        if "." in s:
+            unit = "m?"
+        elif min(a, b) > 60:
+            unit = "cm?"
+        else:
+            return None        # 61-99 x 40: neither feet nor a believable room in centimetres
+    f = TO_FT[unit.rstrip("?")]
+    return (a * f, b * f, unit) if a > 0 and b > 0 else None
+
+
+def parse_dims(s):
+    r = parse_size(s)
+    return r[:2] if r else None
+
+
+def parse_area(s):
+    """an area label (15.1 m², 15.1 sqm, 163 sq.ft, 1,172 SQ.FT) -> square feet"""
+    m = AREA.match(s.replace(" ", "").upper())
+    if not m:
+        return None
+    v = float(m.group(1).replace(",", ""))
+    return v * (1 if "F" in m.group(2) else 1 / 0.3048 ** 2) if v > 0 else None
 
 
 assert parse_dims("14'x12'8") == (14, 12 + 8 / 12) and parse_dims("5X6'8") == (5, 6 + 8 / 12)
+assert parse_size("4.20 x 3.60 m")[2] == "m" and parse_size("420X360")[2] == "cm?" and parse_size("4200 x 3600 mm")[2] == "mm"
+assert parse_size("4.2x3.6")[2] == "m?" and parse_size("14x12")[2] == "ft" and abs(parse_area("15.1 m²") - 162.5) < 0.1
 assert parse_dims("11'4X4'4") and parse_dims('10\'-6"x12\'') == (10.5, 12) and room_type(["DRESS/TOI."]) == "toilet"
 
 
@@ -431,7 +468,9 @@ def phrases(words):
             out.append(dict(x0=x0, y0=y0, x1=x1, y1=y1, text=t, vert=vert, h=(x1 - x0) if vert else (y1 - y0)))
     for p in out:
         p["cx"], p["cy"] = (p["x0"] + p["x1"]) / 2, (p["y0"] + p["y1"]) / 2
-        p["dims"] = parse_dims(p["text"])
+        size = parse_size(p["text"])
+        p["dims"], p["unit"] = (size[:2], size[2]) if size else (None, None)
+        p["area"] = None if size else parse_area(p["text"])
     return out
 
 
@@ -507,10 +546,48 @@ def inside(p, b, m=0.0):
 
 
 # ------------------------------------------------------------------ scale
-def scale_from_labels(walls, phr):
+def scale_from_labels(walls, phr, T=None):
     """points per foot: distance between the walls around a room label vs the size written in it.
     CAD drawings write the clear size (between the wall faces); generated plans write the size between the wall
-    centre lines. Both are measured; the reading more labels agree on wins (the clear size on a tie)."""
+    centre lines. Both are measured; the reading more labels agree on wins (the clear size on a tie).
+    Labels in metres, centimetres or millimetres count as their feet (parse_size). When most labels do not say their
+    unit, T (the main wall thickness in points) settles it: the reading that gives a believable wall wins. Without any
+    size label, room areas (15.1 m², 163 sq.ft) give the scale, if at least two rooms agree."""
+    s, est = _scale_from_sizes(walls, phr)
+    units = [p.get("unit") for p in phr if p["dims"]]
+    guessed = [u for u in units if u and u.endswith("?")]
+    if s and T and len(guessed) > len(units) / 2:
+        # the other reading is 10x off (cm vs mm) or 3.28x off (decimals in metres vs feet)
+        f = 10.0 if max(set(guessed), key=guessed.count) == "cm?" else 1 / 0.3048
+        ok = lambda v: 0.33 <= T / v <= 1.6        # a main wall between 4 and 19 inches
+        if not ok(s) and ok(s * f):
+            s *= f
+    if s is None:
+        area_est = []
+        for p in phr:
+            if p.get("area"):
+                box = _room_box(walls, p)
+                if box:
+                    area_est.append(((box[1] - box[0]) * (box[3] - box[2]) / p["area"]) ** 0.5)
+        if len(area_est) >= 2:
+            best = max(area_est, key=lambda e: (sum(abs(f - e) < 0.02 * e for f in area_est), -e))
+            good = [e for e in area_est if abs(e - best) < 0.02 * best]
+            if len(good) >= 2:
+                return sum(good) / len(good), area_est
+    return s, est
+
+
+def _room_box(walls, p):
+    """the clear box between the nearest walls left, right, above and below a label, or None"""
+    cx, cy = p["cx"], p["cy"]
+    L = max((w[1] for w in walls if w[2] <= cy <= w[3] and w[1] <= cx), default=None)
+    R = min((w[0] for w in walls if w[2] <= cy <= w[3] and w[0] >= cx), default=None)
+    U = max((w[3] for w in walls if w[0] <= cx <= w[1] and w[3] <= cy), default=None)
+    D = min((w[2] for w in walls if w[0] <= cx <= w[1] and w[2] >= cy), default=None)
+    return None if None in (L, R, U, D) else (L, R, U, D)
+
+
+def _scale_from_sizes(walls, phr):
     reads = []
     for centre in (False, True):
         est = []
@@ -908,7 +985,7 @@ def detect_page(page):
     if not floors:
         raise PlanError("no floor plan found (need double-line walls and room names)")
     s, est = scale_from_labels([w for w in W_solid if any(inside(((w[0] + w[1]) / 2, (w[2] + w[3]) / 2), f["bbox"])
-                                                           for f in floors)], phr)
+                                                           for f in floors)], phr, T)
     scale_src = "labels"
     if not s:
         s, scale_src = T / 0.375, "assumed"     # assume the main wall is 4.5" thick

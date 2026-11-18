@@ -5,17 +5,55 @@ import html, math, re, subprocess, xml.etree.ElementTree as ET
 NUM = r"-?\d*\.?\d+(?:[eE][-+]?\d+)?"
 
 
+NS = "{http://www.w3.org/2000/svg}"
+HREF = ("{http://www.w3.org/1999/xlink}href", "href")
+
+
 def _matrix(t):
+    """an SVG transform attribute (a list of matrix / translate / scale / rotate / skewX / skewY) -> one matrix.
+    pdftocairo writes a single matrix(); other writers and hand-made SVG use the rest."""
+    m = (1, 0, 0, 1, 0, 0)
     if not t:
-        return (1, 0, 0, 1, 0, 0)
-    m = re.match(r"matrix\(([^)]*)\)", t)
-    if m:
-        return tuple(float(v) for v in re.split(r"[ ,]+", m.group(1).strip()))
-    m = re.match(r"translate\(([^)]*)\)", t)
-    if m:
-        v = [float(v) for v in re.split(r"[ ,]+", m.group(1).strip())] + [0]
-        return (1, 0, 0, 1, v[0], v[1])
-    raise ValueError(f"unsupported transform {t}")
+        return m
+    for name, args in re.findall(r"([a-zA-Z]+)\s*\(([^)]*)\)", t):
+        v = [float(x) for x in re.findall(NUM, args)]
+        if name == "matrix":
+            n = tuple(v[:6])
+        elif name == "translate":
+            n = (1, 0, 0, 1, v[0], v[1] if len(v) > 1 else 0)
+        elif name == "scale":
+            n = (v[0], 0, 0, v[1] if len(v) > 1 else v[0], 0, 0)
+        elif name == "rotate":
+            a = math.radians(v[0])
+            n = (math.cos(a), math.sin(a), -math.sin(a), math.cos(a), 0, 0)
+            if len(v) == 3:      # rotate(a, cx, cy) = translate(cx, cy) rotate(a) translate(-cx, -cy)
+                n = _mul(_mul((1, 0, 0, 1, v[1], v[2]), n), (1, 0, 0, 1, -v[1], -v[2]))
+        elif name == "skewX":
+            n = (1, 0, math.tan(math.radians(v[0])), 1, 0, 0)
+        elif name == "skewY":
+            n = (1, math.tan(math.radians(v[0])), 0, 1, 0, 0)
+        else:
+            raise ValueError(f"unsupported transform {t}")
+        m = _mul(m, n)
+    return m
+
+
+def _clip_seg(x0, y0, x1, y1, box):
+    """the part of a segment inside an axis-aligned box (Liang-Barsky), or None"""
+    t0, t1, dx, dy = 0.0, 1.0, x1 - x0, y1 - y0
+    for p, q in ((-dx, x0 - box[0]), (dx, box[1] - x0), (-dy, y0 - box[2]), (dy, box[3] - y0)):
+        if abs(p) < 1e-12:
+            if q < 0:
+                return None
+            continue
+        r = q / p
+        if p < 0:
+            t0 = max(t0, r)
+        else:
+            t1 = min(t1, r)
+        if t0 > t1:
+            return None
+    return (x0 + t0 * dx, y0 + t0 * dy, x0 + t1 * dx, y0 + t1 * dy)
 
 
 def _mul(m, n):
@@ -70,76 +108,142 @@ def page_count(pdf):
 
 
 def read_page(pdf, page=1):
-    """-> dict(width, height, segs, curves, fills, words). segs: (x0,y0,x1,y1,stroke,width)."""
+    """-> dict(width, height, segs, curves, fills, words). segs: (x0,y0,x1,y1,stroke,width).
+    Drawings nested in groups, transforms of any SVG form, forms placed with <use> (repeated symbols) and
+    rectangular clip paths are followed, so lines inside them land where the page shows them."""
     svg = subprocess.run(["pdftocairo", "-svg", "-f", str(page), "-l", str(page), pdf, "-"],
                          capture_output=True, check=True, timeout=120).stdout
     root = ET.fromstring(svg)
-    ns = "{http://www.w3.org/2000/svg}"
     vb = [float(v) for v in root.get("viewBox").split()]
     segs, curves, fills = [], [], []
+    ids = {el.get("id"): el for el in root.iter() if el.get("id")}
+    clips = {}
 
-    def walk(el, m):
-        tag = el.tag.replace(ns, "")
-        if tag in ("defs", "clipPath", "mask", "symbol", "pattern"):
+    def clip_box(ref, m):
+        """an axis-aligned rectangle clip path as a page box; any other clip shape -> None (not applied)"""
+        k = re.match(r"url\(#([^)]+)\)", ref or "")
+        cp = ids.get(k.group(1)) if k else None
+        if cp is None:
+            return None
+        if k.group(1) not in clips:
+            pts = []
+            for el in cp.iter(NS + "path"):
+                pts += [tuple(float(v) for v in xy) for xy in re.findall(rf"({NUM})[ ,]+({NUM})", el.get("d", ""))]
+            for el in cp.iter(NS + "rect"):
+                x, y, w, h = (float(el.get(a, 0)) for a in ("x", "y", "width", "height"))
+                pts += [(x, y), (x + w, y + h)]
+            xs, ys = {round(q[0], 2) for q in pts}, {round(q[1], 2) for q in pts}
+            clips[k.group(1)] = (min(xs), max(xs), min(ys), max(ys)) if pts and len(xs) <= 2 and len(ys) <= 2 else None
+        b = clips[k.group(1)]
+        if b is None or m[1] or m[2]:        # (a rotated clip rectangle is not a box any more: not applied)
+            return None
+        xs = sorted(m[0] * x + m[4] for x in b[:2])
+        ys = sorted(m[3] * y + m[5] for y in b[2:])
+        return (xs[0], xs[1], ys[0], ys[1])
+
+    def walk(el, m, box, depth=0):
+        tag = el.tag.replace(NS, "")
+        if tag in ("defs", "clipPath", "mask", "symbol", "pattern", "image"):
             return
         m = _mul(m, _matrix(el.get("transform")))
+        if el.get("clip-path"):
+            cb = clip_box(el.get("clip-path"), m)
+            if cb:
+                box = cb if box is None else (max(box[0], cb[0]), min(box[1], cb[1]), max(box[2], cb[2]), min(box[3], cb[3]))
         if tag == "path":
-            path(el, m)
+            path(el, m, box)
+        elif tag == "use":
+            # poppler places glyphs (text: read by pdftotext instead) and repeated forms with <use>
+            ref = next((el.get(h) for h in HREF if el.get(h)), "")[1:]
+            if ref in ids and not ref.startswith("glyph") and depth < 20:
+                m2 = _mul(m, (1, 0, 0, 1, float(el.get("x", 0)), float(el.get("y", 0))))
+                tgt = ids[ref]
+                for ch in (list(tgt) if tgt.tag.replace(NS, "") in ("symbol", "defs") else [tgt]):
+                    walk(ch, m2, box, depth + 1)
+            return
         for ch in el:
-            walk(ch, m)
+            walk(ch, m, box, depth)
 
-    def path(el, m):
+    def add_seg(p, q, stroke, sw, box):
+        g = (*p, *q) if box is None else _clip_seg(*p, *q, box)
+        if g:
+            segs.append((*g, stroke, sw))
+
+    def path(el, m, box):
         stroke, fill = _rgb(el.get("stroke")), _rgb(el.get("fill", "black"))
         a, b, c, d, e, f = m
         sw = float(el.get("stroke-width", 1)) * (abs(a * d - b * c) ** 0.5)
         tf = lambda x, y: (a * x + c * y + e, b * x + d * y + f)
-        toks = re.findall(rf"[MLCZHVmlczhv]|{NUM}", el.get("d", ""))
+        toks = re.findall(rf"[MLCZHVQmlczhvq]|[SsTtAa]|{NUM}", el.get("d", ""))
         i, cmd, cur, start, poly, polys, bent = 0, None, (0, 0), (0, 0), [], [], False
 
         def flat_arc(poly):     # an open subpath of straight pieces only: maybe an arc the exporter flattened
             arc = stroke and not bent and polyline_arc(poly)
             if arc:
                 curves.append((*arc, stroke, sw))
+
+        def bez(p1, p2, p3):
+            if stroke:
+                pts = [tf(*cur), tf(*p1), tf(*p2), tf(*p3)]
+                if box is None or any(box[0] - 1 <= x <= box[1] + 1 and box[2] - 1 <= y <= box[3] + 1 for x, y in pts):
+                    curves.append((*pts, stroke, sw))
+            poly.append(tf(*p3))
+
         while i < len(toks):
             if toks[i].isalpha():
                 cmd = toks[i]
                 i += 1
                 if cmd in "Zz":
                     if stroke and cur != start:
-                        segs.append((*tf(*cur), *tf(*start), stroke, sw))
+                        add_seg(tf(*cur), tf(*start), stroke, sw, box)
                     cur = start
                     if poly:
                         polys.append(poly)
                     poly = []
                     continue
-            if cmd == "M":
-                cur = start = (float(toks[i]), float(toks[i + 1])); i += 2
-                if poly:
-                    flat_arc(poly)
-                    polys.append(poly)
-                poly, bent = [tf(*cur)], False
-                cmd = "L"
-            elif cmd == "L":
-                p = (float(toks[i]), float(toks[i + 1])); i += 2
-                if stroke:
-                    segs.append((*tf(*cur), *tf(*p), stroke, sw))
-                cur = p
-                poly.append(tf(*p))
-            elif cmd == "C":
-                pts = [(float(toks[i + k]), float(toks[i + k + 1])) for k in (0, 2, 4)]; i += 6
-                if stroke:
-                    curves.append((tf(*cur), *(tf(*q) for q in pts), stroke, sw))
-                cur, bent = pts[2], True
-                poly.append(tf(*cur))
-            else:   # relative / H / V commands are not emitted by pdftocairo; skip their numbers
-                i += 1
+            rel = bool(cmd) and cmd.islower()
+            ox, oy = cur if rel else (0, 0)
+            C = cmd.upper() if cmd else None
+            try:
+                if C == "M":
+                    cur = start = (ox + float(toks[i]), oy + float(toks[i + 1])); i += 2
+                    if poly:
+                        flat_arc(poly)
+                        polys.append(poly)
+                    poly, bent = [tf(*cur)], False
+                    cmd = "l" if rel else "L"     # further pairs after a moveto are linetos
+                elif C in ("L", "H", "V"):
+                    if C == "L":
+                        q = (ox + float(toks[i]), oy + float(toks[i + 1])); i += 2
+                    elif C == "H":
+                        q = (ox + float(toks[i]), cur[1]); i += 1
+                    else:
+                        q = (cur[0], oy + float(toks[i])); i += 1
+                    if stroke:
+                        add_seg(tf(*cur), tf(*q), stroke, sw, box)
+                    cur = q
+                    poly.append(tf(*q))
+                elif C == "C":
+                    p1, p2, p3 = [(ox + float(toks[i + k]), oy + float(toks[i + k + 1])) for k in (0, 2, 4)]; i += 6
+                    bez(p1, p2, p3)
+                    cur, bent = p3, True
+                elif C == "Q":       # quadratic -> the same curve as a cubic
+                    q, p3 = [(ox + float(toks[i + k]), oy + float(toks[i + k + 1])) for k in (0, 2)]; i += 4
+                    p1 = (cur[0] + 2 / 3 * (q[0] - cur[0]), cur[1] + 2 / 3 * (q[1] - cur[1]))
+                    p2 = (p3[0] + 2 / 3 * (q[0] - p3[0]), p3[1] + 2 / 3 * (q[1] - p3[1]))
+                    bez(p1, p2, p3)
+                    cur, bent = p3, True
+                else:   # S / T / A (not written by pdftocairo): skip their numbers
+                    i += 1
+            except (IndexError, ValueError):
+                break      # a truncated path: keep what was read
         if poly:
             flat_arc(poly)
             polys.append(poly)
         if fill:
-            fills.extend((p, fill) for p in polys if len(p) >= 3)
+            fills.extend((q, fill) for q in polys if len(q) >= 3)
 
-    walk(root, (1, 0, 0, 1, 0, 0))
+    walk(root, (1, 0, 0, 1, 0, 0), None)
     return dict(width=vb[2], height=vb[3], segs=segs, curves=curves, fills=fills, words=read_words(pdf, page))
 
 
