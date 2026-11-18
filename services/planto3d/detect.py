@@ -291,6 +291,29 @@ def cut_windows(walls, lines, T, cuts):
     return out
 
 
+def pale(col):
+    return 0.3 * col[0] + 0.59 * col[1] + 0.11 * col[2] > 190
+
+
+def fill_outlines(fills):
+    """edges of the pale colour fills (floor finishes), keyed by colour and end points rounded to 0.1 pt"""
+    out = set()
+    for pts, col in fills:
+        if not isinstance(col, tuple) or not pale(col):
+            continue
+        for a, b in zip(pts, pts[1:] + pts[:1]):
+            p, q = (round(a[0], 1), round(a[1], 1)), (round(b[0], 1), round(b[1], 1))
+            out.add((col, min(p, q), max(p, q)))
+    return out
+
+
+def is_outline(g, outline):
+    """a stroke in a fill's own pale colour along that fill's edge outlines the fill (a floor colour running into
+    a doorway): it is not a glass or frame line, and two of them made bare doorways look like windows"""
+    p, q = (round(g[0], 1), round(g[1], 1)), (round(g[2], 1), round(g[3], 1))
+    return (g[4], min(p, q), max(p, q)) in outline
+
+
 def horiz(r):
     return (r[1] - r[0]) >= (r[3] - r[2])
 
@@ -795,8 +818,10 @@ def detect_page(page):
     hatch_all = dict(h=hatch_all[0], v=hatch_all[1])
     T = thickness_mode(walls["h"] + walls["v"])
     by_pen = defaultdict(list)          # lines per pen with dashes joined (a window frame drawn on a wall face stays its own line)
+    outline = fill_outlines(page["fills"])
     for g in page["segs"]:
-        by_pen[g[4], round(g[5], 2)].append(g)
+        if not is_outline(g, outline):
+            by_pen[g[4], round(g[5], 2)].append(g)
     PEN = {"h": [], "v": []}
     for gs in by_pen.values():
         for o, ls in join_dashes(axis_lines(gs, min_len=0.5), 0.8 * T).items():

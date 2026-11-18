@@ -538,13 +538,19 @@ for k, f in enumerate(floors):
         ceiling_light(cx, cy, 0.7)
         LAMPS.append((cx, cy, z + H - 0.25, (x1 - x0) * (y1 - y0), zn["type"]))
     by_floor[k] = new_objects(before)
-    # walker data (metres): full-height and low walls block, openings do not
+    # walker data (metres): full-height and low walls block, and so do windows (the detector leaves a gap in the
+    # wall at every window, so the wall built under a sill is not in f["walls"]); doors and plain openings do not
     F_ = lib.F
     m = lambda r: [round(v * F_, 3) for v in r[:4]]
+    sills = [(*o["rect"], 0, 1) for o, c in zip(f["openings"], cuts) if c[4] > 0]
     META_FLOORS.append(dict(
         name=f.get("name", f"Floor {k}"), z=round(z * F_, 3), height=round(H * F_, 3),
-        colliders=[m(b) for b in subtract_all([(*w[:4], 0, 1) for w in f["walls"]],
+        colliders=[m(b) for b in subtract_all([(*w[:4], 0, 1) for w in f["walls"]] + sills,
                                               [(c[0], c[1], c[2], c[3], 0, 1) for c in cuts if c[4] < 1])],
+        # what was built at each opening of the plan, in plan order: glazed with a sill (window), or cut to the
+        # floor with a door frame (door / plain opening). tests/test_openings.mjs holds it against plan.json.
+        openings=[dict(type=o["type"], built="window" if c[4] > 0 else "doorway", rect=m(o["rect"]),
+                       sill=round(max(c[4], 0) * F_, 3), head=round(c[5] * F_, 3)) for o, c in zip(f["openings"], cuts)],
         rooms=[dict(label=zn.get("label") or zn["type"].title(), type=zn["type"], rects=[m(r) for r in zn["rects"]])
                for zn in f["rooms"] if zn["type"] not in ("duct",)],
         stairs=[dict(s, rect=m(s["rect"]), z0=round((z + s["z0"]) * F_, 3), z1=round((z + s["z1"]) * F_, 3),

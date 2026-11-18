@@ -66,3 +66,17 @@ message is "press Build again"), the plan could not be opened to build it again.
 What: the page stops with the failure message only when the job has no detected floors
 (`status.floors` is set when detection succeeds and is kept afterwards). Otherwise it loads
 the plan as usual.
+
+## 7. Doorways in coloured floors are not windows; windows stop the walker (detect.py, blender/gen.py, tests)
+
+Why: drawings that colour their floors stroke each colour fill with its own pale pen. Where the floor colour runs
+into a doorway, the fill's edges gave two parallel "glass" lines across the gap, and the doorway was built as a
+window (four doorways in a real drawing; the map, drawn from the plan, still showed a gap or a door). Separately,
+the walker's colliders left out every opening, so it could walk straight through a window.
+
+What: `detect.py` drops strokes that run exactly along the edge of a pale colour fill in that fill's own colour
+(`fill_outlines`, `is_outline`) before it looks for window glass. `gen.py` adds the wall under each window's sill to
+the walker's colliders, and writes what it built at every opening to `meta.json` (`floors[k].openings`: type, built
+as window or doorway, rect, sill, head). `tests/test_doorway.py` (detector) and `tests/test_openings.mjs` (every
+opening of a built house against `plan.json`: type, position, sill, and whether the walker can pass) are in
+`tests/run_all.sh`. The sample plan and OPT 5 are read exactly as before.
