@@ -23,7 +23,7 @@ frontend/
 | `app/providers.tsx` | Wraps the app with the query client, Supabase session and theme. |
 | `lib/api.ts` | Typed fetch wrapper that attaches the Supabase access token and handles errors. |
 | `lib/supabase.ts` | Supabase client, used for sign-in only. All data goes through our API. |
-| `lib/sse.ts` | Small client that subscribes to job progress events. |
+| `lib/sse.ts` | Reads Server-Sent Events and protected files with `fetch()` and the session's token (`readEventStream`, `authorizedFetch`). `EventSource` and `<img>` tags cannot send the `Authorization` header every endpoint needs, so they are not used for API calls. |
 | `components/ui/` | Shared, feature-independent UI pieces (buttons, dialogs, inputs). |
 | `types/plan.ts` | **Generated** from the backend plan schema. Never edit by hand; run `uv run python -m app.modules.plans.export_schema` in `backend/`, then `pnpm gen:types` in `frontend/`. |
 

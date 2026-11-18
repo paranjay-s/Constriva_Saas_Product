@@ -1,4 +1,5 @@
-import { API_BASE_URL, apiRequest } from '../../lib/api';
+import { ApiError, apiRequest } from '../../lib/api';
+import { type SseMessage, authorizedFetch, readEventStream } from '../../lib/sse';
 import type { PlanJSON } from '../../types';
 
 export interface ProcessBlueprintResponse {
@@ -60,6 +61,17 @@ export function planFileProblem(
 
 /** How many times the progress stream may drop before the page gives up on it. */
 const MAX_STREAM_ERRORS = 3;
+/** Wait before reconnecting, longer after each drop in a row. */
+const RECONNECT_MS = 1000;
+
+const pause = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
 
 export const filesApi = {
   /**
@@ -95,7 +107,12 @@ export const filesApi = {
   },
 
   /**
-   * Subscribes to real-time Server-Sent Events (SSE) tracking geometric extraction progress.
+   * Follows a parsing job's progress over Server-Sent Events.
+   *
+   * The stream belongs to the user who started the job, so it is read with fetch() and
+   * the session's token (EventSource cannot send one). If the connection drops it is
+   * opened again; the server then sends the job's current state, so nothing is lost.
+   * It gives up after MAX_STREAM_ERRORS drops in a row. Returns a function that stops it.
    */
   subscribeToProgress: (
     taskId: string,
@@ -106,55 +123,101 @@ export const filesApi = {
       onError: (errorMsg: string, code?: string) => void;
     }
   ): (() => void) => {
-    const sseUrl = `${API_BASE_URL}/api/v1/parsing/stream/${taskId}`;
-    const eventSource = new EventSource(sseUrl);
-    let streamErrors = 0;
+    const controller = new AbortController();
+    const { signal } = controller;
+    let finished = false;
+    let drops = 0;
 
-    eventSource.addEventListener('progress', (e) => {
-      streamErrors = 0;
+    const payloadOf = (message: SseMessage): ParsingProgressEvent | null => {
       try {
-        const payload: ParsingProgressEvent = JSON.parse(e.data);
-        callbacks.onProgress(payload.step, payload.progress);
+        return JSON.parse(message.data) as ParsingProgressEvent;
       } catch (err) {
-        console.warn('Error parsing SSE progress payload:', err);
-      }
-    });
-
-    eventSource.addEventListener('complete', (e) => {
-      try {
-        const payload: ParsingProgressEvent = JSON.parse(e.data);
-        callbacks.onComplete(payload);
-      } catch (err) {
-        console.warn('Error parsing SSE complete payload:', err);
-      }
-      eventSource.close();
-    });
-
-    eventSource.addEventListener('failed', (e) => {
-      try {
-        const payload: ParsingProgressEvent = JSON.parse(e.data);
-        const error = payload.result?.error;
-        callbacks.onError(error?.message || payload.step || 'The plan could not be processed.', error?.code);
-      } catch {
-        callbacks.onError('The plan could not be processed.');
-      }
-      eventSource.close();
-    });
-
-    eventSource.onerror = (err) => {
-      console.warn('SSE connection error:', err);
-      // The browser reconnects by itself and the server then sends the job's current state,
-      // so a short drop loses nothing. Give up only when it keeps failing.
-      streamErrors += 1;
-      if (streamErrors >= MAX_STREAM_ERRORS || eventSource.readyState === EventSource.CLOSED) {
-        callbacks.onError('Lost connection while the plan was being processed.', 'connection_lost');
-        eventSource.close();
+        console.warn(`Error parsing SSE ${message.event} payload:`, err);
+        return null;
       }
     };
 
-    return () => {
-      eventSource.close();
+    const onMessage = (message: SseMessage) => {
+      if (finished || signal.aborted) return;
+      if (message.event === 'progress') {
+        drops = 0;
+        const payload = payloadOf(message);
+        if (payload) callbacks.onProgress(payload.step, payload.progress);
+      } else if (message.event === 'complete') {
+        finished = true;
+        const payload = payloadOf(message);
+        if (payload) callbacks.onComplete(payload);
+        else callbacks.onError('The plan could not be processed.');
+      } else if (message.event === 'failed') {
+        finished = true;
+        const payload = payloadOf(message);
+        const error = payload?.result?.error;
+        callbacks.onError(error?.message || payload?.step || 'The plan could not be processed.', error?.code);
+      }
+      // an `error` event means the server lost the job's updates and is closing the
+      // stream: it counts as a drop below, and the stream is opened again
     };
+
+    const follow = async () => {
+      while (!finished && !signal.aborted) {
+        try {
+          await readEventStream(`/api/v1/parsing/stream/${encodeURIComponent(taskId)}`, { signal, onMessage });
+        } catch (err) {
+          if (signal.aborted || finished) return;
+          if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+            finished = true;
+            callbacks.onError('Your session has expired. Please sign in again.', 'not_signed_in');
+            return;
+          }
+          if (err instanceof ApiError && err.status === 404) {
+            finished = true;
+            callbacks.onError('This import could not be found. Please upload the plan again.', 'job_not_found');
+            return;
+          }
+          console.warn('SSE connection error:', err);
+        }
+        if (finished || signal.aborted) return;
+        drops += 1;
+        if (drops >= MAX_STREAM_ERRORS) {
+          finished = true;
+          callbacks.onError('Lost connection while the plan was being processed.', 'connection_lost');
+          return;
+        }
+        await pause(RECONNECT_MS * drops, signal);
+      }
+    };
+
+    void follow();
+    return () => controller.abort();
+  },
+
+  /**
+   * The page image of a parsing job, as an object URL for an <img>. It is fetched with
+   * the session's token because the endpoint answers only the job's owner. Null when the
+   * job has no image (yet). The caller revokes the URL when it is done with it.
+   */
+  getJobImage: async (taskId: string): Promise<string | null> => {
+    try {
+      const res = await authorizedFetch(`/api/v1/parsing/job/${encodeURIComponent(taskId)}/image`);
+      return URL.createObjectURL(await res.blob());
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) return null;
+      throw err;
+    }
+  },
+
+  /**
+   * The downloadable PNG drawing of a plan, fetched with the session's token (the endpoint
+   * answers only the owner of the plan's project). Null when the plan has no drawing.
+   */
+  getPlanDrawing: async (planId: string): Promise<Blob | null> => {
+    try {
+      const res = await authorizedFetch(`/api/v1/plans/${encodeURIComponent(planId)}/download-png`);
+      return await res.blob();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) return null;
+      throw err;
+    }
   },
 
   /**
