@@ -18,3 +18,11 @@ services/planto3d/jobs/
 services/planto3d/assets/
 services/planto3d/node_modules/
 
+
+# overnight run: images stay local
+docs/overnight/**/*.png
+docs/overnight/**/*.jpg
+docs/overnight/**/*.jpeg
+docs/overnight/**/*.mp4
+docs/overnight/style_compare/
+docs/overnight/shots/
