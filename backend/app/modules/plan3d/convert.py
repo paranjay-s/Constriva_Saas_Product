@@ -597,12 +597,16 @@ def _floor(
             continue
         host.taken.append((s0, s1))
         half = host.t / 2
-        rect = [s0, s1, host.c - half, host.c + half] if host.horizontal else [
-            host.c - half,
-            host.c + half,
-            s0,
-            s1,
-        ]
+        rect = (
+            [s0, s1, host.c - half, host.c + half]
+            if host.horizontal
+            else [
+                host.c - half,
+                host.c + half,
+                s0,
+                s1,
+            ]
+        )
         axis = "x" if host.horizontal else "y"
         openings.append({"type": kind, "rect": moved(rect), "axis": axis})
 

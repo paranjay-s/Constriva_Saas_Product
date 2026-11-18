@@ -228,3 +228,37 @@ def edit(sp: StoredPlan, req: EditRequest, llm: LLMClient | None, store: PlanSto
         warnings=res.warnings,
         plan=to_response(sp),
     )
+
+
+def plan_for_3d(plan_id: str, owner_id: str, store: PlanStore | None = None) -> dict | None:
+    """A generated plan, for the 3D builder: its name, version, PlanJSON and the PDF export
+    the review page shows behind it. None unless the plan exists and is the user's."""
+    from app.modules.ai.floorplan.render.exports import export_plan
+    from app.modules.ai.floorplan.store import get_store
+
+    try:
+        sp = (store or get_store()).get(plan_id)
+    except Exception:  # the plan store is unreachable: the 3D builder reads the drawing instead
+        logger.warning("could not look up floor plan %s for 3D", plan_id)
+        return None
+    if sp is None or not owner_id or sp.owner_id != owner_id:
+        return None
+    return {
+        "id": sp.id,
+        "name": sp.name,
+        "version": sp.version,
+        "project_id": sp.project_id,
+        "plan_json": to_legacy_plan_json(sp.plan),
+        "pdf": export_plan(sp.plan, "pdf", version=sp.version).data,
+    }
+
+
+def stored_plan_for_pdf(
+    pdf_bytes: bytes, owner_id: str, store: PlanStore | None = None
+) -> dict | None:
+    """The generated plan an uploaded PDF was exported from (its plan reference), when that
+    plan exists and is the user's; else None. See plan_for_3d."""
+    from app.modules.ai.floorplan.render.exports import read_plan_reference
+
+    ref = read_plan_reference(pdf_bytes)
+    return plan_for_3d(ref.plan_id, owner_id, store) if ref else None

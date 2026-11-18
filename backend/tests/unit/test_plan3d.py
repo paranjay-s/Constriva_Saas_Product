@@ -45,6 +45,8 @@ class FakePlanTo3D:
         self.bodies: list[bytes] = []
         self.ready = True
         self.down = False
+        self.detector_fails = False  # its detector gives up on every PDF
+        self.imports: list[dict] = []  # bodies of POST /api/jobs/{id}/import
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         """The answer with its body still unread, as it comes from a real server."""
@@ -77,7 +79,13 @@ class FakePlanTo3D:
             )
         if path == "/api/upload" and method == "POST":
             job_id = f"{len(self.jobs) + 1:012x}"
-            self.jobs[job_id] = {"name": request.headers.get("x-filename"), "stage": "detected"}
+            name = request.headers.get("x-filename")
+            if request.headers.get("x-detect") == "0":
+                self.jobs[job_id] = {"name": name, "stage": "uploaded"}
+            elif self.detector_fails:
+                self.jobs[job_id] = {"name": name, "stage": "failed", "message": "no vector lines"}
+            else:
+                self.jobs[job_id] = {"name": name, "stage": "detected", "reader": "detector"}
             return httpx.Response(200, json={"id": job_id})
         parts = path.strip("/").split("/")
         if parts[:2] == ["api", "jobs"] and len(parts) >= 3:
@@ -97,6 +105,14 @@ class FakePlanTo3D:
                 return httpx.Response(200, json={"ok": True})
             if parts[3] == "plan":
                 job["plan"] = json.loads(self.bodies[-1])
+                return httpx.Response(200, json={"ok": True})
+            if parts[3] == "import":
+                body = json.loads(self.bodies[-1])
+                self.imports.append({"job": parts[2], **body})
+                job.update(stage="detected", reader=body["reader"], notice=body.get("notice", ""))
+                job["floors"] = [f["name"] for f in (body.get("plan") or {}).get("floors", [])] or [
+                    "Ground Floor"
+                ]
                 return httpx.Response(200, json={"ok": True})
             if parts[3] == "export":
                 return httpx.Response(200, json={"url": f"/jobs/{parts[2]}/house_blender.zip"})
@@ -196,6 +212,7 @@ def test_signed_token_round_trip_and_refusals():
         ("GET", "/system"),
         ("POST", "/jobs"),
         ("POST", "/jobs/sample"),
+        ("POST", "/jobs/from-floorplan"),
         ("GET", "/jobs"),
         ("GET", "/jobs/000000000001"),
         ("POST", "/jobs/000000000001/build"),
@@ -604,4 +621,4 @@ def test_the_page_proxy_is_the_only_gateway_route_without_bearer_auth():
         if not any(d.call is get_current_user for d in route.dependant.dependencies)
     )
     assert open_routes == ["/embed/{token}/{path:path}"]
-    assert len(router.routes) == 11
+    assert len(router.routes) == 12

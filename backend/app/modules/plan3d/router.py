@@ -6,8 +6,11 @@ GET    /system                  is the 3D builder ready, and which qualities can
 POST   /jobs                    multipart `file` (PDF, within the upload limits), optional
                                 `project_id` -> 201 {job_id}; detection starts at once
 POST   /jobs/sample             the same with PlanTo3D's sample plan
+POST   /jobs/from-floorplan     {plan_id}: a plan of our floor plan generator, no detection
 GET    /jobs                    the user's jobs, newest first (optional ?project_id=)
-GET    /jobs/{job_id}           stage, progress, message, time left, queue position
+GET    /jobs/{job_id}           stage, progress, message, time left, queue position, and
+                                which reader read the plan (fallback.py: no upload ends on
+                                an error)
 POST   /jobs/{job_id}/build     {quality: low | medium | high}
 POST   /jobs/{job_id}/export    pack the Blender file -> {file}
 POST   /jobs/{job_id}/embed     a signed token and the URLs of PlanTo3D's pages for an iframe
@@ -35,8 +38,9 @@ from starlette.background import BackgroundTask
 
 from app.core.security import AuthenticatedUser, clean_uuid, get_current_user
 from app.core.signed_token import TokenError
+from app.modules.ai.floorplan import service as floorplan_service
 from app.modules.parsing.service import read_plan_upload
-from app.modules.plan3d import service
+from app.modules.plan3d import fallback, service
 from app.modules.plan3d.client import (
     Plan3dClient,
     Plan3dError,
@@ -47,6 +51,7 @@ from app.modules.plan3d.schemas import (
     BuildRequest,
     EmbedAccess,
     ExportReady,
+    FromFloorplan,
     JobCreated,
     JobStatus,
     SystemStatus,
@@ -60,6 +65,7 @@ router = APIRouter()
 User = Annotated[AuthenticatedUser, Depends(get_current_user)]
 Service = Annotated[Plan3dClient, Depends(get_plan3d_client)]
 Store = Annotated[JobStore, Depends(get_job_store)]
+AiReader = Annotated[fallback.AiReader, Depends(fallback.get_ai_reader)]
 
 NOT_FOUND = "3D job not found."
 
@@ -118,9 +124,12 @@ async def _start(
     project_id: str | None,
     planto3d: Plan3dClient,
     store: JobStore,
+    stored: dict[str, Any] | None = None,
 ) -> JobCreated:
+    """Upload to PlanTo3D and record the owner. With `stored` (a plan of our floor plan
+    generator) there is no detection: that plan is imported instead."""
     try:
-        job_id = await planto3d.upload(pdf_bytes, name)
+        job_id = await planto3d.upload(pdf_bytes, name, detect=stored is None)
     except Plan3dError as e:
         raise _http_error(e) from e
     try:
@@ -138,6 +147,19 @@ async def _start(
             status.HTTP_503_SERVICE_UNAVAILABLE,
             "The plan could not be saved to your account. Please try again in a moment.",
         ) from e
+    if stored is not None:
+        converted = fallback.stored_plan(stored["plan_json"], name)
+        try:
+            if converted.usable:
+                notice = fallback.STORED_NOTICE.format(
+                    name=stored["name"], version=stored["version"]
+                )
+                await planto3d.import_plan(job_id, converted.plan, "stored", notice)
+            else:
+                notice = fallback.TRACE_NOTICE.format(why=f" ({converted.reason})")
+                await planto3d.import_plan(job_id, None, "trace", notice)
+        except Plan3dError as e:
+            raise _http_error(e) from e
     return JobCreated(job_id=job_id)
 
 
@@ -162,9 +184,31 @@ async def create_job(
             getattr(rejected, "http_status", status.HTTP_400_BAD_REQUEST), str(rejected)
         ) from rejected
     project = await _project_of(user, project_id)
+    # A PDF exported by our floor plan generator, uploaded by the plan's owner: use the plan.
+    stored = await run_in_threadpool(floorplan_service.stored_plan_for_pdf, pdf_bytes, user.id)
     return await _start(
-        pdf_bytes, file.filename or "plan.pdf", "upload", user, project, planto3d, store
+        pdf_bytes, file.filename or "plan.pdf", "upload", user, project, planto3d, store, stored
     )
+
+
+@router.post(
+    "/jobs/from-floorplan",
+    response_model=JobCreated,
+    status_code=status.HTTP_201_CREATED,
+    summary="Open a plan of the floor plan generator in 3D (no detection)",
+)
+async def create_job_from_floorplan(
+    payload: FromFloorplan, user: User, planto3d: Service, store: Store
+) -> JobCreated:
+    stored = await run_in_threadpool(floorplan_service.plan_for_3d, payload.plan_id, user.id)
+    if stored is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Floor plan not found")
+    try:
+        project = await _project_of(user, stored.get("project_id"))
+    except HTTPException:
+        project = None  # a plan kept under the default project: the 3D job has none
+    name = f"{stored['name']}.pdf"
+    return await _start(stored["pdf"], name, "floorplan", user, project, planto3d, store, stored)
 
 
 @router.post(
@@ -186,24 +230,36 @@ async def create_sample_job(
 
 @router.get("/jobs", response_model=list[JobStatus], summary="The user's 3D jobs")
 async def list_jobs(
-    user: User, planto3d: Service, store: Store, project_id: str | None = None
+    user: User, planto3d: Service, store: Store, ai: AiReader, project_id: str | None = None
 ) -> list[JobStatus]:
     project = await _project_of(user, project_id)
     rows = await run_in_threadpool(store.list_for_user, user.id, project)
     jobs = []
     for row in rows[:30]:
         try:
-            jobs.append(service.job_status(row, await planto3d.job(row["id"])))
+            jobs.append(await _status(row, planto3d, ai))
         except Plan3dError as e:
             raise _http_error(e) from e
     return jobs
 
 
+async def _status(row: dict[str, Any], planto3d: Plan3dClient, ai: fallback.AiReader) -> JobStatus:
+    """The job's status; when PlanTo3D's detector has failed, the other readers start."""
+    job_id = row["id"]
+    found = await planto3d.job(job_id)
+    if fallback.detector_failed(found):
+        name = row.get("name") or str((found or {}).get("name") or "plan.pdf")
+        fallback.start(job_id, name, str((found or {}).get("message") or ""), planto3d, ai)
+    return service.job_status(row, found, fallback.reading_message(job_id))
+
+
 @router.get("/jobs/{job_id}", response_model=JobStatus, summary="Where a job is")
-async def get_job(job_id: str, user: User, planto3d: Service, store: Store) -> JobStatus:
+async def get_job(
+    job_id: str, user: User, planto3d: Service, store: Store, ai: AiReader
+) -> JobStatus:
     row = await _own_job(store, job_id, user)
     try:
-        return service.job_status(row, await planto3d.job(job_id))
+        return await _status(row, planto3d, ai)
     except Plan3dError as e:
         raise _http_error(e) from e
 
@@ -253,6 +309,7 @@ async def delete_job(job_id: str, user: User, planto3d: Service, store: Store) -
         await planto3d.delete(job_id)  # 409 while it is being built
     except Plan3dError as e:
         raise _http_error(e) from e
+    fallback.forget(job_id)
     await run_in_threadpool(store.delete, job_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

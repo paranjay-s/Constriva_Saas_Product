@@ -52,6 +52,16 @@ class JobStatus(BaseModel):
     quality: Quality | None = None  # of the house that is built, or being built
     build_seconds: int | None = None
     created_at: str | None = None
+    # who read the plan: detector (PlanTo3D's own), ai (our AI plan parser), stored (our floor
+    # plan generator), trace (nothing could be read: traced by hand); "" before it is read
+    reader: str = ""
+    notice: str = ""  # what the person should check, from the reader
+
+
+class FromFloorplan(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    plan_id: str = Field(min_length=1, max_length=64)
 
 
 class BuildRequest(BaseModel):

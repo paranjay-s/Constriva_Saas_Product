@@ -57,8 +57,11 @@ def qualities(service_ready: bool) -> list[QualityInfo]:
     ]
 
 
-def job_status(row: dict[str, Any], service: dict[str, Any] | None) -> JobStatus:
-    """Our view of a job: who owns it (the row) and how far PlanTo3D is with it."""
+def job_status(
+    row: dict[str, Any], service: dict[str, Any] | None, reading: str | None = None
+) -> JobStatus:
+    """Our view of a job: who owns it (the row) and how far PlanTo3D is with it. `reading`:
+    what to say while another reader works on a plan PlanTo3D's detector could not read."""
     if service is None:
         return JobStatus(
             job_id=row["id"],
@@ -93,6 +96,10 @@ def job_status(row: dict[str, Any], service: dict[str, Any] | None) -> JobStatus
         quality=(asked or built) if building else (built or None),
         build_seconds=whole(service.get("build_seconds")),
         created_at=row.get("created_at"),
+        reader=str(service.get("reader") or ""),
+        notice=str(service.get("notice") or ""),
+    ).model_copy(
+        update={"stage": "detecting", "progress": 60, "message": reading} if reading else {}
     )
 
 

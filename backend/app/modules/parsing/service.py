@@ -75,3 +75,14 @@ async def read_plan_upload(upload: Any) -> bytes:
     data = await upload.read(limit + 1)
     check_plan_pdf(data, name)
     return data
+
+
+def read_plan_with_ai(pdf_bytes: bytes) -> dict[str, Any]:
+    """A plan PDF read by the AI plan parser -> a validated PlanJSON dict (metres).
+
+    For the 3D builder when its own drawing reader cannot read a PDF. Slow (a model call
+    unless the PDF is in the parser's cache); raises a PlanParseError subclass on failure.
+    """
+    from app.modules.parsing.llm_parser import parse_plan_pdf
+
+    return parse_plan_pdf(pdf_bytes, min_rooms=1)

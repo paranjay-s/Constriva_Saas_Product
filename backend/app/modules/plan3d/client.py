@@ -64,18 +64,37 @@ class Plan3dClient:
     async def system(self) -> dict[str, Any]:
         return await self._json("GET", "/api/system")
 
-    async def upload(self, pdf_bytes: bytes, filename: str) -> str:
-        """Hand a PDF to PlanTo3D, which starts detecting at once. Returns its job id."""
-        body = await self._json(
-            "POST",
-            "/api/upload",
-            content=pdf_bytes,
-            headers={
-                "X-Filename": quote(filename or "plan.pdf"),
-                "Content-Type": "application/pdf",
-            },
-        )
+    async def upload(self, pdf_bytes: bytes, filename: str, *, detect: bool = True) -> str:
+        """Hand a PDF to PlanTo3D. Returns its job id. With `detect` it starts detecting at
+        once; without, it only draws the page images and waits for `import_plan`."""
+        headers = {"X-Filename": quote(filename or "plan.pdf"), "Content-Type": "application/pdf"}
+        if not detect:
+            headers["X-Detect"] = "0"
+        body = await self._json("POST", "/api/upload", content=pdf_bytes, headers=headers)
         return str(body["id"])
+
+    async def import_plan(
+        self, job_id: str, plan: dict[str, Any] | None, reader: str, notice: str = ""
+    ) -> None:
+        """Give a job a plan read by something other than PlanTo3D's detector (`plan`), or
+        an empty plan to trace over the page (None). `reader`: ai, stored, trace or manual."""
+        await self._json(
+            "POST",
+            f"/api/jobs/{job_id}/import",
+            json={"plan": plan, "reader": reader, "notice": notice[:300]},
+        )
+
+    async def source_pdf(self, job_id: str) -> bytes:
+        """The PDF the job was made from."""
+        try:
+            response = await self.http.get(f"/jobs/{job_id}/source.pdf")
+        except httpx.HTTPError as e:
+            raise Plan3dUnavailable(type(e).__name__) from e
+        if response.status_code != 200:
+            raise Plan3dError(
+                response.status_code, "The plan's PDF is missing from the 3D builder."
+            )
+        return response.content
 
     async def sample_pdf(self) -> bytes:
         try:
