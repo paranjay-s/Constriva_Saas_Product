@@ -262,7 +262,7 @@ def draw(plan, style, rng):
     S = min((pw - 80) / (n * (W + 20)), (ph - 115) / (extra + 30))
     doc = pymupdf.open()
     page = doc.new_page(width=pw, height=ph)
-    if ARABIC_FONT:
+    if ARABIC_FONT and plan["lang"] == "ar":
         page.insert_font(fontname="ar", fontfile=ARABIC_FONT)
     ymin = min([r["rects"][0][2] for r in plan["floors"][0]["rooms"]] + [0])
     for k, f in enumerate(plan["floors"]):
@@ -345,7 +345,8 @@ def draw(plan, style, rng):
         title = f"{f['name'].upper()} PLAN"
         page.insert_text(pymupdf.Point(ox + W * S / 2 - pymupdf.get_text_length(title, fontsize=9) / 2, oy + 25), title, fontsize=9)
     page.insert_text(pymupdf.Point(40, 30), f"{plan['kind'].upper()}  -  PROPOSED {plan['storeys']}-STOREY {plan['kind'].upper()}", fontsize=10)
-    return doc.tobytes()
+    doc.subset_fonts()          # (a whole Unicode font is 23 MB)
+    return doc.tobytes(garbage=3, deflate=True)
 
 
 def rasterise(pdf_bytes, rng):
