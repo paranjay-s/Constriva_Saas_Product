@@ -56,6 +56,9 @@ CASES = [
     ("مسبح", "pool"), ("جاكوزي", "pool"), ("WATER BODY", "water"), ("WATER FEATURE", "water"), ("POND", "water"),
     ("REFLECTING POOL", "water"), ("نافورة", "water"), ("DOCK", "dock"), ("JETTY", "dock"), ("PIER", "dock"), ("BOAT SHED", "dock"),
     ("BOATHOUSE", "dock"), ("MARINA", "dock"), ("مرسى", "dock"),
+    # water words beside other functions: the other function wins
+    ("POOL DECK", "balcony"), ("Pool Deck", "balcony"), ("POOLSIDE", "balcony"), ("POOL BAR", "bar"), ("POOL BATH", "toilet"),
+    ("POOL HOUSE", "living"), ("SUN DECK", "balcony"),
     # never guessed: numbers, sizes, codes, words no rule knows
     ("8 25,00", None), ("14'X12'8", None), ("1", None), ("ROOM A", None), ("AREA 1", None), ("SPACE", None), ("X-1", None),
     ("", None), ("ZONE B", None), ("MECHANICAL", None),

@@ -268,7 +268,11 @@
    "RESTROOM",
    "حمام",
    "دورة مياه",
-   "مرحاض"
+   "مرحاض",
+   "POOL BATH",
+   "POOL TOILET",
+   "POOL WC",
+   "POOL SHOWER"
   ],
   "kitchen": [
    "KITCHEN",
@@ -330,7 +334,9 @@
    "صالة",
    "صالة معيشة",
    "غرفة معيشة",
-   "استقبال"
+   "استقبال",
+   "POOL HOUSE",
+   "POOL LOUNGE"
   ],
   "breakfast": [
    "BREAKFAST",
@@ -346,7 +352,8 @@
    "WET BAR",
    "BAR COUNTER",
    "LOUNGE BAR",
-   "COFFEE BAR"
+   "COFFEE BAR",
+   "POOL BAR"
   ],
   "foyer": [
    "FOYER",
@@ -510,7 +517,13 @@
    "PERGOLA",
    "شرفة",
    "تراس",
-   "سطح"
+   "سطح",
+   "POOL DECK",
+   "POOL TERRACE",
+   "POOLSIDE",
+   "POOL SIDE",
+   "SUN DECK",
+   "LOUNGE DECK"
   ],
   "parking": [
    "PARKING",
@@ -636,9 +649,6 @@
  },
  "priority": [
   "lift",
-  "pool",
-  "dock",
-  "water",
   "toilet",
   "bedroom",
   "kitchen",
@@ -660,6 +670,9 @@
   "open",
   "duct",
   "parking",
+  "pool",
+  "water",
+  "dock",
   "stair"
  ]
 }
