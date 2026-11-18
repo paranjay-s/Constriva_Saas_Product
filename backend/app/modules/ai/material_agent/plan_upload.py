@@ -1,9 +1,8 @@
 """A floor plan uploaded in the chat: parsed with the existing parser, kept on the
 conversation only.
 
-It is deliberately NOT `ParsingService.process_blueprint_pdf`, because that saves the
-result into the project's `plans` table; an upload here must never overwrite the
-project's saved plan. The original file is stored (bucket `blueprints`, one `files` row)
+Nothing here writes to the project's `plans` table: an upload in the chat must never
+overwrite the project's saved plan. The original file is stored (bucket `blueprints`, one `files` row)
 so it can be found again; both are best effort.
 """
 

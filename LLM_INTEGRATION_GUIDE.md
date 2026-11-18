@@ -78,7 +78,7 @@ Your sole responsibility is to implement **3 specific Python functions** that co
 - `png_bytes`: Raw binary bytes of the first page of the uploaded PDF floor plan, rasterized at **300 DPI**.
 
 ### What It Must Return
-A Python dictionary conforming to the standard **PlanJSON** format used by our Three.js 3D viewer:
+A Python dictionary conforming to the standard **PlanJSON** format (see `docs/plan-json.md`):
 
 ```json
 {
@@ -119,11 +119,13 @@ A Python dictionary conforming to the standard **PlanJSON** format used by our T
 ```
 
 ### How the System Uses Your Output
-The background worker automatically takes your returned dictionary and:
-1. Writes it to the PostgreSQL `plans` table (`plan_json` column).
-2. Sets `overall_confidence = 0.95` and status to `verified`.
-3. Streams progress to the frontend via SSE (`GET /api/v1/parsing/stream/{task_id}`).
-4. The React Three.js viewer immediately renders the walls, doors, and rooms in 3D!
+The plan parser (`docs/04-parsing-module.md`) validates the plan and hands it to the BOQ
+calculator (`docs/07-boq.md`), which streams progress to the BOQ page.
+
+> The import flow this section used to describe (a `plans` row, the
+> `/api/v1/parsing/stream/{task_id}` stream and an in-browser Three.js viewer) was removed.
+> 3D houses are now built from the PDF by the PlanTo3D service, with no AI model: see
+> `docs/08-3d.md`.
 
 ### How to Test Task 1
 Run this single command in terminal:
