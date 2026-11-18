@@ -63,6 +63,21 @@ def room_at(f, x, y):
     return None
 
 
+def plan_score(det, ref):
+    """the whole plan: per-floor rows plus storeys, building type and special areas (pool, dock, court, lift...)"""
+    rows = score(det, ref)
+    specials = [(k, r) for k, f in enumerate(ref["floors"]) for r in f.get("rooms", []) if r.get("special") and r.get("rects")]
+    found = 0
+    for k, r in specials:
+        df = det["floors"][k] if k < len(det["floors"]) else {"rooms": []}
+        q = max(r["rects"], key=area_of)
+        d = room_at(df, (q[0] + q[1]) / 2, (q[2] + q[3]) / 2)
+        found += bool(d) and d.get("type") == r.get("type")
+    return dict(floors=rows, storeys_ok=len(det["floors"]) == len(ref["floors"]),
+                kind_ok=(det.get("kind") or "") == (ref.get("kind") or ""),
+                specials=f"{found}/{len(specials)}", specials_found=found, specials_total=len(specials))
+
+
 def score(det, ref):
     rows = []
     for k, rf in enumerate(ref["floors"]):
@@ -91,6 +106,11 @@ def score(det, ref):
             errors += abs(area(d) - area(r)) / max(area(r), 1e-6)
         row.update(room_type_accuracy=round(types / len(rooms), 3) if rooms else None,
                    room_area_error=round(errors / found, 3) if found else None, rooms=f"{found}/{len(rooms)} found")
+        row.update(hit_r=hit_r, len_r=len_r, hit_d=hit_d, len_d=len_d, n_rooms=len(rooms), rooms_found=found, types_ok=types)
+        for kind in ("door", "window"):
+            rp, dp = openings(rf, kind), openings(df, kind)
+            row[kind + "s_found"] = sum(any(math.hypot(x - u, y - v) <= OPEN_TOL for u, v in dp) for x, y in rp)
+            row[kind + "s_ref"], row[kind + "s_det"] = len(rp), len(dp)
         rows.append(row)
     return rows
 
