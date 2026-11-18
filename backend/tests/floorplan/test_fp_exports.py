@@ -9,7 +9,13 @@ import pytest
 from ezdxf import recover
 
 from app.modules.ai.floorplan.render.dxf_renderer import LAYERS, render_dxf
-from app.modules.ai.floorplan.render.exports import FORMATS, export_plan
+from app.modules.ai.floorplan.render.exports import (
+    FORMATS,
+    PlanReference,
+    export_plan,
+    plan_reference,
+    read_plan_reference,
+)
 from app.modules.ai.floorplan.schemas.plan import FloorPlan
 from tests.floorplan.test_no_sample_content import DENY_RE
 
@@ -71,6 +77,58 @@ def test_pdf_is_vector(sample_plan: FloorPlan) -> None:
     assert "LIVING" in page.get_text() or any(
         r.label.upper() in page.get_text() for r in sample_plan.rooms
     )
+
+
+PLAN_ID = "3f0c2b8e-5d41-4a77-9c1e-0a6b7d2e4f10"
+
+
+def test_pdf_names_the_plan_it_was_exported_from(sample_plan: FloorPlan) -> None:
+    plan = sample_plan.model_copy(update={"id": PLAN_ID})
+    exp = export_plan(plan, "pdf", version=4)
+    assert read_plan_reference(exp.data) == PlanReference(PLAN_ID, 4)
+    assert read_plan_reference(export_plan(plan, "pdf").data) == PlanReference(PLAN_ID, None)
+    # the drawing itself is unchanged by the reference
+    page = pymupdf.open(stream=exp.data, filetype="pdf")[0]
+    assert len(page.get_drawings()) > 50 and page.get_images() == []
+
+
+def test_a_plan_whose_id_is_not_a_uuid_gets_no_reference(sample_plan: FloorPlan) -> None:
+    plan = sample_plan.model_copy(update={"id": "plan 1; drop"})
+    exp = export_plan(plan, "pdf", version=2)
+    assert exp.data.startswith(b"%PDF")
+    assert read_plan_reference(exp.data) is None
+    assert plan_reference("not-a-uuid", 1) == ""
+
+
+def _pdf_with_keywords(keywords: str) -> bytes:
+    doc = pymupdf.open()
+    doc.new_page()
+    doc.set_metadata({"keywords": keywords})
+    return doc.tobytes()
+
+
+@pytest.mark.parametrize(
+    ("keywords", "expected"),
+    [
+        (f"constriva-plan:{PLAN_ID};v=12", PlanReference(PLAN_ID, 12)),
+        (f"villa, constriva-plan:{PLAN_ID.upper()}, 2026", PlanReference(PLAN_ID, None)),
+        (f"constriva-plan:{PLAN_ID};v=0007", PlanReference(PLAN_ID, 7)),
+        ("", None),
+        ("constriva-plan:1234", None),
+        (f"constriva-plan:{PLAN_ID}0", None),  # a longer id is not this id
+        (f"xconstriva-plan:{PLAN_ID}", None),
+        (f"constriva-plan:{PLAN_ID};v=" + "9" * 7, PlanReference(PLAN_ID, None)),
+        ("k" * 3000 + f" constriva-plan:{PLAN_ID}", None),
+    ],
+)
+def test_reading_a_plan_reference(keywords: str, expected: PlanReference | None) -> None:
+    assert read_plan_reference(_pdf_with_keywords(keywords)) == expected
+
+
+def test_reading_a_reference_from_bytes_that_are_not_a_pdf() -> None:
+    assert read_plan_reference(b"") is None
+    assert read_plan_reference(b"not a pdf at all") is None
+    assert read_plan_reference(b"%PDF-1.7\n%broken") is None
 
 
 def test_png_and_svg(sample_plan: FloorPlan) -> None:

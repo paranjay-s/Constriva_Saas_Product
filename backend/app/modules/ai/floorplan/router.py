@@ -232,7 +232,7 @@ async def export_endpoint(
     dpi: Annotated[int, Query(ge=50, le=600)] = 150,
 ) -> Response:
     sp = await run_in_threadpool(_own_plan, store, plan_id, user)
-    exp = await run_in_threadpool(export_plan, sp.plan, format, dpi=dpi)
+    exp = await run_in_threadpool(export_plan, sp.plan, format, dpi=dpi, version=sp.version)
     return Response(
         content=exp.data,
         media_type=exp.media_type,
