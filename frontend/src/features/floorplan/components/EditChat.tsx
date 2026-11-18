@@ -2,18 +2,62 @@
  * Step 4: change the plan in words (typed or spoken). Each reply says what changed, or
  * why it could not, with alternatives. History comes from the server (kept per plan).
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { SendIcon as IconSend } from '../../../components/ui/Icons';
 import { useSpeechInput } from '../hooks/useSpeechInput';
 import type { ChatMessage } from '../schemas';
 import { MicButton } from './MicButton';
 
 const SUGGESTIONS = [
+  'Make it east facing',
   'Make the master bedroom bigger',
-  'Add a window to the living room',
   'Swap bedroom 2 and the kitchen',
-  'Add a store room next to the kitchen',
+  'Make the main door 4 ft wide',
+  'Which way do the rooms face?',
+  'Area statement',
+  'What can you change?',
 ];
+
+/** **bold** inside a line. */
+function inline(text: string): ReactNode[] {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+    part.startsWith('**') && part.endsWith('**') ? (
+      <strong key={i} className="font-semibold text-white">
+        {part.slice(2, -2)}
+      </strong>
+    ) : (
+      <Fragment key={i}>{part}</Fragment>
+    ),
+  );
+}
+
+/** Replies may hold a short report: lines, "- " bullets and **bold** headings. */
+function RichText({ text }: { text: string }) {
+  const blocks: ReactNode[] = [];
+  let bullets: string[] = [];
+  const flush = () => {
+    if (bullets.length) {
+      blocks.push(
+        <ul key={`u${blocks.length}`} className="my-1 list-disc space-y-0.5 pl-4">
+          {bullets.map((b, i) => (
+            <li key={i}>{inline(b)}</li>
+          ))}
+        </ul>,
+      );
+      bullets = [];
+    }
+  };
+  for (const line of text.split('\n')) {
+    if (line.startsWith('- ')) {
+      bullets.push(line.slice(2));
+      continue;
+    }
+    flush();
+    if (line.trim()) blocks.push(<p key={`p${blocks.length}`}>{inline(line)}</p>);
+  }
+  flush();
+  return <div className="space-y-1">{blocks}</div>;
+}
 
 const STATUS_TONE: Record<string, string> = {
   ok: 'border-[#2E7D4F]/50',
@@ -21,6 +65,7 @@ const STATUS_TONE: Record<string, string> = {
   failed: 'border-[#E5484D]/50',
   needs_clarification: 'border-[#F2C46D]/50',
   no_change: 'border-[#3A404B]',
+  info: 'border-[#4C6FA8]/50',
 };
 
 interface Props {
@@ -52,7 +97,10 @@ export function EditChat({ messages, busy, error, onSend }: Props) {
     <section aria-label="Change the plan" className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         {messages.length === 0 && (
-          <p className="text-sm text-[#7D8594]">Ask for changes in your own words. Other rooms move only when needed.</p>
+          <p className="text-sm text-[#7D8594]">
+            Ask for changes in your own words: sizes, rooms, doors, windows, the direction the house faces. You can
+            also ask for an area statement or which way the rooms face. Other rooms move only when needed.
+          </p>
         )}
         {messages.map((m, i) =>
           m.role === 'user' ? (
@@ -64,8 +112,8 @@ export function EditChat({ messages, busy, error, onSend }: Props) {
               key={i}
               className={`mr-8 rounded-lg border bg-[#0F1115] px-3 py-2 text-sm text-[#D5DAE1] ${STATUS_TONE[m.status ?? ''] ?? 'border-[#23272F]'}`}
             >
-              {m.text}
-              {m.version != null && m.status === 'ok' && <span className="ml-2 text-[11px] text-[#7D8594]">v{m.version}</span>}
+              <RichText text={m.text} />
+              {m.version != null && m.status === 'ok' && <span className="text-[11px] text-[#7D8594]">v{m.version}</span>}
             </div>
           ),
         )}

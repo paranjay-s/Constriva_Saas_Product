@@ -8,6 +8,7 @@ interface ProjectContextType {
   projects: Project[];
   activeProject: Project | null;
   isLoadingProjects: boolean;
+  projectsError: string | null;
   planData: PlanJSON;
   materials: MaterialQuantityItem[];
   selectedMaterialTag: string | null;
@@ -33,6 +34,7 @@ const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState<boolean>(false);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
 
   const [activeProject, setActiveProject] = useState<Project | null>(() => {
     try {
@@ -107,8 +109,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const list = await projectsApi.list();
       setProjects(list);
+      setProjectsError(null);
     } catch (err) {
       console.warn('Failed to fetch projects list from backend:', err);
+      setProjectsError(err instanceof Error ? err.message : 'Your projects could not be loaded.');
     } finally {
       setIsLoadingProjects(false);
     }
@@ -124,29 +128,14 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem(PLAN_STORAGE_KEY, JSON.stringify(plan));
   };
 
+  // A project exists only once the backend has saved it. On failure the error goes to the
+  // form (no local stand-in project: work saved into one would never reach the account).
   const createProject = async (name: string, type: ProjectType, description?: string): Promise<Project> => {
-    try {
-      const apiProj = await projectsApi.create(name, type, description);
-      setActiveProject(apiProj);
-      setProjects((prev) => [apiProj, ...prev.filter((p) => p.id !== apiProj.id)]);
-      localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(apiProj));
-      return apiProj;
-    } catch (err) {
-      console.warn('Backend createProject call failed, falling back to local session project:', err);
-      const fallbackProject: Project = {
-        id: 'proj_' + Math.random().toString(36).substring(2, 9),
-        name,
-        type,
-        description,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        status: 'draft',
-      };
-      setActiveProject(fallbackProject);
-      setProjects((prev) => [fallbackProject, ...prev]);
-      localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(fallbackProject));
-      return fallbackProject;
-    }
+    const apiProj = await projectsApi.create(name, type, description);
+    setActiveProject(apiProj);
+    setProjects((prev) => [apiProj, ...prev.filter((p) => p.id !== apiProj.id)]);
+    localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(apiProj));
+    return apiProj;
   };
 
   const selectProject = async (project: Project) => {
@@ -213,6 +202,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         projects,
         activeProject,
         isLoadingProjects,
+        projectsError,
         planData,
         materials,
         selectedMaterialTag,

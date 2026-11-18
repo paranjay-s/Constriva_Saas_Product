@@ -7,10 +7,12 @@ import {
   type BriefFormValues,
   type EditResponse,
   type ExportFormat,
+  type FloorplanSummary,
   type JobState,
   type ParseResponse,
   type PlanResponse,
   editResponseSchema,
+  floorplanSummarySchema,
   jobStateSchema,
   parseResponseSchema,
   planResponseSchema,
@@ -68,6 +70,21 @@ export const floorplanApi = {
       await apiRequest(`${FLOORPLAN_BASE}/${encodeURIComponent(planId)}/edit`, {
         method: 'POST',
         body: JSON.stringify({ message, version, allow_reflow: true }),
+      }),
+    ),
+
+  /** The user's floor plans (newest first), optionally of one project. */
+  list: async (projectId?: string): Promise<FloorplanSummary[]> => {
+    const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
+    return floorplanSummarySchema.array().parse(await apiRequest(`${FLOORPLAN_BASE}${q}`));
+  },
+
+  /** Undo the last change, or go back to a given version. */
+  revert: async (planId: string, version?: number): Promise<EditResponse> =>
+    editResponseSchema.parse(
+      await apiRequest(`${FLOORPLAN_BASE}/${encodeURIComponent(planId)}/revert`, {
+        method: 'POST',
+        body: JSON.stringify({ version: version ?? null }),
       }),
     ),
 

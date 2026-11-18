@@ -31,6 +31,7 @@ logger = logging.getLogger("construtiva.ai.floorplan.store")
 KIND = "floorplan_v2"
 DEFAULT_PROJECT_ID = "00000000-0000-0000-0000-000000000001"  # same default as the old page
 MAX_MESSAGES = 200
+MAX_HISTORY = 10  # earlier versions kept for "undo" / "go back to version N"
 
 
 @dataclass
@@ -44,6 +45,8 @@ class StoredPlan:
     brief: Brief | None = None
     notes: list[str] = field(default_factory=list)
     messages: list[dict] = field(default_factory=list)
+    # earlier versions, oldest first: {"version", "floorplan", "program", "change", "at"}
+    history: list[dict] = field(default_factory=list)
     version: int = 1
     saved: bool = False
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
@@ -58,6 +61,7 @@ class StoredPlan:
             "brief": self.brief.model_dump(mode="json") if self.brief else None,
             "notes": self.notes,
             "messages": self.messages[-MAX_MESSAGES:],
+            "history": self.history[-MAX_HISTORY:],
             "created_at": self.created_at,
             "updated_at": datetime.now(UTC).isoformat(),
         }
@@ -77,6 +81,7 @@ class StoredPlan:
             brief=Brief.model_validate(meta["brief"]) if meta.get("brief") else None,
             notes=list(meta.get("notes") or []),
             messages=list(meta.get("messages") or []),
+            history=list(meta.get("history") or []),
             version=int(meta.get("version") or 1),
             saved=True,
             created_at=meta.get("created_at") or "",
@@ -87,6 +92,17 @@ class PlanStore(Protocol):
     def create(self, sp: StoredPlan) -> StoredPlan: ...
     def get(self, plan_id: str) -> StoredPlan | None: ...
     def update(self, sp: StoredPlan) -> StoredPlan: ...
+    def list_for(self, owner_id: str, project_id: str | None = None) -> list[dict]: ...
+
+
+def _summary_row(sp: StoredPlan) -> dict:
+    return {
+        "id": sp.id,
+        "project_id": sp.project_id,
+        "name": sp.name,
+        "version": sp.version,
+        "created_at": sp.created_at,
+    }
 
 
 class MemoryPlanStore:
@@ -106,6 +122,16 @@ class MemoryPlanStore:
 
     def update(self, sp: StoredPlan) -> StoredPlan:
         return self.create(sp)
+
+    def list_for(self, owner_id: str, project_id: str | None = None) -> list[dict]:
+        with self._lock:
+            plans = [
+                sp
+                for sp in self._plans.values()
+                if sp.owner_id == owner_id and (project_id is None or sp.project_id == project_id)
+            ]
+        plans.sort(key=lambda sp: sp.created_at, reverse=True)
+        return [_summary_row(sp) for sp in plans]
 
 
 class SupabasePlanStore:
@@ -163,6 +189,29 @@ class SupabasePlanStore:
         if sp:
             self._cache.create(sp)
         return sp
+
+    def list_for(self, owner_id: str, project_id: str | None = None) -> list[dict]:
+        """Summaries only (the full plan, history and chat stay in the database)."""
+        query = (
+            self._table()
+            .select("id, name, project_id, created_at, version:generation_metadata->>version")
+            .eq("generation_metadata->>kind", KIND)
+            .eq("generation_metadata->>owner_user_id", owner_id)
+        )
+        if project_id:
+            query = query.eq("project_id", project_id)
+        res = query.order("created_at", desc=True).limit(200).execute()
+        rows = getattr(res, "data", None) or []
+        return [
+            {
+                "id": str(r["id"]),
+                "project_id": str(r["project_id"]) if r.get("project_id") else None,
+                "name": r.get("name") or "Floor plan",
+                "version": int(r.get("version") or 1),
+                "created_at": r.get("created_at") or "",
+            }
+            for r in rows
+        ]
 
     def update(self, sp: StoredPlan) -> StoredPlan:
         try:

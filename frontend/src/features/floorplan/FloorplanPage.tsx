@@ -1,5 +1,7 @@
 /**
- * AI floor plan generator: brief -> confirmation -> live progress -> plan + chat edits.
+ * AI floor plan generator: project -> brief -> confirmation -> live progress -> plan +
+ * chat edits. A plan is always made inside one of the user's saved projects, so it shows
+ * on their home page under that project.
  *
  * The plan id is kept in the URL (?plan=...), so a reload or a shared link reopens the
  * same plan. "Open in 3D" hands the plan's PlanJSON to the existing 3D workspace.
@@ -18,6 +20,7 @@ import { EditChat } from './components/EditChat';
 import { ExportMenu } from './components/ExportMenu';
 import { PlanViewer2D } from './components/PlanViewer2D';
 import { ProgressSteps } from './components/ProgressSteps';
+import { ProjectGate, isSavedProject } from './components/ProjectGate';
 import { useJobEvents } from './hooks/useJobEvents';
 import { type BriefFormInput, type BriefFormValues, type ChatMessage, EMPTY_FORM, type ParseResponse, type PlanResponse } from './schemas';
 
@@ -32,9 +35,21 @@ function errorText(e: unknown): string {
 export function FloorplanPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const { activeProject, setPlanData, setProjectStatus } = useProject();
+  const {
+    activeProject,
+    projects,
+    isLoadingProjects,
+    projectsError,
+    fetchProjects,
+    selectProject,
+    setPlanData,
+    setProjectStatus,
+  } = useProject();
+  const [choosingProject, setChoosingProject] = useState(false);
+  const project = isSavedProject(activeProject, projects) ? activeProject : null;
 
   const [step, setStep] = useState<Step>(params.get('plan') ? 'plan' : 'form');
+  const needsProject = (step === 'form' || step === 'confirm') && (!project || choosingProject);
   const [formValues, setFormValues] = useState<BriefFormInput>(EMPTY_FORM);
   const [parsed, setParsed] = useState<ParseResponse | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -110,12 +125,24 @@ export function FloorplanPage() {
     }
   };
 
+  // The open plan's project becomes the active one (so "Open in 3D" and the home page match).
+  useEffect(() => {
+    const pid = plan?.project_id;
+    if (!pid || activeProject?.id === pid) return;
+    const owner = projects.find((p) => p.id === pid);
+    if (owner) void selectProject(owner);
+  }, [plan?.project_id, activeProject?.id, projects, selectProject]);
+
   const generate = async () => {
     if (!parsed) return;
+    if (!project) {
+      setChoosingProject(true);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      setJobId(await floorplanApi.generate(parsed.brief, activeProject?.id));
+      setJobId(await floorplanApi.generate(parsed.brief, project.id));
       setStep('generating');
     } catch (e) {
       setError(errorText(e));
@@ -141,6 +168,19 @@ export function FloorplanPage() {
       }
     } finally {
       setPending(null);
+      setChatBusy(false);
+    }
+  };
+
+  const revert = async (version?: number) => {
+    if (!plan) return;
+    setChatBusy(true);
+    setChatError(null);
+    try {
+      setPlan((await floorplanApi.revert(plan.id, version)).plan);
+    } catch (e) {
+      setChatError(errorText(e));
+    } finally {
       setChatBusy(false);
     }
   };
@@ -197,8 +237,37 @@ export function FloorplanPage() {
               {error}
             </div>
           )}
-          {step === 'form' && <BriefForm defaultValues={formValues} busy={busy} onSubmit={submitForm} />}
-          {step === 'confirm' && parsed && (
+          {needsProject && (
+            <ProjectGate
+              projects={projects}
+              loading={isLoadingProjects}
+              error={projectsError}
+              onRetry={() => void fetchProjects()}
+              onCreate={() => navigate(`/projects/new?next=${encodeURIComponent('/projects/ai-generator')}`)}
+              onChoose={(p) => {
+                void selectProject(p);
+                setChoosingProject(false);
+              }}
+            />
+          )}
+          {!needsProject && project && (step === 'form' || step === 'confirm') && (
+            <p className="flex items-center justify-between gap-2 rounded-md border border-[#23272F] bg-[#0F1115] px-3 py-2 text-xs text-[#9AA3B2]">
+              <span className="truncate">
+                Project: <span className="text-white">{project.name}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setChoosingProject(true)}
+                className="shrink-0 cursor-pointer text-[#C5A77B] hover:text-white"
+              >
+                Change
+              </button>
+            </p>
+          )}
+          {step === 'form' && !needsProject && (
+            <BriefForm defaultValues={formValues} busy={busy} onSubmit={submitForm} />
+          )}
+          {step === 'confirm' && parsed && !needsProject && (
             <ConfirmationCard parsed={parsed} busy={busy} onBack={() => setStep('form')} onGenerate={generate} />
           )}
           {step === 'generating' && <ProgressSteps events={progress.events} onRetry={() => setStep('form')} />}
@@ -208,8 +277,39 @@ export function FloorplanPage() {
                 <h2 className="text-sm font-semibold">{plan.name}</h2>
                 <p className="text-xs text-[#7D8594]">
                   Version {plan.version}
+                  {plan.facing && ` · ${plan.facing}-facing`}
+                  {plan.project_id && projects.find((p) => p.id === plan.project_id) && (
+                    <> · {projects.find((p) => p.id === plan.project_id)?.name}</>
+                  )}
                   {!plan.saved && ' · not saved to the database (kept until the server restarts)'}
                 </p>
+                {plan.history.length > 0 && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={chatBusy}
+                      onClick={() => void revert()}
+                      className="cursor-pointer rounded-md border border-[#2A2F38] px-2.5 py-1 text-xs text-[#D5DAE1] hover:border-[#C5A77B] disabled:opacity-50"
+                    >
+                      Undo last change
+                    </button>
+                    <select
+                      aria-label="Go back to a version"
+                      disabled={chatBusy}
+                      value=""
+                      onChange={(e) => e.target.value && void revert(Number(e.target.value))}
+                      className="min-w-0 flex-1 cursor-pointer rounded-md border border-[#2A2F38] bg-[#0F1115] px-2 py-1 text-xs text-[#9AA3B2]"
+                    >
+                      <option value="">Go back to…</option>
+                      {plan.history.map((h) => (
+                        <option key={h.version} value={h.version}>
+                          v{h.version}
+                          {h.change ? ` (before "${h.change.slice(0, 40)}")` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
               {plan.notes.length > 0 && (
                 <details className="rounded-md border border-[#23272F] bg-[#0F1115] p-3 text-xs text-[#9AA3B2]">

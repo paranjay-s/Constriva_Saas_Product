@@ -110,26 +110,49 @@ describe('ProgressSteps', () => {
   });
 });
 
+const PROJECT = {
+  id: '11111111-1111-4111-8111-111111111111',
+  name: 'Sharma Residence',
+  description: '[Residential] villa',
+  status: 'active',
+  created_at: '2026-11-01T00:00:00Z',
+};
+
+function renderPage(projects: unknown[]) {
+  const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+    const json = (body: unknown) =>
+      new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    if (url.includes('/floorplans/brief/parse')) return json(PARSED);
+    if (url.endsWith('/api/v1/projects')) return json(projects);
+    return json([]);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  localStorage.clear();
+  render(
+    <MemoryRouter>
+      <AuthProvider>
+        <ProjectProvider>
+          <FloorplanPage />
+        </ProjectProvider>
+      </AuthProvider>
+    </MemoryRouter>,
+  );
+  return fetchMock;
+}
+
 describe('FloorplanPage', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('sends the form and shows the confirmation card', async () => {
-    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
-      if (url.includes('/floorplans/brief/parse')) {
-        return new Response(JSON.stringify(PARSED), { status: 200, headers: { 'Content-Type': 'application/json' } });
-      }
-      return new Response('[]', { status: 200, headers: { 'Content-Type': 'application/json' } });
-    });
-    vi.stubGlobal('fetch', fetchMock);
-    render(
-      <MemoryRouter>
-        <AuthProvider>
-          <ProjectProvider>
-            <FloorplanPage />
-          </ProjectProvider>
-        </AuthProvider>
-      </MemoryRouter>,
-    );
+  it('asks for a project before the brief when there is none', async () => {
+    renderPage([]);
+    expect(await screen.findByRole('button', { name: /create a new project/i })).toBeDefined();
+    expect(screen.queryByLabelText(/describe the house/i)).toBeNull();
+  });
+
+  it('after choosing a project, sends the form and shows the confirmation card', async () => {
+    const fetchMock = renderPage([PROJECT]);
+    fireEvent.click(await screen.findByRole('button', { name: /sharma residence/i }));
+    expect(await screen.findByText(/project:/i)).toBeDefined();
     fireEvent.change(screen.getByLabelText(/describe the house/i), { target: { value: '5 bedrooms on 40x50 ft' } });
     fireEvent.click(screen.getByRole('button', { name: /check my brief/i }));
     await waitFor(() => expect(screen.getByText(/is this right\?/i)).toBeDefined());

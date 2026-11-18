@@ -17,6 +17,7 @@ import os
 import threading
 import uuid
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Protocol
 
 from app.modules.ai.material_agent.calculator import Applied
@@ -137,17 +138,28 @@ class SessionStore(Protocol):
     def create(self, s: Session) -> Session: ...
     def get(self, sid: str) -> Session | None: ...
     def update(self, s: Session) -> Session: ...
+    def list_for(self, owner_id: str, limit: int = 50) -> list[dict]: ...
+    def delete(self, sid: str, owner_id: str) -> bool: ...
+
+
+def _summary(s: Session, created_at: str = "") -> dict:
+    return {
+        "id": s.id,
+        "title": (s.focus or "").strip()[:120],
+        "scene": s.analysis.scene if s.analysis else "",
+        "created_at": created_at,
+        "materials": len(s.materials),
+    }
 
 
 class MemorySessionStore:
     def __init__(self) -> None:
         self._items: dict[str, Session] = {}
+        self._created: dict[str, str] = {}
         self._lock = threading.Lock()
 
     def create(self, s: Session) -> Session:
-        with self._lock:
-            self._items[s.id] = copy.deepcopy(s)
-        return s
+        return self.update(s)
 
     def get(self, sid: str) -> Session | None:
         with self._lock:
@@ -155,7 +167,30 @@ class MemorySessionStore:
             return copy.deepcopy(s) if s else None
 
     def update(self, s: Session) -> Session:
-        return self.create(s)
+        with self._lock:
+            created = self._created.get(s.id) or datetime.now(UTC).isoformat()
+            self._items[s.id] = copy.deepcopy(s)
+            self._created[s.id] = created
+        return s
+
+    def list_for(self, owner_id: str, limit: int = 50) -> list[dict]:
+        with self._lock:
+            mine = [
+                (self._created.get(sid, ""), copy.deepcopy(s))
+                for sid, s in self._items.items()
+                if s.owner_id == owner_id and s.analysis is not None
+            ]
+        mine.sort(key=lambda t: t[0], reverse=True)
+        return [_summary(s, at) for at, s in mine[:limit]]
+
+    def delete(self, sid: str, owner_id: str) -> bool:
+        with self._lock:
+            s = self._items.get(sid)
+            if s is None or s.owner_id != owner_id:
+                return False
+            del self._items[sid]
+            self._created.pop(sid, None)
+            return True
 
 
 class SupabaseSessionStore:
@@ -278,6 +313,64 @@ class SupabaseSessionStore:
         if s.saved or s.stored_messages:
             self._write_messages(s)
         return self._cache.update(s)
+
+    def list_for(self, owner_id: str, limit: int = 50) -> list[dict]:
+        """The user's material analyses, newest first. Conversations of other features share
+        the table (and may share a conversation_type), so only those whose messages hold a
+        material state are listed."""
+        convs = (
+            self._db()
+            .table("conversations")
+            .select("id,title,created_at")
+            .eq("user_id", owner_id)
+            .in_("conversation_type", list(CONVERSATION_TYPES))
+            .order("created_at", desc=True)
+            .limit(200)
+            .execute()
+        ).data or []
+        if not convs:
+            return []
+        states = (
+            self._db()
+            .table("messages")
+            .select("conversation_id,scene:metadata->analysis->>scene,created_at")
+            .in_("conversation_id", [c["id"] for c in convs])
+            .eq("metadata->>kind", KIND)
+            .execute()
+        ).data or []
+        scene = {str(r["conversation_id"]): r.get("scene") or "" for r in states}
+        out = []
+        for c in convs:
+            cid = str(c["id"])
+            if cid not in scene:
+                continue
+            out.append(
+                {
+                    "id": cid,
+                    "title": (c.get("title") or "").strip(),
+                    "scene": scene[cid],
+                    "created_at": c.get("created_at") or "",
+                    "materials": None,
+                }
+            )
+        return out[:limit]
+
+    def delete(self, sid: str, owner_id: str) -> bool:
+        conv = (
+            self._db()
+            .table("conversations")
+            .select("id")
+            .eq("id", sid)
+            .eq("user_id", owner_id)
+            .limit(1)
+            .execute()
+        ).data
+        if not conv:
+            return False
+        self._db().table("messages").delete().eq("conversation_id", sid).execute()
+        self._db().table("conversations").delete().eq("id", sid).eq("user_id", owner_id).execute()
+        self._cache.delete(sid, owner_id)
+        return True
 
 
 _store: SessionStore | None = None

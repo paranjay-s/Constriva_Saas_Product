@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { HistoryPanel } from './components/HistoryPanel';
 import { MaterialChat } from './components/MaterialChat';
 import { ResultView } from './components/ResultView';
 import { sessionSchema } from './schemas';
@@ -13,17 +14,17 @@ const SESSION = sessionSchema.parse({
   ],
   report: {
     version: 1,
-    target: { source: 'manual', label: 'TV wall, 12 × 10 ft', wall: { width_ft: 12, height_ft: 10, label: 'TV wall' } },
+    target: { source: 'manual', label: 'TV wall, 12 Ã— 10 ft', wall: { width_ft: 12, height_ft: 10, label: 'TV wall' } },
     lines: [
       {
         material_id: 'm1', material: 'Fluted walnut veneer panel', application: 'TV wall', surface_sqft: 120, coverage_ratio: 0.7,
-        net_qty: 84, wastage_pct: 10, total_qty: 92.4, unit: 'sq ft', buy_qty: 3, buy_unit: 'sheets (8 × 4 ft)',
-        breakdown: [{ label: 'TV wall', formula: '12 × 10', value: 120 }],
+        net_qty: 84, wastage_pct: 10, total_qty: 92.4, unit: 'sq ft', buy_qty: 3, buy_unit: 'sheets (8 Ã— 4 ft)',
+        breakdown: [{ label: 'TV wall', formula: '12 Ã— 10', value: 120 }],
       },
       { material_id: 'm2', material: 'Statuario marble', application: 'TV wall', surface_sqft: 120, coverage_ratio: 0.3, net_qty: 36, wastage_pct: 10, total_qty: 39.6, unit: 'sq ft' },
     ],
     supporting: [
-      { material_id: 'm1', material: 'Fluted walnut veneer panel', item: 'Backing plywood (8 x 4 ft)', qty: 3, unit: 'sheets', basis: '84 sq ft ÷ 32' },
+      { material_id: 'm1', material: 'Fluted walnut veneer panel', item: 'Backing plywood (8 x 4 ft)', qty: 3, unit: 'sheets', basis: '84 sq ft Ã· 32' },
     ],
     note: 'Quantities are planning estimates. Verify by site measurement before ordering.',
   },
@@ -35,7 +36,7 @@ describe('Material Finder', () => {
     render(<ResultView materials={SESSION.materials} report={SESSION.report} />);
     expect(screen.getAllByText('Fluted walnut veneer panel').length).toBeGreaterThan(0);
     expect(screen.getByText('92.4 sq ft')).toBeDefined();
-    expect(screen.getByText('3 sheets (8 × 4 ft)')).toBeDefined();
+    expect(screen.getByText('3 sheets (8 Ã— 4 ft)')).toBeDefined();
     expect(screen.getByText('39.6 sq ft')).toBeDefined();
     expect(screen.getByText(/could also be: marble-look porcelain slab/i)).toBeDefined();
     expect(screen.getByRole('note').textContent).toMatch(/verify by site measurement/i);
@@ -49,12 +50,12 @@ describe('Material Finder', () => {
       <MaterialChat
         messages={[{ role: 'assistant', text: 'What is the layout of the kitchen platform?', status: 'needs_input', options: [] }]}
         pendingOptions={['One wall', 'L-shape']}
-        usingLabel="Kitchen, 10 × 8 ft, from project Green Villa"
+        usingLabel="Kitchen, 10 Ã— 8 ft, from project Green Villa"
         busy={false}
         onSend={onSend}
       />,
     );
-    expect(screen.getByText(/using: kitchen, 10 × 8 ft/i)).toBeDefined();
+    expect(screen.getByText(/using: kitchen, 10 Ã— 8 ft/i)).toBeDefined();
     fireEvent.click(screen.getByText('L-shape'));
     expect(onSend).toHaveBeenCalledWith('L-shape', null);
   });
@@ -78,12 +79,12 @@ describe('Material Finder', () => {
       'Sizes come from TV wall (the size you gave).',
       '',
       '**Fluted veneer, TV wall: 92.4 sq ft**',
-      '- TV wall: 12 × 10 = 120',
-      '- Wastage 10%: 84 × 1.1 = 92.4',
+      '- TV wall: 12 Ã— 10 = 120',
+      '- Wastage 10%: 84 Ã— 1.1 = 92.4',
     ].join('\n');
     render(<MaterialChat messages={[{ role: 'assistant', text, status: 'ok', options: [] }]} pendingOptions={[]} busy={false} onSend={() => {}} />);
     const items = screen.getAllByRole('listitem');
-    expect(items.map((li) => li.textContent)).toEqual(['TV wall: 12 × 10 = 120', 'Wastage 10%: 84 × 1.1 = 92.4']);
+    expect(items.map((li) => li.textContent)).toEqual(['TV wall: 12 Ã— 10 = 120', 'Wastage 10%: 84 Ã— 1.1 = 92.4']);
     expect(screen.getByText('Fluted veneer, TV wall: 92.4 sq ft').tagName).toBe('STRONG');
   });
 
@@ -91,7 +92,38 @@ describe('Material Finder', () => {
     const files = import.meta.glob(['./**/*.ts', './**/*.tsx', '!./**/*.test.tsx'], { query: '?raw', import: 'default', eager: true }) as Record<string, string>;
     expect(Object.keys(files).length).toBeGreaterThan(8);
     for (const [name, text] of Object.entries(files)) {
-      expect(text, name).not.toMatch(/₹|\bprice|\bcost\b|\bbudget|\brate\b|INR\b|CPWD/i);
+      expect(text, name).not.toMatch(/â‚¹|\bprice|\bcost\b|\bbudget|\brate\b|INR\b|CPWD/i);
     }
+  });
+});
+
+describe('HistoryPanel', () => {
+  it('lists earlier analyses grouped by day and opens or deletes one', () => {
+    const onOpen = vi.fn();
+    const onDelete = vi.fn();
+    const today = new Date().toISOString();
+    render(
+      <HistoryPanel
+        open
+        items={[
+          { id: 'a1', title: 'analyze this kitchen', scene: 'modern kitchen', created_at: today },
+          { id: 'a2', title: 'tv wall', scene: 'living room', created_at: '2024-01-05T10:00:00Z' },
+        ]}
+        loading={false}
+        error={null}
+        activeId="a1"
+        onClose={() => {}}
+        onOpen={onOpen}
+        onNew={() => {}}
+        onDelete={onDelete}
+        onRetry={() => {}}
+      />,
+    );
+    expect(screen.getByText('Today')).toBeDefined();
+    fireEvent.click(screen.getByText('Living room'));
+    expect(onOpen).toHaveBeenCalledWith('a2');
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    fireEvent.click(screen.getByRole('button', { name: /delete modern kitchen/i }));
+    expect(onDelete).toHaveBeenCalledWith('a1');
   });
 });

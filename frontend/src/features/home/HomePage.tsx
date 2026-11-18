@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRightIcon,
@@ -10,6 +10,7 @@ import {
   IconFilePdf,
 } from '../../components/ui/Icons';
 import { useProject } from '../../context/ProjectContext';
+import { type FloorplanSummary, floorplanApi } from '../floorplan';
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -22,9 +23,36 @@ export const HomePage: React.FC = () => {
     activeProject,
   } = useProject();
 
+  // 2D floor plans made with the generator, grouped by their project
+  const [plansByProject, setPlansByProject] = useState<Record<string, FloorplanSummary[]>>({});
+  const loadPlans = async () => {
+    try {
+      const grouped: Record<string, FloorplanSummary[]> = {};
+      for (const p of await floorplanApi.list()) {
+        if (p.project_id) (grouped[p.project_id] ??= []).push(p);
+      }
+      setPlansByProject(grouped);
+    } catch (err) {
+      console.warn('Could not load floor plans:', err);
+    }
+  };
+
   useEffect(() => {
     fetchProjects();
+    void loadPlans();
   }, []);
+
+  const openFloorplan = (e: React.MouseEvent, project: (typeof projects)[0], planId: string) => {
+    e.stopPropagation();
+    void selectProject(project);
+    navigate(`/projects/ai-generator?plan=${encodeURIComponent(planId)}`);
+  };
+
+  const newFloorplan = (e: React.MouseEvent, project: (typeof projects)[0]) => {
+    e.stopPropagation();
+    void selectProject(project);
+    navigate('/projects/ai-generator');
+  };
 
   const handleOpenProject = async (project: (typeof projects)[0]) => {
     await selectProject(project);
@@ -194,7 +222,10 @@ export const HomePage: React.FC = () => {
               </h2>
             </div>
             <button
-              onClick={() => fetchProjects()}
+              onClick={() => {
+                fetchProjects();
+                void loadPlans();
+              }}
               disabled={isLoadingProjects}
               className="inline-flex items-center gap-2 text-xs font-mono text-white/70 hover:text-white arch-glass px-4 py-2 rounded-full transition-all cursor-pointer hover:border-white/20"
             >
@@ -258,6 +289,39 @@ export const HomePage: React.FC = () => {
                           {proj.description}
                         </p>
                       )}
+
+                      <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-white/50">
+                            2D floor plans ({plansByProject[proj.id]?.length ?? 0})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => newFloorplan(e, proj)}
+                            className="text-[11px] font-mono text-[#C5A77B] hover:text-white cursor-pointer"
+                          >
+                            + New 2D plan
+                          </button>
+                        </div>
+                        {(plansByProject[proj.id] ?? []).slice(0, 3).map((fp) => (
+                          <button
+                            key={fp.id}
+                            type="button"
+                            onClick={(e) => openFloorplan(e, proj, fp.id)}
+                            className="mt-2 w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-white/80 bg-white/[0.04] hover:bg-white/[0.08] cursor-pointer"
+                          >
+                            <span className="truncate">{fp.name}</span>
+                            <span className="shrink-0 font-mono text-[10px] text-white/50">
+                              v{fp.version} · Open
+                            </span>
+                          </button>
+                        ))}
+                        {(plansByProject[proj.id]?.length ?? 0) > 3 && (
+                          <p className="mt-1.5 text-[10px] font-mono text-white/40">
+                            +{(plansByProject[proj.id]?.length ?? 0) - 3} more
+                          </p>
+                        )}
+                      </div>
                     </div>
 
                     <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-white/60">

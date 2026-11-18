@@ -18,6 +18,7 @@ from app.modules.ai.floorplan.store import MemoryPlanStore, get_store
 from tests.floorplan.test_fp_llm_pipeline import FakeLLM
 
 BASE = "/api/v1/ai/floorplans"
+PROJECT = "11111111-1111-4111-8111-111111111111"
 FORM = {"plot_width": 30, "plot_depth": 45, "unit": "ft", "bedrooms": 2, "road_side": "south"}
 
 
@@ -51,7 +52,7 @@ def _wait(client: TestClient, job_id: str, timeout: float = 90) -> dict:
 def _generate(client: TestClient) -> str:
     parsed = client.post(f"{BASE}/brief/parse", json=FORM).json()
     assert parsed["ready"], parsed
-    job = client.post(f"{BASE}/generate", json={"brief": parsed["brief"]})
+    job = client.post(f"{BASE}/generate", json={"brief": parsed["brief"], "project_id": PROJECT})
     assert job.status_code == 202
     st = _wait(client, job.json()["job_id"])
     assert st["status"] == "done", st
@@ -90,7 +91,9 @@ def test_generate_job_then_plan(api) -> None:
 def test_job_events_stream(api) -> None:
     client, _ = api
     parsed = client.post(f"{BASE}/brief/parse", json=FORM).json()
-    job_id = client.post(f"{BASE}/generate", json={"brief": parsed["brief"]}).json()["job_id"]
+    job_id = client.post(
+        f"{BASE}/generate", json={"brief": parsed["brief"], "project_id": PROJECT}
+    ).json()["job_id"]
     events = []
     with client.stream("GET", f"{BASE}/jobs/{job_id}/events") as r:
         assert r.headers["content-type"].startswith("text/event-stream")
@@ -114,7 +117,7 @@ def test_generate_refuses_incomplete_brief(api) -> None:
     brief = client.post(f"{BASE}/brief/parse", json=FORM).json()["brief"]
     brief["bedrooms"] = None
     brief["rooms"] = []
-    r = client.post(f"{BASE}/generate", json={"brief": brief})
+    r = client.post(f"{BASE}/generate", json={"brief": brief, "project_id": PROJECT})
     # either refused up front, or the job fails with a clear message (never a crash)
     if r.status_code == 202:
         st = _wait(client, r.json()["job_id"])
@@ -127,7 +130,12 @@ def test_infeasible_job_fails_with_options(api) -> None:
     client, _ = api
     form = {**FORM, "plot_width": 15, "plot_depth": 20, "bedrooms": 4}
     brief = client.post(f"{BASE}/brief/parse", json=form).json()["brief"]
-    st = _wait(client, client.post(f"{BASE}/generate", json={"brief": brief}).json()["job_id"])
+    st = _wait(
+        client,
+        client.post(f"{BASE}/generate", json={"brief": brief, "project_id": PROJECT}).json()[
+            "job_id"
+        ],
+    )
     assert st["status"] == "failed"
     assert st["error"]
     assert st["options"]
@@ -201,3 +209,94 @@ def test_unknown_ids_are_404(api) -> None:
     client, _ = api
     assert client.get(f"{BASE}/nope").status_code == 404
     assert client.get(f"{BASE}/jobs/nope").status_code == 404
+
+
+# ------------------------------------------------- projects, listing, history
+
+
+def test_generate_needs_a_project(api) -> None:
+    client, _ = api
+    brief = client.post(f"{BASE}/brief/parse", json=FORM).json()["brief"]
+    r = client.post(f"{BASE}/generate", json={"brief": brief})
+    assert r.status_code == 422
+    assert "project" in r.json()["detail"].lower()
+    r = client.post(f"{BASE}/generate", json={"brief": brief, "project_id": "proj_local123"})
+    assert r.status_code == 422
+
+
+def test_generate_refuses_someone_elses_project(api) -> None:
+    from app.modules.ai.floorplan.router import get_project_checker
+
+    client, _ = api
+    app.dependency_overrides[get_project_checker] = lambda: lambda pid, uid: False
+    brief = client.post(f"{BASE}/brief/parse", json=FORM).json()["brief"]
+    r = client.post(f"{BASE}/generate", json={"brief": brief, "project_id": PROJECT})
+    assert r.status_code == 404
+
+
+def test_plans_are_listed_under_their_project(api) -> None:
+    client, state = api
+    plan_id = _generate(client)
+    listed = client.get(BASE, params={"project_id": PROJECT}).json()
+    assert [p["id"] for p in listed] == [plan_id]
+    assert listed[0]["project_id"] == PROJECT
+    assert (
+        client.get(BASE, params={"project_id": "22222222-2222-4222-8222-222222222222"}).json() == []
+    )
+    state["user"] = "user-b"
+    assert client.get(BASE).json() == []
+
+
+def test_turn_then_undo_and_revert(api) -> None:
+    from app.modules.ai.floorplan.pipeline.edit_engine import EditInterpretation
+    from app.modules.ai.floorplan.schemas.edit_ops import SetFacing, SetUnits, Undo
+
+    client, state = api
+    plan_id = _generate(client)
+    v1 = client.get(f"{BASE}/{plan_id}").json()
+    assert v1["facing"] == "south" and v1["history"] == []
+
+    class Fixed:
+        def __init__(self, interp):
+            self.interp = interp
+
+        def structured(self, **_kw):
+            return self.interp
+
+    state["llm"] = Fixed(EditInterpretation(ops=[SetFacing(op="set_facing", side="east")]))
+    r = client.post(f"{BASE}/{plan_id}/edit", json={"message": "make it east facing"}).json()
+    assert r["status"] == "ok", r
+    assert r["plan"]["facing"] == "east" and r["plan"]["version"] == 2
+    assert [h["version"] for h in r["plan"]["history"]] == [1]
+
+    state["llm"] = Fixed(EditInterpretation(ops=[SetUnits(op="set_units", unit="m")]))
+    r = client.post(f"{BASE}/{plan_id}/edit", json={"message": "show metres"}).json()
+    assert r["plan"]["version"] == 3
+
+    state["llm"] = Fixed(EditInterpretation(ops=[Undo(op="undo")]))
+    r = client.post(f"{BASE}/{plan_id}/edit", json={"message": "undo"}).json()
+    assert r["status"] == "ok" and "version 2" in r["message"]
+    assert r["plan"]["plan"]["meta"]["unit_display"] == "ft" and r["plan"]["facing"] == "east"
+
+    r = client.post(f"{BASE}/{plan_id}/revert", json={"version": 1}).json()
+    assert r["status"] == "ok"
+    assert r["plan"]["facing"] == "south" and r["plan"]["history"] == []
+    r = client.post(f"{BASE}/{plan_id}/revert", json={}).json()
+    assert r["status"] == "no_change"
+
+
+def test_info_question_changes_nothing(api) -> None:
+    from app.modules.ai.floorplan.pipeline.edit_engine import EditInterpretation
+
+    client, state = api
+    plan_id = _generate(client)
+
+    class Fixed:
+        def structured(self, **_kw):
+            return EditInterpretation(info="areas")
+
+    state["llm"] = Fixed()
+    r = client.post(f"{BASE}/{plan_id}/edit", json={"message": "what is the built-up area"}).json()
+    assert r["status"] == "info"
+    assert "Built-up" in r["plan"]["messages"][-1]["text"]
+    assert r["plan"]["version"] == 1

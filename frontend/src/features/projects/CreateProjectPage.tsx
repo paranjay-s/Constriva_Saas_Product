@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { ArrowLeftIcon, ArrowRightIcon } from '../../components/ui/Icons';
@@ -23,6 +23,10 @@ export const CreateProjectPage: React.FC = () => {
 
   const { createProject } = useProject();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  // where to continue after creating (e.g. back to the floor plan generator); internal paths only
+  const next = params.get('next');
+  const after = next && next.startsWith('/') && !next.startsWith('//') ? next : '/projects/options';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,7 +40,7 @@ export const CreateProjectPage: React.FC = () => {
 
     try {
       await createProject(name.trim(), type, description.trim() || undefined);
-      navigate('/projects/options');
+      navigate(after);
     } catch (err: any) {
       setError(err?.detail || err?.message || 'Failed to create project. Please try again.');
     } finally {
