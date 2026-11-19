@@ -132,8 +132,10 @@ class Plan3dClient:
                 return None
             raise
 
-    async def build(self, job_id: str, quality: str) -> None:
-        await self._json("POST", f"/api/jobs/{job_id}/build", json={"quality": quality})
+    async def build(self, job_id: str, quality: str, furniture_set: str = "") -> None:
+        """Build the house; `furniture_set` names the owner's own furniture models (service.py)."""
+        body = {"quality": quality, **({"furniture_set": furniture_set} if furniture_set else {})}
+        await self._json("POST", f"/api/jobs/{job_id}/build", json=body)
 
     async def export(self, job_id: str) -> str:
         """Pack the Blender file. Returns its path on the service (/jobs/<id>/house_blender.zip)."""

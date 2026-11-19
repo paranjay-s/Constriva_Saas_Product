@@ -331,3 +331,22 @@ What: the map (M) moves to the bottom left and is drawn as a blueprint. It has a
 and hatched rather than filled white, so the pool and the dock show as such. A room name that does not fit is tried
 two sizes smaller before it is left out. The orange "you are here" dot, the view cone and the room highlight are as
 before.
+
+## 28. Low first, then High (server.py; gateway and frontend)
+
+What: a High build first builds Low into the job folder (status `preview: true`, "Low quality ready to walk through;
+building High"), then builds High into `.next/`. Its files replace the preview's only when High succeeds; a failed High
+leaves the Low house, marked done at Low. `run_blender` is the single build step both passes use. The gateway passes
+`preview` on, and the job page shows the Low walkthrough under the progress bar while High builds. When the build is
+done, the walkthrough step loads the finished house in a new frame. Checked on paranjay-villa: preview walkable at
+77 s, High swapped in at 594 s with 4096 px maps, and `.next/` removed.
+
+## 29. Furniture models per person (server.py, blender/gen.py; gateway)
+
+What: furniture models are kept per set: `assets/custom/<set>/` and `assets/thumbs/<set>/`, where a set is 16 hex
+characters. The furniture API takes `?set=`, a build request takes `furniture_set`, and gen.py takes `--furniture-set`.
+With no set, the shared models are used as before. The gateway derives each person's set from their id with the embed
+secret, puts it on every furniture request and build itself (any `set` a page sends is replaced), and serves item
+pictures from the set's folder. PlanTo3D never sees a user id. Checked live: a model uploaded to set A is listed for A
+only (not B, not shared), an invalid set is refused, and a villa built with set A imports it (43 MB house against
+11.9 MB). `PLAN3D_ALLOW_FURNITURE_CHANGES` stays false by default: turning it on is the owner's decision.

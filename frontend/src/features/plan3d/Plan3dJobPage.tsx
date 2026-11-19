@@ -13,6 +13,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { BackLink, ErrorNotice, LinkButton, PageFrame, PageTitle, StatusNote } from './components/Plan3dParts';
 import { Plan3dProgress } from './components/Plan3dProgress';
+import { PreviewWalkthrough } from './components/PreviewWalkthrough';
 import { Plan3dStepper } from './components/Plan3dStepper';
 import { ReviewStep } from './components/ReviewStep';
 import { WalkthroughStep } from './components/WalkthroughStep';
@@ -150,6 +151,11 @@ function JobFlow({ jobId }: { jobId: string }) {
             message={job.message || (job.stage === 'queued' ? 'Waiting…' : 'Building…')}
             facts={buildFacts}
           />
+          {job.preview && (
+            <div className="mt-6">
+              <PreviewWalkthrough jobId={job.job_id} />
+            </div>
+          )}
         </Card>
       )}
 

@@ -60,6 +60,8 @@ export const plan3dJobSchema = z.looseObject({
   /** Of the house that is built, or being built. */
   quality: plan3dQualityIdSchema.nullable(),
   build_seconds: z.number().nullable(),
+  /** While High builds: a Low house can already be walked through. */
+  preview: z.boolean().optional().default(false),
   created_at: z.string().nullable(),
   /** Who read the plan: detector, ai (our AI plan reader), stored (the floor plan generator),
    *  trace (nothing could be read: traced by hand); empty until it is read. */

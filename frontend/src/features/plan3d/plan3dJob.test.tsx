@@ -933,3 +933,31 @@ describe('3D job page', () => {
     });
   });
 });
+
+describe('Low preview while High builds', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem(TOKEN_STORAGE_KEY, 'test-jwt-token');
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('shows the Low house to walk through while High builds, then the finished walkthrough', async () => {
+    fakeClock();
+    mockApi({
+      [`GET ${JOB}`]: statuses(rawJob({ stage: 'building', quality: 'high', progress: 40, preview: true }), DONE),
+      [`POST ${JOB}/embed`]: () => json(rawEmbed()),
+    });
+    renderJob();
+    await settle();
+    expect(screen.getByRole('progressbar', { name: 'Build progress' })).toBeDefined();
+    expect(screen.getByTitle('3D walkthrough preview')).toBeDefined();
+    await advance(PLAN3D_POLL_MS);
+    await settle();
+    expect(screen.queryByTitle('3D walkthrough preview')).toBeNull();
+    expect(screen.getByTitle('3D walkthrough')).toBeDefined();
+  });
+});

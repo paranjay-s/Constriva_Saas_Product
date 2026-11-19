@@ -51,6 +51,8 @@ class JobStatus(BaseModel):
     queue_position: int | None = None  # 1 = next, while queued
     quality: Quality | None = None  # of the house that is built, or being built
     build_seconds: int | None = None
+    # while High builds, a Low house can be walked through (replaced when High is done)
+    preview: bool = False
     created_at: str | None = None
     # who read the plan: detector (PlanTo3D's own), ai (our AI plan parser), stored (our floor
     # plan generator), trace (nothing could be read: traced by hand); "" before it is read

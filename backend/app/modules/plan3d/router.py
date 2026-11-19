@@ -298,7 +298,7 @@ async def build_job(
     if service_quality is None:
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, service.CINEMA_UNAVAILABLE)
     try:
-        await planto3d.build(job_id, service_quality)
+        await planto3d.build(job_id, service_quality, service.furniture_set(user.id))
         notify.watch(job_id, user.id, getattr(user, "email", "") or "", payload.quality)
         notify.start_poller(planto3d)
         await run_in_threadpool(store.set_quality, job_id, payload.quality)
@@ -403,12 +403,16 @@ async def embedded(token: str, path: str, request: Request, planto3d: Service) -
             headers["Content-Type"] = request.headers["content-type"]
         content = _limited(request.stream(), int(declared))
 
+    # the person's own furniture models: PlanTo3D keeps them per set (service.furniture_set)
+    path, query = service.furniture_route(
+        path, request.url.query, service.furniture_set(claims["sub"])
+    )
     try:
         upstream = await planto3d.http.send(
             planto3d.http.build_request(
                 request.method,
                 # the query goes on as it came: the pages read it themselves
-                httpx.URL("/" + path, query=request.url.query.encode("ascii")),
+                httpx.URL("/" + path, query=query.encode("ascii")),
                 headers=headers,
                 content=content,
                 timeout=httpx.Timeout(900.0, connect=5.0),  # exports and conversions are slow

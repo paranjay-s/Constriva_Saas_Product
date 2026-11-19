@@ -5,7 +5,7 @@ Builds run one at a time in Blender (GPU) in a background thread; progress is po
 There is no login: run it on a trusted network, or behind your own backend or proxy."""
 import importlib, json, math, os, queue, re, shutil, struct, subprocess, sys, threading, time, traceback, unicodedata, uuid, zipfile
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse, unquote
+from urllib.parse import parse_qs, urlparse, unquote
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 JOBS = os.path.join(HERE, "jobs")
@@ -118,45 +118,70 @@ def export_blend(jid):
 
 # ------------------------------------------------------------------ your own furniture models
 CUSTOM, THUMBS = os.path.join(fetch_assets.ROOT, "custom"), os.path.join(fetch_assets.ROOT, "thumbs")
-thumbs_job = dict(running=False, again=False)
+# a furniture set: one person's own models (the 3D gateway names it: 16 hex characters, never a user id). No set means
+# the models shared by everyone on this server, as before sets existed
+FURNITURE_SET = re.compile(r"^[a-f0-9]{16}$")
+thumbs_jobs = {}
 
 
-def render_thumbs():
-    """pictures of every replaceable item as it will be built now (built-in or your model): a small house with all of
-    them in a row is built without baking, then photographed. Runs again if a model changed meanwhile."""
+def furniture_set(value):
+    """a valid set name or "" (the shared models); anything else is refused"""
+    if value in (None, ""):
+        return ""
+    if not FURNITURE_SET.match(value):
+        raise ValueError("invalid furniture set")
+    return value
+
+
+def custom_dir(fs):
+    return os.path.join(CUSTOM, fs) if fs else CUSTOM
+
+
+def thumbs_dir(fs):
+    return os.path.join(THUMBS, fs) if fs else THUMBS
+
+
+def render_thumbs(fs=""):
+    """pictures of every replaceable item as it will be built now with set `fs` (built-in or the person's model): a
+    small house with all of them in a row is built without baking, then photographed. Runs again if a model changed
+    meanwhile."""
+    job, out = thumbs_jobs[fs], thumbs_dir(fs)
     try:
         while True:
-            thumbs_job["again"] = False
-            os.makedirs(THUMBS, exist_ok=True)
-            with open(os.path.join(THUMBS, "plan.json"), "w") as fh:
+            job["again"] = False
+            os.makedirs(out, exist_ok=True)
+            with open(os.path.join(out, "plan.json"), "w") as fh:
                 json.dump(catalog.preview_plan(), fh)
             subprocess.run([BLENDER, "-b", "--factory-startup", "-P", os.path.join(HERE, "blender", "gen.py"), "--",
-                            os.path.join(THUMBS, "plan.json"), THUMBS, "--no-bake"], capture_output=True, timeout=1800)
-            subprocess.run([BLENDER, "-b", os.path.join(THUMBS, "house.blend"), "-P", os.path.join(HERE, "blender", "thumbs.py"),
-                            "--", THUMBS], capture_output=True, timeout=600)
-            if not thumbs_job["again"]:
+                            os.path.join(out, "plan.json"), out, "--no-bake"] + (["--furniture-set", fs] if fs else []),
+                           capture_output=True, timeout=1800)
+            subprocess.run([BLENDER, "-b", os.path.join(out, "house.blend"), "-P", os.path.join(HERE, "blender", "thumbs.py"),
+                            "--", out], capture_output=True, timeout=600)
+            if not job["again"]:
                 break
     except Exception:
         traceback.print_exc()
     finally:
-        thumbs_job["running"] = False
+        job["running"] = False
 
 
-def refresh_thumbs():
+def refresh_thumbs(fs=""):
     with lock:
-        if thumbs_job["running"]:
-            thumbs_job["again"] = True
+        job = thumbs_jobs.setdefault(fs, dict(running=False, again=False))
+        if job["running"]:
+            job["again"] = True
             return
-        thumbs_job["running"] = True
-    threading.Thread(target=render_thumbs, daemon=True).start()
+        job["running"] = True
+    threading.Thread(target=render_thumbs, args=(fs,), daemon=True).start()
 
 
-def furniture():
-    if not thumbs_job["running"] and not all(os.path.exists(os.path.join(THUMBS, f"{fn}.png")) for fn in catalog.CATALOG):
-        refresh_thumbs()
-    return dict(rendering=thumbs_job["running"], items=[
-        dict(fn=fn, label=label, custom=os.path.exists(os.path.join(CUSTOM, f"{fn}.glb")),
-             thumb=os.path.exists(os.path.join(THUMBS, f"{fn}.png"))) for fn, (label, *_) in catalog.CATALOG.items()])
+def furniture(fs=""):
+    job = thumbs_jobs.get(fs) or {}
+    if not job.get("running") and not all(os.path.exists(os.path.join(thumbs_dir(fs), f"{fn}.png")) for fn in catalog.CATALOG):
+        refresh_thumbs(fs)
+    return dict(rendering=bool((thumbs_jobs.get(fs) or {}).get("running")), set=fs, items=[
+        dict(fn=fn, label=label, custom=os.path.exists(os.path.join(custom_dir(fs), f"{fn}.glb")),
+             thumb=os.path.exists(os.path.join(thumbs_dir(fs), f"{fn}.png"))) for fn, (label, *_) in catalog.CATALOG.items()])
 
 
 # ------------------------------------------------------------------ pipeline steps
@@ -284,7 +309,47 @@ def estimate(jid, quality):
     return st["build_seconds"] * n / (len(st.get("floors") or [1]) + 1)
 
 
+OUTPUTS = ("house.glb", "meta.json", "house_baked.blend")       # with lm_*.webp: what a walkthrough loads
+
+
+def run_blender(jid, quality, out, t0, base=0, share=100):
+    """one Blender build of the job's plan into `out`; progress mapped into base..base+share of the job's bar.
+    -> the light maps' sizes. Raises when the build fails."""
+    d = jdir(jid)
+    cmd = [BLENDER, "-b", "--factory-startup", "-P", os.path.join(HERE, "blender", "gen.py"), "--",
+           os.path.join(d, "plan.json"), out, "--quality", quality]
+    fs = (read_status(jid) or {}).get("furniture_set") or ""
+    if fs and FURNITURE_SET.match(fs):
+        cmd += ["--furniture-set", fs]           # the person's own models (custom/<set>/)
+    maps = {}
+    with open(os.path.join(d, "build.log"), "a" if base else "w") as log:
+        pr = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        watchdog = threading.Timer(BUILD_TIMEOUT, pr.kill)      # a hung Blender must not block every later build
+        watchdog.start()
+        ok = False
+        for line in pr.stdout:
+            log.write(line)
+            mm = re.match(r"MAPS (.*)", line)
+            if mm:          # the light maps' sizes are known: estimate from them (maps_estimate)
+                maps = {k: int(v) for k, v in (x.split("=") for x in mm.group(1).split() if "=" in x) if v.isdigit()}
+                status(jid, eta_total=round(time.time() - t0 + maps_estimate(quality, maps)), maps=maps)
+            m = re.match(r"PROGRESS (\d+) (.*)", line)
+            if m:
+                status(jid, progress=max(1, base + int(m.group(1)) * share // 100), message=m.group(2).strip())
+            ok = ok or line.startswith("GEN OK")
+        pr.wait()
+        watchdog.cancel()
+    if not ok or not os.path.exists(os.path.join(out, "house.glb")):
+        raise RuntimeError("3D build failed - see build.log")
+    for f in ("house.blend", "house.blend1", "house_baked.blend1"):      # keep house_baked.blend only
+        if os.path.exists(os.path.join(out, f)):
+            os.remove(os.path.join(out, f))
+    return maps
+
+
 def builder():
+    """High is built after a Low preview: the house can be walked through in about a minute while High bakes into
+    .next/, whose files then replace the preview's (a failed High leaves the Low house in place)"""
     while True:
         jid, quality = builds.get()
         d = jdir(jid)
@@ -293,39 +358,40 @@ def builder():
                 waiting.remove(jid)
         try:
             t0 = time.time()
-            status(jid, stage="building", progress=1, message="Starting Blender", started=t0, eta_total=estimate(jid, quality))
-            cmd = [BLENDER, "-b", "--factory-startup", "-P", os.path.join(HERE, "blender", "gen.py"), "--",
-                   os.path.join(d, "plan.json"), d, "--quality", quality]
-            with open(os.path.join(d, "build.log"), "w") as log:
-                pr = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-                watchdog = threading.Timer(BUILD_TIMEOUT, pr.kill)      # a hung Blender must not block every later build
-                watchdog.start()
-                ok = False
-                for line in pr.stdout:
-                    log.write(line)
-                    mm = re.match(r"MAPS (.*)", line)
-                    if mm:          # the light maps' sizes are known: estimate from them (maps_estimate)
-                        maps = {k: int(v) for k, v in (x.split("=") for x in mm.group(1).split() if "=" in x) if v.isdigit()}
-                        status(jid, eta_total=round(maps_estimate(quality, maps)), maps=maps)
-                    m = re.match(r"PROGRESS (\d+) (.*)", line)
-                    if m:
-                        status(jid, progress=int(m.group(1)), message=m.group(2).strip())
-                    ok = ok or line.startswith("GEN OK")
-                pr.wait()
-                watchdog.cancel()
-            if not ok or not os.path.exists(os.path.join(d, "house.glb")):
-                raise RuntimeError("3D build failed - see build.log")
-            for f in ("house.blend", "house.blend1", "house_baked.blend1"):      # keep house_baked.blend only
-                if os.path.exists(os.path.join(d, f)):
-                    os.remove(os.path.join(d, f))
-            status(jid, stage="done", progress=100, message="Ready", quality=quality, build_seconds=round(time.time() - t0))
+            status(jid, stage="building", progress=1, message="Starting Blender", started=t0, preview=False,
+                   eta_total=round(estimate(jid, quality) + (estimate(jid, "draft") if quality == "high" else 0)))
+            if quality == "high":
+                run_blender(jid, "draft", d, t0, 0, 25)
+                status(jid, preview=True, preview_quality="draft", message="Low quality ready to walk through; building High")
+                nxt = os.path.join(d, ".next")
+                shutil.rmtree(nxt, ignore_errors=True)
+                os.makedirs(nxt)
+                t1 = time.time()
+                try:
+                    maps = run_blender(jid, "high", nxt, t0, 25, 75)
+                except Exception:
+                    shutil.rmtree(nxt, ignore_errors=True)
+                    status(jid, stage="done", progress=100, preview=False, quality="draft",
+                           message="High could not be built - the Low quality house is ready", build_seconds=round(time.time() - t0))
+                    raise
+                for f in os.listdir(nxt):
+                    if f in OUTPUTS or (f.startswith("lm_") and f.endswith(".webp")):
+                        os.replace(os.path.join(nxt, f), os.path.join(d, f))
+                shutil.rmtree(nxt, ignore_errors=True)
+                seconds = time.time() - t1
+            else:
+                maps = run_blender(jid, quality, d, t0)
+                seconds = time.time() - t0
+            status(jid, stage="done", progress=100, message="Ready", quality=quality, preview=False,
+                   build_seconds=round(time.time() - t0))
             try:
-                calibrate(quality, (read_status(jid) or {}).get("maps") or {}, time.time() - t0)
+                calibrate(quality, maps, seconds)
             except OSError:
                 pass
         except Exception as e:
             traceback.print_exc()
-            status(jid, stage="failed", message=str(e))
+            if (read_status(jid) or {}).get("stage") != "done":
+                status(jid, stage="failed", message=str(e))
         finally:
             builds.task_done()
 
@@ -650,11 +716,14 @@ class H(BaseHTTPRequestHandler):
         if p.startswith("/examples/"):
             return self.file(os.path.join(HERE, "examples", p[10:]), os.path.join(HERE, "examples"))
         if p.startswith("/thumbs/"):
-            return self.file(os.path.join(THUMBS, p[8:]), THUMBS)
+            return self.file(os.path.join(THUMBS, p[8:]), THUMBS)        # /thumbs/<fn>.png or /thumbs/<set>/<fn>.png
         if p == "/api/areas":          # the area library (areaspec.py): specs of area types no builder knows
             return self.send(200, areaspec.load())
         if p == "/api/furniture":
-            return self.send(200, furniture())
+            try:
+                return self.send(200, furniture(furniture_set(parse_qs(u.query).get("set", [""])[0])))
+            except ValueError as e:
+                return self.send(400, {"error": str(e)})
         if p.startswith("/three/"):
             return self.file(os.path.join(THREE, p[7:]), THREE)
         if p.startswith("/jobs/"):
@@ -701,10 +770,14 @@ class H(BaseHTTPRequestHandler):
             return self.send(200, {"ok": True})
         m = re.match(r"^/api/furniture/(\w+)$", p)
         if m and m.group(1) in catalog.CATALOG:               # back to the built-in item
-            for f in (os.path.join(CUSTOM, m.group(1) + ".glb"), os.path.join(THUMBS, m.group(1) + ".png")):
+            try:
+                fs = furniture_set(parse_qs(urlparse(self.path).query).get("set", [""])[0])
+            except ValueError as e:
+                return self.send(400, {"error": str(e)})
+            for f in (os.path.join(custom_dir(fs), m.group(1) + ".glb"), os.path.join(thumbs_dir(fs), m.group(1) + ".png")):
                 if os.path.exists(f):
                     os.remove(f)
-            refresh_thumbs()
+            refresh_thumbs(fs)
             return self.send(200, {"ok": True})
         self.send(404, {"error": "not found"})
 
@@ -713,15 +786,16 @@ class H(BaseHTTPRequestHandler):
         try:
             m = re.match(r"^/api/furniture/(\w+)$", p)
             if m and m.group(1) in catalog.CATALOG:           # your model for this item, as a .glb file
+                fs = furniture_set(parse_qs(urlparse(self.path).query).get("set", [""])[0])
                 data = self.body()
                 if not data.startswith(b"glTF"):
                     return self.send(400, {"error": "Please upload a .glb file (binary glTF)."})
-                os.makedirs(CUSTOM, exist_ok=True)
-                with open(os.path.join(CUSTOM, m.group(1) + ".glb"), "wb") as fh:
+                os.makedirs(custom_dir(fs), exist_ok=True)
+                with open(os.path.join(custom_dir(fs), m.group(1) + ".glb"), "wb") as fh:
                     fh.write(data)
-                if os.path.exists(os.path.join(THUMBS, m.group(1) + ".png")):
-                    os.remove(os.path.join(THUMBS, m.group(1) + ".png"))
-                refresh_thumbs()
+                if os.path.exists(os.path.join(thumbs_dir(fs), m.group(1) + ".png")):
+                    os.remove(os.path.join(thumbs_dir(fs), m.group(1) + ".png"))
+                refresh_thumbs(fs)
                 return self.send(200, {"ok": True})
             if p == "/api/mp4":                               # a WebM recording in, the same video as MP4 out
                 if not shutil.which("ffmpeg"):
@@ -805,8 +879,10 @@ class H(BaseHTTPRequestHandler):
                         with open(os.path.join(jdir(jid), "plan.json"), "w") as fh:
                             json.dump(plan, fh)
                         return self.send(200, {"ok": True})
-                    q = json.loads(body or b"{}").get("quality", "high")
+                    req_b = json.loads(body or b"{}")
+                    q = req_b.get("quality", "high")
                     q = q if q in ("draft", "high") else "high"
+                    fs = furniture_set(req_b.get("furniture_set"))
                     try:
                         with open(os.path.join(jdir(jid), "plan.json")) as fh:
                             why = unbuildable(json.load(fh))
@@ -815,7 +891,7 @@ class H(BaseHTTPRequestHandler):
                     if why:                 # a traced plan can be saved half done; Blender would only fail on it
                         return self.send(400, {"error": why})
                     status(jid, stage="queued", progress=0, message=f"Waiting for the 3D builder ({builds.qsize()} ahead)",
-                           builds=(st.get("builds") or 0) + 1)
+                           builds=(st.get("builds") or 0) + 1, furniture_set=fs)
                     with lock:
                         waiting.append(jid)
                 builds.put((jid, q))

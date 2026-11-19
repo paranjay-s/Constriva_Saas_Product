@@ -3,6 +3,8 @@
 Pure functions: no HTTP and no database here, so every rule is tested on its own.
 """
 
+import hashlib
+import hmac
 import re
 from typing import Any
 from urllib.parse import urlsplit
@@ -95,6 +97,7 @@ def job_status(
         queue_position=whole(service.get("queue_position")),
         quality=(asked or built) if building else (built or None),
         build_seconds=whole(service.get("build_seconds")),
+        preview=building and service.get("preview") is True,
         created_at=row.get("created_at"),
         reader=str(service.get("reader") or ""),
         notice=str(service.get("notice") or ""),
@@ -216,3 +219,26 @@ def frame_ancestors() -> str:
             if local not in allowed:
                 allowed.append(local)
     return " ".join(["'self'", *allowed])
+
+
+def furniture_set(user_id: str) -> str:
+    """The name of the person's own furniture models on PlanTo3D: 16 hex characters derived from
+    their id with the embed secret, so PlanTo3D never sees the id, and no page can name another
+    person's set."""
+    key = embed_secret()
+    key = key if isinstance(key, bytes) else key.encode()
+    mac = hmac.new(key, f"furniture:{user_id}".encode(), hashlib.sha256)
+    return mac.hexdigest()[:16]
+
+
+def furniture_route(path: str, query: str, fset: str) -> tuple[str, str]:
+    """An embedded request's path and query with the person's furniture set put in: the models
+    list and its changes get `set=` (any `set` the page sent is dropped), and a picture of an item
+    comes from the set's own pictures."""
+    parts = path.split("/")
+    if parts[:2] == ["api", "furniture"]:
+        kept = "&".join(q for q in query.split("&") if q and not q.startswith("set="))
+        return path, (kept + "&" if kept else "") + f"set={fset}"
+    if len(parts) == 2 and parts[0] == "thumbs":
+        return f"thumbs/{fset}/{parts[1]}", query
+    return path, query

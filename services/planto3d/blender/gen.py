@@ -1,13 +1,17 @@
 """plan JSON -> furnished 3D house -> baked lighting -> web model (house.glb + lightmaps + meta.json).
 Run: blender -b --factory-startup -P planto3d/blender/gen.py -- plan.json OUTDIR [--quality draft|high] [--no-bake]
 Progress lines: 'PROGRESS <0-100> <message>' on stdout (read by the server)."""
-import json, math, os, sys, time
+import json, math, os, re, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path[:0] = [HERE, os.path.join(HERE, "..")]
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 PLAN, JOB = os.path.abspath(argv[0]), os.path.abspath(argv[1])
 QUALITY = argv[argv.index("--quality") + 1] if "--quality" in argv else "high"
+# the person's own furniture models (server.py furniture sets): assets/custom/<set>/; none = the shared ones
+FURNITURE_SET = argv[argv.index("--furniture-set") + 1] if "--furniture-set" in argv else ""
+if not re.match(r"^[a-f0-9]{16}$", FURNITURE_SET or "0" * 16):
+    FURNITURE_SET = ""
 BAKE = "--no-bake" not in argv
 os.makedirs(JOB, exist_ok=True)
 
@@ -530,7 +534,13 @@ def tree(x, y, s=1.0, seed=0):
     return done(r, collide=False)
 
 
+# real potted plants (Poly Haven, CC0; fetch_assets.py) when they are downloaded; the drawn blob is only the fallback
+PLANT = "potted_plant_02"       # 0.7 m as modelled; a floor plant stands about 1.1 m
+
+
 def plant(x, y, rot):
+    if os.path.exists(os.path.join(ASSETS, "models", PLANT, f"{PLANT}_1k.gltf")):
+        return place(PLANT, x, y, rot, scale=1.6, collide=False)
     r = item("plant", x, y, rot)
     p_cyl(r, "pot", 0.55, 0.75, 1.5, "terracotta", segs=24)
     p_cyl(r, "soil", 0.68, 0.68, 0.05, "concrete", (0, 0, 1.4), segs=24)
@@ -568,7 +578,7 @@ def model(name, x, y, rot=0, z=0.0, scale=1.0):
 
 def custom(it):
     """the person's own model (assets/custom/<fn>.glb) in place of a built-in item, fitted to the item's footprint"""
-    path = os.path.join(ASSETS, "custom", it["fn"] + ".glb")
+    path = os.path.join(ASSETS, "custom", *([FURNITURE_SET] if FURNITURE_SET else []), it["fn"] + ".glb")
     x0, x1, y0, y1 = it.get("box") or (0, 0, 0, 0)
     if it["fn"] not in CATALOG or not os.path.exists(path) or x1 - x0 < 0.1 or y1 - y0 < 0.1:
         return False

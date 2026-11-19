@@ -366,7 +366,10 @@ def test_build_maps_our_quality_names_to_planto3ds(client, planto3d, ours, their
     response = client.post(f"{API}/jobs/{job_id}/build", json={"quality": ours})
     assert response.status_code == 200, response.text
     sent = [r for r in planto3d.requests if r.url.path.endswith("/build")]
-    assert json.loads(planto3d.bodies[planto3d.requests.index(sent[0])]) == {"quality": theirs}
+    sent_body = json.loads(planto3d.bodies[planto3d.requests.index(sent[0])])
+    # the owner's own furniture models go with the build (a set name, never the user id)
+    assert sent_body == {"quality": theirs, "furniture_set": service.furniture_set(OWNER)}
+    assert OWNER not in json.dumps(sent_body)
     body = response.json()
     assert (body["stage"], body["quality"], body["queue_position"]) == ("queued", ours, 2)
     assert planto3d.store.get(job_id)["quality"] == ours
@@ -650,3 +653,19 @@ def test_embed_tokens_are_redacted_from_logs_and_responses_are_private(client, p
         token not in rec.getMessage()
         and "/api/v1/3d/embed/<redacted>/web/edit.html" in rec.getMessage()
     )
+
+
+def test_furniture_requests_go_to_the_persons_own_set():
+    mine, theirs = service.furniture_set("user-a"), service.furniture_set("user-b")
+    assert len(mine) == 16 and mine != theirs and mine == service.furniture_set("user-a")
+    # a page cannot name a set: whatever it sends is replaced by the person's own
+    assert service.furniture_route("api/furniture", f"set={theirs}&x=1", mine) == (
+        "api/furniture",
+        f"x=1&set={mine}",
+    )
+    assert service.furniture_route("api/furniture/sofa", "", mine) == (
+        "api/furniture/sofa",
+        f"set={mine}",
+    )
+    assert service.furniture_route("thumbs/sofa.png", "", mine) == (f"thumbs/{mine}/sofa.png", "")
+    assert service.furniture_route("web/view.js", "job=1", mine) == ("web/view.js", "job=1")
