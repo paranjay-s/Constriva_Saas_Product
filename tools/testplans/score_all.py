@@ -50,12 +50,22 @@ def ai_read(pdf):
     return res.plan
 
 
+def fitted(plan):
+    """the server's size fit (fit.fit_plan, run after every read) with the user's python, as PlanTo3D does"""
+    code = "import fit, json, sys; p = json.load(sys.stdin); fit.fit_plan(p); json.dump(p, sys.stdout)"
+    r = subprocess.run(["/usr/bin/python3", "-c", code], cwd=P3D, input=json.dumps(plan), capture_output=True,
+                       text=True, timeout=300)
+    return json.loads(r.stdout) if r.returncode == 0 and r.stdout else plan
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("plans")
     ap.add_argument("--set", default="held", choices=["held", "tune", "all"])
     ap.add_argument("--ai", type=int, default=0, help="most fresh AI calls")
     ap.add_argument("--label", default="baseline")
+    ap.add_argument("--dump", help="write each plan's reading here (<id>.det.json), for overlays")
+    ap.add_argument("--fit", action="store_true", help="apply the server's size fit after reading (full pipeline)")
     ap.add_argument("--out", default=str(ROOT / "docs/overnight/accuracy.md"))
     a = ap.parse_args()
     d = Path(a.plans)
@@ -76,10 +86,15 @@ def main():
             else:
                 reader = "none"
         det = det or {"floors": []}
+        if a.fit and det["floors"]:
+            det = fitted(det)
         if det["floors"]:
             sys.path.insert(0, str(P3D))
             import checks
             det.setdefault("kind", checks.building_kind(det))
+        if a.dump:
+            Path(a.dump).mkdir(parents=True, exist_ok=True)
+            (Path(a.dump) / f"{item['id']}.det.json").write_text(json.dumps(det))
         s = score_plan.plan_score(det, ref)
         for key in (item["style"], "ALL"):
             g = agg[key]
@@ -100,7 +115,7 @@ def main():
         print(f"{item['id']} {item['style']:<16} {reader:<8} recall {sum(r['hit_r'] for r in s['floors']) / max(1e-9, sum(r['len_r'] for r in s['floors'])) if s['floors'] else 0:.2f}", flush=True)
 
     pct = lambda n, t: f"{100 * n / t:.0f}%" if t else "-"
-    lines = [f"\n## {a.label} ({a.set} set, {len(pick)} plans, {fresh} fresh AI calls)\n",
+    lines = [f"\n## {a.label} ({a.set} set, {len(pick)} plans, {fresh} fresh AI calls{', size fit applied' if a.fit else ''})\n",
              "| style | plans | read | detector / ai / none | wall recall | wall precision | doors found | windows found | room type | specials | storeys | building type |",
              "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for key in sorted(agg, key=lambda k: (k == "ALL", k)):

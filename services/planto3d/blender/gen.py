@@ -51,6 +51,39 @@ mat("exterior", (0.93, 0.91, 0.87), 0.9, tex="white_plaster_02", tile=2.5, albed
 mat("plinth_stone", (0.56, 0.53, 0.49), 0.8, tex="granite_tile", tile=1.5)      # the stone base of outer walls
 mat("cushion", rough=0.95, tex="caban", tile=0.5, tint=(0.55, 0.45, 0.35))
 
+# The house's palette, seeded by the plan's geometry: the same plan always looks the same, different plans differ.
+# Every scheme keeps the handover's warm villa look (warm whites, stone, oak or walnut); PLAN3D_STYLE picks one.
+SCHEMES = {
+    "warm_oak":   dict(wall=(0.86, 0.80, 0.70), exterior=(0.93, 0.91, 0.87), wood=None, accent=(0.62, 0.42, 0.28),
+                       cushion=(0.55, 0.45, 0.35)),
+    "limestone":  dict(wall=(0.90, 0.86, 0.79), exterior=(0.88, 0.82, 0.72), wood=(0.80, 0.66, 0.50),
+                       accent=(0.70, 0.55, 0.40), cushion=(0.72, 0.66, 0.56)),
+    "walnut":     dict(wall=(0.84, 0.80, 0.74), exterior=(0.90, 0.88, 0.84), wood=(0.62, 0.45, 0.32),
+                       accent=(0.45, 0.30, 0.20), cushion=(0.40, 0.42, 0.36)),
+    "sand":       dict(wall=(0.88, 0.82, 0.72), exterior=(0.86, 0.76, 0.60), wood=(0.85, 0.70, 0.52),
+                       accent=(0.66, 0.48, 0.32), cushion=(0.62, 0.50, 0.40)),
+}
+
+
+def plan_scheme(plan):
+    """a scheme name from a hash of the plan's walls and rooms (not its labels or job id)"""
+    import hashlib
+    geo = [[[round(v, 1) for v in w[:4]] for w in f.get("walls", [])] +
+           [[round(v, 1) for q in r.get("rects", []) for v in q] for r in f.get("rooms", [])] for f in plan.get("floors", [])]
+    h = int(hashlib.sha256(json.dumps(geo).encode()).hexdigest(), 16)
+    names = sorted(SCHEMES)
+    return os.environ.get("PLAN3D_STYLE") if os.environ.get("PLAN3D_STYLE") in SCHEMES else names[h % len(names)]
+
+
+SCHEME = plan_scheme(plan)
+_sc = SCHEMES[SCHEME]
+mat("wall", _sc["wall"], 0.9, tex="white_plaster_02", tile=1.5, albedo=False)
+mat("exterior", _sc["exterior"], 0.9, tex="white_plaster_02", tile=2.5, albedo=False)
+mat("wall_accent", rough=0.5, tex="american_walnut_veneer", tile=1.2, tint=_sc["accent"])
+mat("cushion", rough=0.95, tex="caban", tile=0.5, tint=_sc["cushion"])
+if _sc["wood"]:
+    mat("wood", tex="laminate_floor_02", tile=2.0, tint=_sc["wood"])
+
 import rooms  # noqa: E402
 
 # room types (web/rooms.json): floor material, which rooms get a ceiling, lamp and furniture, which are open to the sky
@@ -1058,7 +1091,7 @@ import bake  # noqa: E402
 groups = {f"level_{k}": objs for k, objs in by_floor.items()}
 groups["site"] = site
 res = bake.bake_and_export(groups, unbaked=trees, out=JOB, quality=QUALITY, do_bake=BAKE, progress=progress)
-meta = dict(version=1, floors=META_FLOORS, roof_z=round(top * lib.F, 3), eye=1.6, kits=USED_KITS,
+meta = dict(version=1, floors=META_FLOORS, roof_z=round(top * lib.F, 3), eye=1.6, kits=USED_KITS, scheme=SCHEME,
             bounds=[round(v * lib.F, 3) for v in (X0, X1, Y0, Y1)], **res)
 with open(os.path.join(JOB, "meta.json"), "w") as fh:
     json.dump(meta, fh)

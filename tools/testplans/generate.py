@@ -256,17 +256,13 @@ COLOURS = {"bedroom": (0.93, 0.88, 0.95), "toilet": (0.85, 0.93, 0.98), "kitchen
 def draw(plan, style, rng):
     """-> PDF bytes. Floors side by side on one landscape sheet, each titled; scale fixed per sheet."""
     W, D = plan["footprint"]
-    extra = max([r["rects"][0][3] for r in plan["floors"][0]["rooms"]] + [D]) - min([r["rects"][0][2] for r in plan["floors"][0]["rooms"]] + [0])
-    n = len(plan["floors"])
-    pw, ph = (1191, 842) if n > 1 or extra > 70 else (842, 595)        # A3 for several storeys or a big site
-    S = min((pw - 80) / (n * (W + 20)), (ph - 115) / (extra + 30))
+    pw, ph, S, origins = page_frame(plan)
     doc = pymupdf.open()
     page = doc.new_page(width=pw, height=ph)
     if ARABIC_FONT and plan["lang"] == "ar":
         page.insert_font(fontname="ar", fontfile=ARABIC_FONT)
-    ymin = min([r["rects"][0][2] for r in plan["floors"][0]["rooms"]] + [0])
     for k, f in enumerate(plan["floors"]):
-        ox, oy = 40 + k * (W + 20) * S, ph - 50 - (0 - ymin) * S
+        ox, oy = origins[k]
         P = lambda x, y: pymupdf.Point(ox + x * S, oy - y * S)
         shape = page.new_shape()
         if style in ("solid", "fills"):
@@ -346,7 +342,8 @@ def draw(plan, style, rng):
         page.insert_text(pymupdf.Point(ox + W * S / 2 - pymupdf.get_text_length(title, fontsize=9) / 2, oy + 25), title, fontsize=9)
     page.insert_text(pymupdf.Point(40, 30), f"{plan['kind'].upper()}  -  PROPOSED {plan['storeys']}-STOREY {plan['kind'].upper()}", fontsize=10)
     doc.subset_fonts()          # (a whole Unicode font is 23 MB)
-    return doc.tobytes(garbage=3, deflate=True)
+    doc.set_metadata({})        # no dates and a fixed id: the same seed gives the same bytes (AI reply cache keys)
+    return doc.tobytes(garbage=3, deflate=True, no_new_id=True)
 
 
 def rasterise(pdf_bytes, rng):
@@ -371,14 +368,29 @@ def rasterise(pdf_bytes, rng):
     doc = pymupdf.open()
     pg = doc.new_page(width=im.width * 72 / dpi, height=im.height * 72 / dpi)
     pg.insert_image(pg.rect, stream=buf.getvalue())
-    return doc.tobytes(), "+".join(how)
+    doc.set_metadata({})
+    return doc.tobytes(no_new_id=True), "+".join(how)
+
+
+def page_frame(plan):
+    """-> (page width, page height, points per foot, [(x, y) page points of each storey's origin])"""
+    W, D = plan["footprint"]
+    rooms0 = plan["floors"][0]["rooms"]
+    extra = max([r["rects"][0][3] for r in rooms0] + [D]) - min([r["rects"][0][2] for r in rooms0] + [0])
+    n = len(plan["floors"])
+    pw, ph = (1191, 842) if n > 1 or extra > 70 else (842, 595)        # A3 for several storeys or a big site
+    S = min((pw - 80) / (n * (W + 20)), (ph - 115) / (extra + 30))
+    ymin = min([r["rects"][0][2] for r in rooms0] + [0])
+    return pw, ph, S, [(40 + k * (W + 20) * S, ph - 50 - (0 - ymin) * S) for k in range(n)]
 
 
 def answer(plan):
     """the known answer as PlanTo3D plan JSON (helpers like `special` and `size` kept for scoring)"""
     floors = []
-    for f in plan["floors"]:
-        floors.append(dict(name=f["name"], level=f["level"], walls=f["walls"], openings=f["openings"],
+    _, _, S, origins = page_frame(plan)
+    for f, o in zip(plan["floors"], origins):
+        floors.append(dict(name=f["name"], level=f["level"], origin_pt=list(o), scale_pt_per_ft=S,
+                           walls=f["walls"], openings=f["openings"],
                            rooms=[dict(type=r["type"], label=r["label"], rects=r["rects"], area=r["area"], special=r.get("special"),
                                        dims=None)
                                   for r in f["rooms"]], stairs=f["stairs"]))
