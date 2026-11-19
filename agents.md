@@ -796,7 +796,14 @@ Rules for this module:
 5. Accuracy is measured on generated plans that were held out from tuning (`tools/testplans/`, results
    in `docs/overnight/accuracy.md`). Never tune to the files in `docs/reference/plans` and never claim
    100%.
-6. Keep `PLAN3D_ALLOW_FURNITURE_CHANGES` false until per-user furniture is finished.
+6. Furniture models are kept per person: the gateway derives a set from the user id
+   (`service.furniture_set`) and forces it on every furniture request and build. Leave
+   `PLAN3D_ALLOW_FURNITURE_CHANGES` false unless the owner turns it on.
+7. `PLAN3D_AI_VERIFY` (off by default) adds an AI second look at each read plan (`verify.py`, one cached
+   call per plan). Its findings only go to "Needs checking"; they never change the plan.
+8. A High build first builds Low (`preview: true`) and swaps the High files in when they succeed.
+   Assets come only from sources in `fetch_assets.SOURCES` with a licence in `ALLOWED_LICENCES`, and are
+   listed in `assets/manifest.json`; `tests/test_assets.py` checks this.
 
 ---
 
