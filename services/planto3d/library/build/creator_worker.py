@@ -186,7 +186,7 @@ def bounds():
 
 
 def op_render_preview(a):
-    """a 640 px preview in a small studio (as make_library.py), returned as a file name in FOLDER"""
+    """640 px previews in a small studio: evening (preview.png) and day (preview_day.png), in FOLDER"""
     b = bounds()
     if not b:
         raise ValueError("nothing to render yet")
@@ -208,9 +208,13 @@ def op_render_preview(a):
     style.colour_management(scene, -0.1, 4700)
     scene.render.filepath = os.path.join(FOLDER, "preview.png")
     bpy.ops.render.render(write_still=True)
-    for n in [o.name for o in scene.objects if o.name.startswith("pv_")]:
+    style.day_sky(scene)
+    style.colour_management(scene, -0.45, 5600)
+    scene.render.filepath = os.path.join(FOLDER, "preview_day.png")
+    bpy.ops.render.render(write_still=True)
+    for n in [o.name for o in scene.objects if o.name.startswith("pv_") or o.name == "day_sun"]:
         bpy.data.objects.remove(bpy.data.objects[n])
-    return dict(preview="preview.png")
+    return dict(preview="preview.png", preview_day="preview_day.png")
 
 
 def op_export(a):

@@ -557,3 +557,14 @@ tours); fast work never waits behind queued heavy work. A High build now runs it
 in the heavy lane, so another person's Low build can run between them. PLAN3D_BLENDER_SLOTS builder threads (default
 1). tests/test_lanes.py (Blender stubbed) checks the order. Not done: a warm Blender between jobs (gen.py builds into
 one scene per process).
+
+## 50. Water reads as water by day and evening; a day preset; creator previews in both (library/build/)
+
+What: style.py's "Water" now has a body colour (deep green-teal #1c4643 for ponds and fountains), "PoolWater" a
+brighter one (#3f9db0, pools over pale tile), and the handover's near-black mirror is kept as "MirrorWater" for hero
+shots across water. The browser bake exports water as a flat glossy material in its colour (a colour bake turned it
+black). `style.day_sky` is a day preset (pale sky gradient and a sun lamp). The creator worker's render_preview renders
+evening (preview.png) and day (preview_day.png); the agent sees both, and its prompt asks that water read as water in
+both. Checked by re-rendering the koi pond: its water was black in both presets and is now clearly water in both
+(docs/run3/creator/, git-ignored); the library's koi pond asset was updated (new water, both previews, rebaked .glb).
+Note: the day preset still looks overcast (soft sun shadows); the house builder's day lighting is Stage 9 work.

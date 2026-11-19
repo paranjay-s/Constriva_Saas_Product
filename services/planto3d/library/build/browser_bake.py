@@ -13,6 +13,9 @@ GLOW = {"Cove", "CoveSoft", "Downlight", "Bulb", "Shade", "Lantern", "MirrorRing
 CLEAR = {"Glass", "FlutedGlass"}
 METALS = {"Brass": ("#b08d57", 0.3), "Bronze": ("#4b3a27", 0.35), "DarkMetal": ("#1c1a18", 0.5),
           "Chrome": ("#d9dcdd", 0.12), "Mirror": ("#f2f4f4", 0.02)}
+# water has no diffuse colour worth baking (it is reflection over a body colour): a flat glossy material in its colour
+WATER = {"Water": "#1c4643", "PoolWater": "#3f9db0", "MirrorWater": "#0c1418"}
+FLAT = GLOW | CLEAR | set(METALS) | set(WATER)
 
 
 def tris(obs):
@@ -63,7 +66,7 @@ def bake_browser(scene, name, folder, budget=20000):
     bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.02)
     bpy.ops.object.mode_set(mode="OBJECT")
     img = bpy.data.images.new(f"{name}_atlas", 1024, 1024)
-    bakeable = [m for m in ob.data.materials if m and m.name not in GLOW | CLEAR | set(METALS)]
+    bakeable = [m for m in ob.data.materials if m and m.name not in FLAT]
     metal = []
     for m in bakeable:
         n = m.node_tree.nodes.new("ShaderNodeTexImage")
@@ -97,6 +100,8 @@ def bake_browser(scene, name, folder, budget=20000):
         elif m.name in METALS:
             # 0.55, not 1: the house's light bake is diffuse; the walkthrough adds the reflection above 0.5
             swap[i] = _flat(f"{name}_{m.name.lower()}", style.rgba(METALS[m.name][0]), 0.55, METALS[m.name][1])
+        elif m.name in WATER:
+            swap[i] = _flat(f"{name}_water", style.rgba(WATER[m.name]), 0.0, 0.05, alpha=0.92)
         elif m.name in CLEAR:
             swap[i] = _flat(f"{name}_glass", (0.9, 0.95, 0.94, 1), rough=0.05, alpha=0.25)
         else:

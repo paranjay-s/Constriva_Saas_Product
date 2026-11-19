@@ -277,6 +277,10 @@ def mat_screen(name="Screen", pitch=0.24, base="#cbb999", axis="X"):
 
 
 def mat_water(name="Water", color="#04090c", ripple=0.075, scale=2.6):
+    """the handover's still water ("MirrorWater"), or with a body colour ("Water", "PoolWater"): the colour of the
+    water body and what is under it, so water reads as water by day, by evening and in a colour bake (the browser
+    model), with the sharp rippled reflection on top. The handover's near-black value only works as a mirror for a
+    lit house across it; in a small view it reads as a hole."""
     m, t = _new(name)
     pos = t.pos()
     p = t.principled(rgba(color), 0.015)
@@ -437,7 +441,9 @@ RECIPES = {
     "Ceramic": lambda n: mat_simple(n, "#ece6dc", 0.3),
     "CeramicDark": lambda n: mat_simple(n, "#3a3734", 0.38),
     "Screen": lambda n: mat_screen(n),
-    "Water": lambda n: mat_water(n),
+    "Water": lambda n: mat_water(n, "#1c4643"),             # a pond, a fountain: deep green-teal
+    "PoolWater": lambda n: mat_water(n, "#3f9db0", 0.05),  # a pool over pale tile
+    "MirrorWater": lambda n: mat_water(n),                 # the handover's dark mirror (hero shots across water)
     "OliveLeaf": lambda n: mat_leaf(n, "#6f7d58", 0.45, 0.3),
     "PalmLeaf": lambda n: mat_leaf(n, "#3f5a2e", 0.45, 0.3),
     "Bark": lambda n: mat_simple(n, "#4a3d30", 0.9, bump_scale=8, bump=0.8),
@@ -695,6 +701,31 @@ def cycles(scene, samples=72, res=(1920, 1080), device="GPU"):
                     break
             except (TypeError, ValueError):
                 continue
+
+
+def day_sky(scene, strength=1.0, sun_deg=(52.0, 0.0, 35.0), sun=3.2):
+    """the day preset: a pale-blue sky gradient over warm ground and a sun lamp (5600 K-ish), elevation and azimuth
+    in degrees; pair with colour_management(scene, -0.45, 5600)"""
+    import math
+    w = scene.world or bpy.data.worlds.new("World")
+    scene.world = w
+    t = Nodes(w)
+    gen = t.new("ShaderNodeTexCoord").outputs["Generated"]
+    _, _, z = t.xyz(gen)
+    col = t.ramp(z, [(0.49, rgba("#8a8274")), (0.5, rgba("#dde9f2")), (0.6, rgba("#a9c9e6")), (1.0, rgba("#5d93cf"))])
+    bg = t.new("ShaderNodeBackground")
+    t.link(col, bg.inputs["Color"])
+    t.set(bg, "Strength", strength)
+    o = t.new("ShaderNodeOutputWorld")
+    t.link(bg.outputs[0], o.inputs["Surface"])
+    if sun:
+        d = bpy.data.lights.get("day_sun") or bpy.data.lights.new("day_sun", "SUN")
+        d.energy, d.color, d.angle = sun, (1.0, 0.96, 0.9), math.radians(1.5)
+        o_sun = bpy.data.objects.get("day_sun") or bpy.data.objects.new("day_sun", d)
+        if o_sun.name not in scene.collection.objects:
+            scene.collection.objects.link(o_sun)
+        o_sun.rotation_euler = (math.radians(90 - sun_deg[0]), math.radians(sun_deg[1]), math.radians(sun_deg[2]))
+    return w
 
 
 def evening_sky(scene, strength=1.6):
