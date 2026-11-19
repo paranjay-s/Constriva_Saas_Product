@@ -449,3 +449,11 @@ further off are left alone and reported (`size_mismatch`), and a plan with an as
 label went from 172/316 to 217/316 (54 % to 69 %). The room area error against the truth went from 43.4 % to 42.4 %;
 it is dominated by rooms the reader merged or split, which no size fit can mend. On stored plans: OPT 5 went from 9 to
 11 of 14, the villa from 1 to 8 of 9, SF stayed at 6 of 8 (mean 2.1 % to 1.6 %).
+
+## 40. Walkthrough: go to any room, and measure (web/view.js, web/view.html)
+
+What: a "Go to a room" list with every room on every storey. Choosing one puts the walker on the walkable spot nearest
+the room's middle, facing it. A Measure button: two clicks on any surface (or G at the crosshair while walking) draw
+a line and show the distance and its horizontal part in metres. `window.__measure` is there for tests. Checked
+headless on the dock house: 30 rooms listed, a jump to BREAKFAST AREA, a 4.10 m measurement.
+Not done: hiding furniture (it is baked into each storey's mesh, so it would need its own bake group).

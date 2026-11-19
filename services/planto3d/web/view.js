@@ -447,6 +447,71 @@ renderer.setAnimationLoop(() => {
   } else orbit.update();
   renderer.render(scene, camera);
 });
+// ---- room list: jump to any room on any storey (the walkable spot nearest its middle, facing the middle)
+(() => {
+  const sel = $('roomlist');
+  floors.forEach((f, lv) => f.rooms.forEach((r, k) => {
+    if (!r.rects.length) return;
+    sel.append(new Option(`${floors.length > 1 ? f.name + ' · ' : ''}${roomName(r)}`, `${lv}:${k}`));
+  }));
+  sel.onchange = () => {
+    if (!sel.value) return;
+    const [lv, k] = sel.value.split(':').map(Number);
+    const r = floors[lv].rooms[k];
+    const q = r.rects.reduce((a, b) => ((b[1] - b[0]) * (b[3] - b[2]) > (a[1] - a[0]) * (a[3] - a[2]) ? b : a));
+    const cx = (q[0] + q[1]) / 2, cy = (q[2] + q[3]) / 2, z = floors[lv].z;
+    let best = null;                     // spiral out from the middle to the first spot the walker may stand on
+    for (let d = 0; d < 6 && !best; d += 0.2) for (let a = 0; a < 6.28 && !best; a += 0.5) {
+      const x = cx + d * Math.cos(a), y = cy + d * Math.sin(a);
+      if (walk.inRect(q, x, y) && !walk.blockedAt(meta, lv, x, y) && walk.groundNear(meta, x, y, z) !== null) best = [x, y];
+    }
+    if (!best) return;
+    if (tour) stopTour();
+    if (topView) toggleTop();
+    Object.assign(p, { x: best[0], y: best[1], z, pitch: 0 });
+    if (Math.hypot(cx - best[0], cy - best[1]) > 0.3) p.yaw = Math.atan2(-(cx - best[0]), cy - best[1]);
+    sel.value = '';
+    sel.blur();
+  };
+})();
+
+// ---- measure: two points on any surface (a click, or G at the crosshair when walking), the distance in metres
+const measure = { on: false, pts: [], line: null };
+const ray = new THREE.Raycaster();
+function measurePoint(ndc) {
+  ray.setFromCamera(ndc, camera);
+  const hit = ray.intersectObjects(scene.children, true).find((h) => h.object.isMesh && h.object.visible);
+  if (!hit) return;
+  measure.pts.push(hit.point.clone());
+  if (measure.pts.length === 1) { $('measure').textContent = 'Now the second point'; return; }
+  const [a, b] = measure.pts;
+  if (measure.line) scene.remove(measure.line);
+  measure.line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]),
+    new THREE.LineBasicMaterial({ color: 0xffb347, depthTest: false }));
+  measure.line.renderOrder = 10;
+  scene.add(measure.line);
+  $('measure').textContent = `${a.distanceTo(b).toFixed(2)} m  (horizontal ${Math.hypot(a.x - b.x, a.z - b.z).toFixed(2)} m)`;
+  measure.pts = [];
+}
+$('measurebtn').onclick = () => {
+  measure.on = !measure.on;
+  measure.pts = [];
+  $('measurebtn').textContent = measure.on ? 'Stop measuring' : 'Measure';
+  $('measure').style.display = measure.on ? 'block' : 'none';
+  $('measure').textContent = 'Click the first point';
+  if (!measure.on && measure.line) { scene.remove(measure.line); measure.line = null; }
+};
+canvas.addEventListener('pointerdown', (e) => {
+  if (!measure.on || document.pointerLockElement) return;
+  const r = canvas.getBoundingClientRect();
+  measurePoint(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1));
+});
+addEventListener('keydown', (e) => { if (e.code === 'KeyG' && measure.on && !e.repeat) measurePoint(new THREE.Vector2(0, 0)); });
+window.__measure = (ax, ay, bx, by) => {      // tests: measure between two screen points (NDC)
+  if (!measure.on) $('measurebtn').click();
+  measurePoint(new THREE.Vector2(ax, ay)); measurePoint(new THREE.Vector2(bx, by));
+  return $('measure').textContent;
+};
 $('status').textContent = matchMedia('(pointer: coarse)').matches ? 'Tap to start' : 'Click to walk in';
 // ?pose=x,y,level,yawDeg,pitchDeg (metres) and ?top=level : fixed views for previews / tests
 const q = new URLSearchParams(location.search);
