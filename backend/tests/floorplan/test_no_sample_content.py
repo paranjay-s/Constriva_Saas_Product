@@ -43,6 +43,9 @@ SCANNED_DIRS = [
     BACKEND / "tests/floorplan",
     FRONTEND / "src/features/chat",
     FRONTEND / "src/features/floorplan",
+    # the chat studio (the UI branch) now holds the generator's brief form, edit chat and
+    # project gate that used to live in features/floorplan
+    FRONTEND / "src/features/studio",
 ]
 TEXT_SUFFIXES = {".py", ".md", ".txt", ".json", ".ts", ".tsx", ".svg", ".html", ".css"}
 

@@ -39,3 +39,6 @@ docs/run3/**/*.webp
 docs/run3/**/*.mp4
 docs/run3/**/*.exr
 docs/run3/**/*.blend
+
+# merge test screenshots (kept local: docs/merge/REPORT.md lists them)
+docs/merge/screens/
