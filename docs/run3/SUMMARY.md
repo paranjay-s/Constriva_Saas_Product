@@ -88,5 +88,32 @@ done:** a style seeded by a plan hash.
   1,886 triangles, 6.00 × 4.00 × 0.85 m. Preview: `docs/run3/creator/koi_pond_preview.png`. The water reads very dark
   in the evening preview. A scripted helipad tested the pipeline without a model.
 
+## Stage 11: accuracy (done for vector; raster classified)
+Full tables: `docs/run3/accuracy.md`. All numbers below are walls scored centre line against centre line, with
+door and window spans neutral (scorer fix: the truth stops walls at openings, the readers run them through).
+- **Scorer fix** (same readings): overall precision 45 -> 48 %, recall 50 -> 49 %; vector moved about 1 point.
+- **Vector fixes** (detect.py §45-47, fit.py): 10 of 24 held-out vector plans had been read at twice the true scale
+  (label rays through door gaps found no wall, and the fallback took the 9" outer wall for a 4.5" one). Then: per-axis
+  label votes, the size convention chosen by agreeing labels, and the nearest wall beside a gap.
+- **Clean check** (150 tuning plans, not looked at during the fixes; vector, readers only):
+
+| style | wall recall before -> after | wall precision before -> after |
+|---|---|---|
+| fills | 35 -> 100 % | 44 -> 99 % |
+| hatched | 49 -> 97 % | 56 -> 96 % |
+| lines | 47 -> 100 % | 62 -> 98 % |
+| solid | 34 -> 100 % | 42 -> 99 % |
+
+  Held-out vector plans: 100 % recall, 99 % precision, but the fixes were found on held-out plans, so the tuning set
+  is the honest figure. Labelled rooms within 2 % of their label: about 20 % -> 89 % (Stage 5 target of 100 % not met).
+- **Size fit:** once the scale was right it was damaging plans (held-out recall 100 -> 70-86 %); repaired (one
+  convention per storey, real wall thicknesses, measured between walls). It now leaves correct readings alone.
+- **Raster** (26 AI reads, unchanged by these fixes): recall 28-58 %, precision 23-48 % by style. Mostly wall-by-wall
+  position error of the AI reader, plus a ~1.1 ft plan-wide shift on solid walls. Fix: a deterministic scanned reader
+  (Stage 2, not done).
+- **Reference plans** (no truth, nothing tuned): the 2 vector ones read the same walls and rooms throughout; 44-56 % of
+  their labelled rooms within 2 %. The 5 scanned ones go to the AI reader, which does not carry label sizes, so the
+  size fit cannot act on them.
+
 ## Running totals
-Live AI calls: 6 of 80. Render time: about 30 minutes. Free disk: about 299 GB.
+Live AI calls: 32 of 80. Render time: about 30 minutes. Free disk: about 299 GB.
