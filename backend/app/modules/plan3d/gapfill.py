@@ -124,6 +124,21 @@ def request_text(plan: dict[str, Any], types: list[str]) -> str:
         for c in plan.get("checks") or []
         if c.get("severity") in ("critical", "warning")
     ]
+    # names printed on the drawing that no room carries: a room the reader merged into another
+    for k, f in enumerate(plan.get("floors", [])):
+        fr = _frame(plan, f)
+        used = " ".join((r.get("label") or "").upper() for r in f.get("rooms", []))
+        for lab in f.get("labels") or []:
+            t = str(lab.get("text") or "").strip()
+            if len(t) < 3 or not re.search(r"[A-Za-z\u0600-\u06FF]{3}", t):
+                continue
+            if re.search(r"\d+\s*['x×X]", t) or t.upper() in used:
+                continue
+            where = ""
+            if fr and isinstance(lab.get("at"), list) and len(lab["at"]) == 2:
+                px, py = to_px(fr, *lab["at"])
+                where = f" at px ({px:.0f}, {py:.0f})"
+            issues.append(f"storey {k}: the drawing says {t!r}{where} but no room has that name")
     lines.append("Missing or doubtful:")
     lines += [f"- {m}" for m in issues[:30]] or ["- (nothing flagged)"]
     return "\n".join(lines)
