@@ -89,9 +89,9 @@ export const siteContent: SiteContent = {
     },
   },
   chips: [
-    { num: "01", label: "Plan to 3D", count: "Live", href: "#" },
-    { num: "02", label: "BOQ sheets", count: "PDF", href: "#" },
-    { num: "03", label: "Material AI", count: "Photo", href: "#" },
+    { num: "01", label: "Plan to 3D", count: "Live", href: "/3d" },
+    { num: "02", label: "BOQ sheets", count: "PDF", href: "/boq" },
+    { num: "03", label: "Material AI", count: "Photo", href: "/materials/analyse" },
   ],
   featured: {
     eyebrow: "Live demo",
@@ -152,7 +152,7 @@ export const siteContent: SiteContent = {
       sub: "Types, units and quantities, counted for you.",
       cta: {
         label: "View BOQ Sheet",
-        href: "/projects/options",
+        href: "/boq",
       },
     },
     {
@@ -164,7 +164,7 @@ export const siteContent: SiteContent = {
       sub: "Download the material estimate and share it.",
       cta: {
         label: "Export PDF Sheet",
-        href: "/projects/options",
+        href: "/boq",
       },
     },
     {

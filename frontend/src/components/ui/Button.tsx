@@ -28,31 +28,31 @@ export const Button: React.FC<ButtonProps> = ({
   const effectiveLoading = isLoading || loading;
   const effectiveLeftIcon = leftIcon || icon;
 
+  // the dashboard's look (features/dashboard/dashboard.css): pills, the cyan gradient, ink and hairlines
   const baseStyles =
-    'inline-flex items-center justify-center font-medium transition-all duration-150 rounded cursor-pointer select-none disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-[#C5A77B]';
+    'inline-flex items-center justify-center font-medium transition-all duration-150 rounded-full cursor-pointer select-none disabled:opacity-55 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-[#bff6fb] focus-visible:ring-offset-2 focus-visible:ring-offset-[#04060a]';
 
   const sizeStyles = {
-    sm: 'text-xs px-3 py-1.5 h-8 gap-1.5',
-    md: 'text-sm px-4 py-2.5 h-11 gap-2',
-    lg: 'text-base px-6 py-3 h-12 gap-2.5',
+    sm: 'text-[13px] px-4 h-9 gap-1.5',
+    md: 'text-sm px-5 h-11 gap-2',
+    lg: 'text-[15px] px-6 h-12 gap-2.5',
   };
 
   const variantStyles = {
-    // Primary: Warm ivory with canvas dark text
+    // Primary and accent: the cyan gradient with ink text
     primary:
-      'bg-[#F5F2EB] text-[#101010] hover:bg-[#EAE6DD] active:bg-[#DCD8CF] font-semibold tracking-tight shadow-sm',
-    // Accent: Brand bronze with dark text
+      'bg-[linear-gradient(135deg,#bff6fb,#7ca0ff)] text-[#04060a] hover:brightness-110 hover:-translate-y-px font-semibold tracking-tight',
     accent:
-      'bg-[#C5A77B] text-[#101010] hover:bg-[#D4B98E] active:bg-[#B39467] font-semibold tracking-tight',
-    // Secondary: Dark panel with hairline border
+      'bg-[linear-gradient(135deg,#bff6fb,#7ca0ff)] text-[#04060a] hover:brightness-110 hover:-translate-y-px font-semibold tracking-tight',
+    // Secondary: a translucent pill with a hairline border
     secondary:
-      'bg-[#181818] border border-[#303030] text-[#FFFFFF] hover:bg-[#202020] hover:border-[#444444] active:bg-[#252525]',
-    // Ghost: Transparent with border
+      'bg-white/[0.06] border border-white/20 text-white hover:bg-white/[0.12]',
+    // Ghost: text only until hovered
     ghost:
-      'bg-transparent text-[#A6A6A6] hover:text-[#FFFFFF] hover:bg-[#181818] active:bg-[#202020]',
+      'bg-transparent text-[#c9d3df] hover:text-white hover:bg-white/[0.08]',
     // Danger
     danger:
-      'bg-[#93000A] text-[#FFDAD6] hover:bg-[#B31B22] active:bg-[#730007]',
+      'bg-[#ffb4ab]/10 border border-[#ffb4ab]/40 text-[#ffb4ab] hover:bg-[#ffb4ab]/20',
   };
 
   return (

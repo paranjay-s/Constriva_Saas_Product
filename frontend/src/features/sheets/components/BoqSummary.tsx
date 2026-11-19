@@ -28,13 +28,13 @@ export function BoqSummary({ summary, itemCount }: { summary: BoqGeometrySummary
         {stats.map((stat, index) => (
           <div
             key={stat.label}
-            className={`flex flex-col gap-0.5 rounded border border-[#303030] bg-[#141414] p-3 ${
+            className={`flex flex-col gap-0.5 rounded-xl border border-[#243041] bg-[#0b1019] p-3 ${
               index === 0 ? 'col-span-2 sm:col-span-1' : ''
             }`}
           >
-            <dt className="font-mono text-[10px] uppercase tracking-wider text-[#A6A6A6]">{stat.label}</dt>
-            <dd className="m-0 font-mono text-lg font-bold text-[#C5A77B]">{stat.value}</dd>
-            {stat.secondary && <dd className="m-0 font-mono text-[11px] text-[#737373]">{stat.secondary}</dd>}
+            <dt className="font-mono text-[10px] uppercase tracking-wider text-[#a3afbf]">{stat.label}</dt>
+            <dd className="m-0 font-mono text-lg font-bold text-[#7ce8f2]">{stat.value}</dd>
+            {stat.secondary && <dd className="m-0 font-mono text-[11px] text-[#8b97a8]">{stat.secondary}</dd>}
           </div>
         ))}
       </dl>

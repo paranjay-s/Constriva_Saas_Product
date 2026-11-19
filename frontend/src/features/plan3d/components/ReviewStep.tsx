@@ -155,12 +155,12 @@ function ReviewPanel(props: ReviewPanelProps) {
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
       <div className="flex min-w-0 flex-col gap-3">
         {(readerText || readerNotice) && (
-          <div role="note" aria-label="How this plan was read" className="rounded border border-[#5A4A2E] bg-[#1E1A12] p-3 text-sm text-[#E2C294]">
+          <div role="note" aria-label="How this plan was read" className="rounded-xl border border-[#5A4A2E] bg-[#1E1A12] p-3 text-sm text-[#bff6fb]">
             {readerText && <p className="m-0">{readerText}</p>}
-            {readerNotice && <p className="m-0 mt-1 break-words text-xs text-[#C9B48C]">{readerNotice}</p>}
+            {readerNotice && <p className="m-0 mt-1 break-words text-xs text-[#bff6fb]">{readerNotice}</p>}
           </div>
         )}
-        <div className="h-[70vh] min-h-[420px] overflow-hidden rounded-lg border border-[#303030] bg-[#141414]">
+        <div className="h-[70vh] min-h-[420px] overflow-hidden rounded-[22px] border border-[#243041] bg-[#0b1019]">
           <iframe ref={frame} title="Review the detected plan" src={src} className="h-full w-full border-0" />
         </div>
       </div>
@@ -203,7 +203,7 @@ export function ReviewStep({ jobId, hidden, ...options }: ReviewStepProps) {
 
   return (
     <section aria-label="Review the plan" hidden={hidden} className={hidden ? 'hidden' : 'flex flex-col gap-4'}>
-      <div className="text-sm text-[#A6A6A6]">
+      <div className="text-sm text-[#a3afbf]">
         Check the walls, doors, windows and room types that were detected, and correct them on the drawing. Then choose
         the options and build.
       </div>

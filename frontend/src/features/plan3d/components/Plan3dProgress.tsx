@@ -18,14 +18,14 @@ export function Plan3dProgress({ title, label, progress, message, facts = [] }: 
 
   return (
     <section aria-label={label} className="flex flex-col gap-6 py-4">
-      <h2 className="text-center font-display text-xl font-semibold text-white">{title}</h2>
+      <h2 className="text-center text-[19px] font-medium text-white">{title}</h2>
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-baseline justify-between gap-3 text-sm text-[#A6A6A6]">
+        <div className="flex items-baseline justify-between gap-3 text-sm text-[#a3afbf]">
           <span role="status" aria-live="polite" className="min-w-0 break-words">
             {message}
           </span>
-          {figure !== null && <span className="font-mono text-xs font-bold text-[#C5A77B]">{figure}%</span>}
+          {figure !== null && <span className="font-mono text-xs font-bold text-[#7ce8f2]">{figure}%</span>}
         </div>
         <div
           role="progressbar"
@@ -34,17 +34,17 @@ export function Plan3dProgress({ title, label, progress, message, facts = [] }: 
           aria-valuemax={100}
           aria-valuenow={figure ?? undefined}
           aria-valuetext={figure === null ? message : `${figure}%`}
-          className="h-2 w-full overflow-hidden rounded-full border border-[#303030] bg-[#101010]"
+          className="h-2 w-full overflow-hidden rounded-full border border-[#243041] bg-[#04060a]"
         >
           <div
-            className={`h-full bg-[#C5A77B] transition-all duration-500 ease-out ${figure === null ? 'animate-pulse' : ''}`}
+            className={`h-full bg-[#7ce8f2] transition-all duration-500 ease-out ${figure === null ? 'animate-pulse' : ''}`}
             style={{ width: `${figure === null ? 12 : Math.max(figure, 3)}%` }}
           />
         </div>
       </div>
 
       {facts.length > 0 && (
-        <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 font-mono text-xs text-[#A6A6A6]">
+        <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 font-mono text-xs text-[#a3afbf]">
           {facts.map((fact) => (
             <li key={fact}>{fact}</li>
           ))}

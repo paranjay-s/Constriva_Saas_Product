@@ -37,8 +37,8 @@ export function BuildOptions(props: BuildOptionsProps) {
   const nothingAvailable = qualities !== null && !qualities.some((option) => option.available);
 
   return (
-    <section aria-label="Build options" className="flex flex-col gap-6 rounded-lg border border-[#303030] bg-[#202020] p-5">
-      <h2 className="font-display text-lg font-semibold text-white">Options</h2>
+    <section aria-label="Build options" className="flex flex-col gap-6 rounded-[22px] border border-[#243041] bg-[#121a26] p-5">
+      <h2 className="text-[17px] font-medium text-white">Options</h2>
 
       <div className="flex items-start gap-3">
         <input
@@ -48,20 +48,20 @@ export function BuildOptions(props: BuildOptionsProps) {
           disabled={busy}
           onChange={(e) => props.onFurnish(e.target.checked)}
           aria-describedby={`${id}-furnish-hint`}
-          className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[#C5A77B]"
+          className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer accent-[#7ce8f2]"
         />
         <div className="flex min-w-0 flex-col gap-0.5">
           <label htmlFor={`${id}-furnish`} className="cursor-pointer text-sm font-semibold text-white">
             Furnish the rooms
           </label>
-          <span id={`${id}-furnish-hint`} className="text-xs text-[#A6A6A6]">
+          <span id={`${id}-furnish-hint`} className="text-xs text-[#a3afbf]">
             Adds furniture to the rooms of the 3D house.
           </span>
         </div>
       </div>
 
       <fieldset disabled={busy} className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
-        <legend className="mb-2 p-0 text-xs font-semibold uppercase tracking-wider text-[#A6A6A6]">Quality</legend>
+        <legend className="mb-2 p-0 text-xs font-semibold uppercase tracking-wider text-[#a3afbf]">Quality</legend>
         {qualities === null && !qualitiesError && <StatusNote>Loading the quality options…</StatusNote>}
         {qualitiesError && (
           <ErrorNotice message={`The quality options could not be loaded. ${qualitiesError}`}>
@@ -75,9 +75,9 @@ export function BuildOptions(props: BuildOptionsProps) {
           return (
             <label
               key={option.id}
-              className={`flex items-start gap-3 rounded border p-3 transition-colors ${
-                selected ? 'border-[#C5A77B] bg-[#181818]' : 'border-[#303030] bg-[#141414]'
-              } ${option.available ? 'cursor-pointer hover:border-[#444444]' : 'cursor-not-allowed'}`}
+              className={`flex items-start gap-3 rounded-xl border p-3 transition-colors ${
+                selected ? 'border-[#7ce8f2] bg-[#0e141e]' : 'border-[#243041] bg-[#0b1019]'
+              } ${option.available ? 'cursor-pointer hover:border-[#3a4658]' : 'cursor-not-allowed'}`}
             >
               <input
                 type="radio"
@@ -88,22 +88,22 @@ export function BuildOptions(props: BuildOptionsProps) {
                 onChange={() => props.onQuality(option.id)}
                 aria-labelledby={`${id}-${option.id}-name`}
                 aria-describedby={`${id}-${option.id}-hint`}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-[#C5A77B]"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#7ce8f2]"
               />
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span
                   id={`${id}-${option.id}-name`}
-                  className={`text-sm font-semibold ${option.available ? 'text-white' : 'text-[#A6A6A6]'}`}
+                  className={`text-sm font-semibold ${option.available ? 'text-white' : 'text-[#a3afbf]'}`}
                 >
                   {option.label}
                 </span>
-                <span id={`${id}-${option.id}-hint`} className="break-words text-xs text-[#A6A6A6]">
+                <span id={`${id}-${option.id}-hint`} className="break-words text-xs text-[#a3afbf]">
                   {option.description}
                   {!option.available && option.coming_soon && (
-                    <span className="mt-1 block text-[#E2C294]">Coming soon</span>
+                    <span className="mt-1 block text-[#bff6fb]">Coming soon</span>
                   )}
                   {!option.available && !option.coming_soon && option.reason && (
-                    <span className="mt-1 block text-[#E2C294]">Not available: {option.reason}</span>
+                    <span className="mt-1 block text-[#bff6fb]">Not available: {option.reason}</span>
                   )}
                 </span>
               </span>
@@ -115,7 +115,7 @@ export function BuildOptions(props: BuildOptionsProps) {
 
       {error && <ErrorNotice message={error}>{props.errorAction}</ErrorNotice>}
 
-      <div className="flex flex-col gap-3 border-t border-[#303030] pt-4">
+      <div className="flex flex-col gap-3 border-t border-[#243041] pt-4">
         <Button
           variant="accent"
           size="lg"

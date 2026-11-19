@@ -125,12 +125,12 @@ export function Plan3dHomePage() {
           }}
         />
         {project && (
-          <div className="break-words text-xs text-[#A6A6A6]">
+          <div className="break-words text-xs text-[#a3afbf]">
             New plans are saved in the project <span className="font-semibold text-white">{project.name}</span>.
           </div>
         )}
         {starting && <StatusNote>{starting === 'upload' ? 'Uploading the PDF…' : 'Starting the sample plan…'}</StatusNote>}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#303030] pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#243041] pt-4">
           <Button
             variant="secondary"
             onClick={() => void start('sample')}
@@ -157,9 +157,9 @@ export function Plan3dHomePage() {
       <section aria-label="Your plans" className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="flex min-w-0 flex-col gap-1">
-            <h2 className="font-display text-xl font-semibold text-white">Your plans</h2>
+            <h2 className="text-[19px] font-medium text-white">Your plans</h2>
             {project && (
-              <div className="break-words text-xs text-[#A6A6A6]">
+              <div className="break-words text-xs text-[#a3afbf]">
                 {everyProject ? 'From all your projects' : `In the project ${project.name}`}
               </div>
             )}
@@ -194,7 +194,7 @@ export function Plan3dHomePage() {
         )}
         {list.jobs &&
           (list.jobs.length === 0 ? (
-            <div className="rounded border border-dashed border-[#303030] p-6 text-center text-sm text-[#737373]">
+            <div className="rounded-xl border border-dashed border-[#243041] p-6 text-center text-sm text-[#8b97a8]">
               No plans yet. Upload a floor plan PDF, or try the sample plan.
             </div>
           ) : (

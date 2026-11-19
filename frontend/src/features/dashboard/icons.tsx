@@ -84,3 +84,17 @@ export const DashedRing = (p: P) => (
     <circle cx="12" cy="12" r="9" />
   </Svg>
 );
+/** 2D to 3D: a box in perspective. */
+export const CubeIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" />
+    <path d="M4 7.5l8 4.5 8-4.5M12 12v9" />
+  </Svg>
+);
+/** BOQ raw materials: a sheet with rows. */
+export const SheetIcon = (p: P) => (
+  <Svg {...p}>
+    <rect x="4" y="3" width="16" height="18" rx="2" />
+    <path d="M8 8h8M8 12h8M8 16h5" />
+  </Svg>
+);

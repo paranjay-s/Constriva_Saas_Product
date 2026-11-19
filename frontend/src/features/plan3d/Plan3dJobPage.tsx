@@ -115,9 +115,9 @@ function JobFlow({ jobId }: { jobId: string }) {
 
       {view === 'detect_failed' && (
         <Card className="flex flex-col gap-6 sm:p-8">
-          <h2 className="font-display text-xl font-semibold text-white">The plan could not be detected</h2>
+          <h2 className="text-[19px] font-medium text-white">The plan could not be detected</h2>
           <ErrorNotice message={job.message || DETECT_FAILED} />
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#303030] pt-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#243041] pt-4">
             <LinkButton to="/3d" variant="primary">
               Back to all plans
             </LinkButton>
@@ -161,9 +161,9 @@ function JobFlow({ jobId }: { jobId: string }) {
 
       {view === 'build_failed' && (
         <Card className="flex flex-col gap-6 sm:p-8">
-          <h2 className="font-display text-xl font-semibold text-white">The 3D build failed</h2>
+          <h2 className="text-[19px] font-medium text-white">The 3D build failed</h2>
           <ErrorNotice message={job.message || BUILD_FAILED} />
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#303030] pt-4">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#243041] pt-4">
             <LinkButton to="/3d">Back to all plans</LinkButton>
             <Button variant="primary" size="sm" onClick={() => setReviewing(true)}>
               Review the plan again

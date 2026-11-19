@@ -16,7 +16,7 @@ interface BoqUploadProps {
   onCancel: () => void;
 }
 
-const FOCUS = 'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A77B]';
+const FOCUS = 'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7ce8f2]';
 
 export function BoqUpload({ file, limits, onPick, onClear, onStart, onCancel }: BoqUploadProps) {
   const input = useRef<HTMLInputElement>(null);
@@ -53,20 +53,20 @@ export function BoqUpload({ file, limits, onPick, onClear, onStart, onCancel }: 
             const dropped = e.dataTransfer.files?.[0];
             if (dropped) onPick(dropped);
           }}
-          className={`flex w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 text-center transition-all sm:p-10 ${FOCUS} ${
+          className={`flex w-full cursor-pointer flex-col items-center justify-center rounded-[22px] border-2 border-dashed p-6 text-center transition-all sm:p-10 ${FOCUS} ${
             dragging
-              ? 'border-[#C5A77B] bg-[#202020]'
-              : 'border-[#303030] bg-[#141414] hover:border-[#444444] hover:bg-[#181818]'
+              ? 'border-[#7ce8f2] bg-[#121a26]'
+              : 'border-[#243041] bg-[#0b1019] hover:border-[#3a4658] hover:bg-[#0e141e]'
           }`}
         >
-          <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-[#303030] bg-[#202020] text-[#C5A77B]">
+          <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-[#243041] bg-[#121a26] text-[#7ce8f2]">
             <UploadIcon size={26} aria-hidden="true" />
           </span>
-          <span className="font-display text-lg font-semibold text-white">Drag and drop your floor plan PDF here</span>
-          <span className="mt-1.5 max-w-sm text-xs text-[#A6A6A6]">
+          <span className="text-[17px] font-medium text-white">Drag and drop your floor plan PDF here</span>
+          <span className="mt-1.5 max-w-sm text-xs text-[#a3afbf]">
             Or click to browse your files. Single or multi-page architectural floor plans accepted.
           </span>
-          <span className="mt-4 flex items-center gap-4 font-mono text-[11px] uppercase tracking-wider text-[#737373]">
+          <span className="mt-4 flex items-center gap-4 font-mono text-[11px] uppercase tracking-wider text-[#8b97a8]">
             <span>Format: PDF</span>
             <span aria-hidden="true">•</span>
             <span>Max Size: {limits.max_pdf_mb} MB</span>
@@ -75,14 +75,14 @@ export function BoqUpload({ file, limits, onPick, onClear, onStart, onCancel }: 
           </span>
         </button>
       ) : (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-[#303030] bg-[#141414] p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#243041] bg-[#0b1019] p-4 sm:p-5">
           <div className="flex min-w-0 items-center gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[#303030] bg-[#202020] text-[#C5A77B]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#243041] bg-[#121a26] text-[#7ce8f2]">
               <FilePdfIcon size={20} aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold text-white">{file.name}</div>
-              <div className="font-mono text-xs text-[#737373]">{formatFileSize(file.size)} • Ready to process</div>
+              <div className="font-mono text-xs text-[#8b97a8]">{formatFileSize(file.size)} • Ready to process</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -94,7 +94,7 @@ export function BoqUpload({ file, limits, onPick, onClear, onStart, onCancel }: 
               onClick={onClear}
               aria-label="Remove file"
               title="Remove file"
-              className={`cursor-pointer rounded p-2 text-[#737373] transition-colors hover:text-[#FFB4AB] ${FOCUS}`}
+              className={`cursor-pointer rounded-xl p-2 text-[#8b97a8] transition-colors hover:text-[#FFB4AB] ${FOCUS}`}
             >
               <TrashIcon size={16} aria-hidden="true" />
             </button>
@@ -102,7 +102,7 @@ export function BoqUpload({ file, limits, onPick, onClear, onStart, onCancel }: 
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3 border-t border-[#303030] pt-4">
+      <div className="flex items-center justify-between gap-3 border-t border-[#243041] pt-4">
         <Button variant="ghost" onClick={onCancel}>
           Cancel
         </Button>

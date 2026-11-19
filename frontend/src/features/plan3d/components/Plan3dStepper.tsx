@@ -11,9 +11,9 @@ const STATE_TEXT: Record<Plan3dStepState, string> = {
 
 const MARK: Record<Plan3dStepState, string> = {
   done: 'border-[#10B981] bg-[#102A1A] text-[#A7F3D0]',
-  active: 'border-[#C5A77B] bg-[#C5A77B] text-[#101010]',
+  active: 'border-[#7ce8f2] bg-[#7ce8f2] text-[#04060a]',
   failed: 'border-[#FFB4AB] bg-[#351010] text-[#FFB4AB]',
-  todo: 'border-[#303030] text-[#737373]',
+  todo: 'border-[#243041] text-[#8b97a8]',
 };
 
 export function Plan3dStepper({ view }: { view: Plan3dView }) {
@@ -33,7 +33,7 @@ export function Plan3dStepper({ view }: { view: Plan3dView }) {
               {state === 'done' ? <CheckIcon size={10} /> : index + 1}
             </span>
             <span
-              className={`font-mono text-[11px] uppercase tracking-wider ${state === 'todo' ? 'text-[#737373]' : 'text-white'}`}
+              className={`font-mono text-[11px] uppercase tracking-wider ${state === 'todo' ? 'text-[#8b97a8]' : 'text-white'}`}
             >
               {step.label}
               <span className="sr-only"> ({STATE_TEXT[state]})</span>

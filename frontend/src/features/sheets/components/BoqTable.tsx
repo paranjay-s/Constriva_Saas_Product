@@ -61,13 +61,13 @@ const STATUS_OPTIONS: readonly { value: BoqStatusFilter; label: string }[] = [
 const STATUS_STYLES: Record<BoqStatus, string> = {
   included: 'border-[#10B981]/40 bg-[#102A1A] text-[#A7F3D0]',
   excluded: 'border-[#FFB4AB]/40 bg-[#351010] text-[#FFB4AB]',
-  allowance: 'border-[#C5A77B]/40 bg-[#C5A77B]/10 text-[#E2C294]',
+  allowance: 'border-[#7ce8f2]/40 bg-[#7ce8f2]/10 text-[#bff6fb]',
 };
 
-const FOCUS = 'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A77B]';
-const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wider text-[#A6A6A6]';
-const SELECT = `h-11 w-full rounded border border-[#303030] bg-[#181818] px-3 text-sm text-white transition-colors duration-150 focus:border-[#C5A77B] focus:outline-none`;
-const CELL = 'border-b border-[#262626] px-3 py-2.5 align-top';
+const FOCUS = 'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7ce8f2]';
+const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wider text-[#a3afbf]';
+const SELECT = `h-11 w-full rounded-xl border border-[#243041] bg-[#0e141e] px-3 text-sm text-white transition-colors duration-150 focus:border-[#7ce8f2] focus:outline-none`;
+const CELL = 'border-b border-[#182231] px-3 py-2.5 align-top';
 
 const itemsLabel = (n: number) => (n === 1 ? '1 item' : `${n} items`);
 
@@ -77,7 +77,7 @@ function StatusBadges({ item }: { item: BoqItem }) {
       {itemStatuses(item).map((status) => (
         <span
           key={status}
-          className={`inline-block whitespace-nowrap rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${STATUS_STYLES[status]}`}
+          className={`inline-block whitespace-nowrap rounded-xl border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ${STATUS_STYLES[status]}`}
         >
           {STATUS_LABELS[status]}
         </span>
@@ -94,7 +94,7 @@ function RowDetail({ item }: { item: BoqItem }) {
         <table className="w-full max-w-xl text-xs">
           <caption className="sr-only">Components of {item.name}</caption>
           <thead>
-            <tr className="font-mono text-[10px] uppercase tracking-wider text-[#737373]">
+            <tr className="font-mono text-[10px] uppercase tracking-wider text-[#8b97a8]">
               <th scope="col" className="pb-1 pr-3 text-left font-semibold">
                 Component
               </th>
@@ -109,21 +109,21 @@ function RowDetail({ item }: { item: BoqItem }) {
           <tbody>
             {item.components.map((part, index) => (
               <tr key={index}>
-                <th scope="row" className="py-1 pr-3 text-left font-normal text-[#D5D5D5]">
+                <th scope="row" className="py-1 pr-3 text-left font-normal text-[#c9d3df]">
                   {part.label}
                 </th>
                 <td className="whitespace-nowrap py-1 pr-3 text-right font-mono tabular-nums text-white">
                   {formatQuantity(part.quantity, part.unit, part.quantity_decimals)}
                 </td>
-                <td className="whitespace-nowrap py-1 text-left text-[#A6A6A6]">{displayUnit(part.unit)}</td>
+                <td className="whitespace-nowrap py-1 text-left text-[#a3afbf]">{displayUnit(part.unit)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
       {note && (
-        <div className="max-w-2xl text-xs leading-relaxed text-[#A6A6A6]">
-          <span className="font-semibold text-[#D5D5D5]">Note: </span>
+        <div className="max-w-2xl text-xs leading-relaxed text-[#a3afbf]">
+          <span className="font-semibold text-[#c9d3df]">Note: </span>
           {note}
         </div>
       )}
@@ -144,18 +144,18 @@ function ItemRow({ item, rowId, open, onToggle }: ItemRowProps) {
   const name = (
     <span className="flex min-w-0 flex-col gap-0.5">
       <span className="break-words text-sm text-white">{item.name}</span>
-      <span className="break-all font-mono text-[11px] text-[#737373]">{item.item_code}</span>
+      <span className="break-all font-mono text-[11px] text-[#8b97a8]">{item.item_code}</span>
     </span>
   );
 
   return (
     <>
       <tr className="hover:bg-white/[0.03]">
-        <td className={`${CELL} whitespace-nowrap font-mono text-xs text-[#A6A6A6]`}>{item.serial_no}</td>
-        <td className={`${CELL} hidden text-xs text-[#A6A6A6] lg:table-cell`}>
+        <td className={`${CELL} whitespace-nowrap font-mono text-xs text-[#a3afbf]`}>{item.serial_no}</td>
+        <td className={`${CELL} hidden text-xs text-[#a3afbf] lg:table-cell`}>
           {categoryLabel(item.category, item.category_code)}
         </td>
-        <td className={`${CELL} hidden text-xs text-[#A6A6A6] md:table-cell`}>{item.sub_category}</td>
+        <td className={`${CELL} hidden text-xs text-[#a3afbf] md:table-cell`}>{item.sub_category}</td>
         <th scope="row" className={`${CELL} min-w-[9rem] text-left font-normal`}>
           <div className="flex flex-col gap-1.5">
             {expandable ? (
@@ -164,12 +164,12 @@ function ItemRow({ item, rowId, open, onToggle }: ItemRowProps) {
                 aria-expanded={open}
                 aria-controls={open ? detailId : undefined}
                 onClick={onToggle}
-                className={`flex w-full cursor-pointer items-start gap-2 rounded text-left ${FOCUS}`}
+                className={`flex w-full cursor-pointer items-start gap-2 rounded-xl text-left ${FOCUS}`}
               >
                 <ChevronRightIcon
                   size={16}
                   aria-hidden="true"
-                  className={`mt-0.5 h-4 w-4 shrink-0 text-[#C5A77B] transition-transform ${open ? 'rotate-90' : ''}`}
+                  className={`mt-0.5 h-4 w-4 shrink-0 text-[#7ce8f2] transition-transform ${open ? 'rotate-90' : ''}`}
                 />
                 {name}
               </button>
@@ -185,11 +185,11 @@ function ItemRow({ item, rowId, open, onToggle }: ItemRowProps) {
             </div>
           </div>
         </th>
-        <td className={`${CELL} hidden whitespace-nowrap text-xs text-[#A6A6A6] sm:table-cell`}>{displayUnit(item.unit)}</td>
+        <td className={`${CELL} hidden whitespace-nowrap text-xs text-[#a3afbf] sm:table-cell`}>{displayUnit(item.unit)}</td>
         <td className={`${CELL} whitespace-nowrap text-right font-mono text-sm tabular-nums text-white`}>
           {formatQuantity(item.quantity, item.unit, item.quantity_decimals)}
           {/* narrow screens: the Unit column is folded in here */}
-          <span className="block font-sans text-[11px] text-[#A6A6A6] sm:hidden">{displayUnit(item.unit)}</span>
+          <span className="block font-sans text-[11px] text-[#a3afbf] sm:hidden">{displayUnit(item.unit)}</span>
         </td>
         <td className={`${CELL} hidden sm:table-cell`}>
           <StatusBadges item={item} />
@@ -197,7 +197,7 @@ function ItemRow({ item, rowId, open, onToggle }: ItemRowProps) {
       </tr>
       {expandable && open && (
         <tr id={detailId}>
-          <td colSpan={COLUMNS.length} className="border-b border-[#262626] bg-[#141414] px-3 py-3">
+          <td colSpan={COLUMNS.length} className="border-b border-[#182231] bg-[#0b1019] px-3 py-3">
             <RowDetail item={item} />
           </td>
         </tr>
@@ -228,9 +228,9 @@ export function BoqTable({ items }: { items: readonly BoqItem[] }) {
 
   if (items.length === 0) {
     return (
-      <div role="status" className="flex flex-col items-center gap-1.5 rounded border border-[#303030] bg-[#141414] px-4 py-12 text-center">
-        <div className="font-display text-lg font-semibold text-white">No items in this bill</div>
-        <div className="max-w-md text-xs text-[#A6A6A6]">
+      <div role="status" className="flex flex-col items-center gap-1.5 rounded-xl border border-[#243041] bg-[#0b1019] px-4 py-12 text-center">
+        <div className="text-[17px] font-medium text-white">No items in this bill</div>
+        <div className="max-w-md text-xs text-[#a3afbf]">
           The plan was read, but no quantities came out of it. Try uploading another plan.
         </div>
       </div>
@@ -299,7 +299,7 @@ export function BoqTable({ items }: { items: readonly BoqItem[] }) {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div role="status" aria-live="polite" className="font-mono text-xs text-[#A6A6A6]">
+        <div role="status" aria-live="polite" className="font-mono text-xs text-[#a3afbf]">
           {filtering ? `Showing ${visible.length} of ${itemsLabel(items.length)}` : itemsLabel(items.length)}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -321,17 +321,17 @@ export function BoqTable({ items }: { items: readonly BoqItem[] }) {
       </div>
 
       {visible.length === 0 ? (
-        <div role="status" className="flex flex-col items-center gap-3 rounded border border-[#303030] bg-[#141414] px-4 py-12 text-center">
+        <div role="status" className="flex flex-col items-center gap-3 rounded-xl border border-[#243041] bg-[#0b1019] px-4 py-12 text-center">
           <div className="flex flex-col gap-1">
-            <div className="font-display text-lg font-semibold text-white">No rows match the filters</div>
-            <div className="text-xs text-[#A6A6A6]">Try another search word, category or status.</div>
+            <div className="text-[17px] font-medium text-white">No rows match the filters</div>
+            <div className="text-xs text-[#a3afbf]">Try another search word, category or status.</div>
           </div>
           <Button variant="secondary" size="sm" onClick={() => setFilters(NO_FILTERS)}>
             Clear filters
           </Button>
         </div>
       ) : (
-        <div className="max-h-[72vh] overflow-auto rounded border border-[#303030] bg-[#181818]">
+        <div className="max-h-[72vh] overflow-auto rounded-xl border border-[#243041] bg-[#0e141e]">
           <table className="w-full border-separate border-spacing-0 text-left">
             <caption className="sr-only">Bill of quantities, grouped by category and sub-category</caption>
             <thead>
@@ -344,7 +344,7 @@ export function BoqTable({ items }: { items: readonly BoqItem[] }) {
                       key={column.key}
                       scope="col"
                       aria-sort={direction}
-                      className={`sticky top-0 z-10 border-b border-[#303030] bg-[#202020] px-3 py-2.5 ${
+                      className={`sticky top-0 z-10 border-b border-[#243041] bg-[#121a26] px-3 py-2.5 ${
                         column.numeric ? 'text-right' : 'text-left'
                       } ${column.cell ?? ''}`}
                     >
@@ -352,8 +352,8 @@ export function BoqTable({ items }: { items: readonly BoqItem[] }) {
                         type="button"
                         onClick={() => setSort((current) => nextSort(current, column.key))}
                         title={`Sort by ${column.label}`}
-                        className={`inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded font-mono text-[11px] font-semibold uppercase tracking-wider hover:text-white ${FOCUS} ${
-                          active ? 'text-[#C5A77B]' : 'text-[#A6A6A6]'
+                        className={`inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-xl font-mono text-[11px] font-semibold uppercase tracking-wider hover:text-white ${FOCUS} ${
+                          active ? 'text-[#7ce8f2]' : 'text-[#a3afbf]'
                         }`}
                       >
                         {column.label}
@@ -372,7 +372,7 @@ export function BoqTable({ items }: { items: readonly BoqItem[] }) {
               return (
                 <tbody key={group.key}>
                   <tr>
-                    <th scope="rowgroup" colSpan={COLUMNS.length} className="border-b border-[#303030] bg-[#1C1C1C] p-0 text-left">
+                    <th scope="rowgroup" colSpan={COLUMNS.length} className="border-b border-[#243041] bg-[#1C1C1C] p-0 text-left">
                       <button
                         type="button"
                         aria-expanded={!isCollapsed}
@@ -382,10 +382,10 @@ export function BoqTable({ items }: { items: readonly BoqItem[] }) {
                         <ChevronRightIcon
                           size={16}
                           aria-hidden="true"
-                          className={`h-4 w-4 shrink-0 text-[#C5A77B] transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
+                          className={`h-4 w-4 shrink-0 text-[#7ce8f2] transition-transform ${isCollapsed ? '' : 'rotate-90'}`}
                         />
-                        <span className="min-w-0 flex-1 font-display text-sm font-semibold text-white sm:flex-none">{group.label}</span>
-                        <span className="whitespace-nowrap rounded-full border border-[#303030] bg-[#141414] px-2 py-0.5 font-mono text-[11px] font-normal text-[#A6A6A6]">
+                        <span className="min-w-0 flex-1 text-sm font-medium text-white sm:flex-none">{group.label}</span>
+                        <span className="whitespace-nowrap rounded-full border border-[#243041] bg-[#0b1019] px-2 py-0.5 font-mono text-[11px] font-normal text-[#a3afbf]">
                           {group.count === total ? itemsLabel(total) : `${group.count} of ${itemsLabel(total)}`}
                         </span>
                       </button>
@@ -398,7 +398,7 @@ export function BoqTable({ items }: { items: readonly BoqItem[] }) {
                           <th
                             scope="colgroup"
                             colSpan={COLUMNS.length}
-                            className="border-b border-[#262626] bg-[#141414] px-3 py-1.5 text-left font-mono text-[11px] font-semibold uppercase tracking-wider text-[#C5A77B]"
+                            className="border-b border-[#182231] bg-[#0b1019] px-3 py-1.5 text-left font-mono text-[11px] font-semibold uppercase tracking-wider text-[#7ce8f2]"
                           >
                             {sub.label}
                           </th>

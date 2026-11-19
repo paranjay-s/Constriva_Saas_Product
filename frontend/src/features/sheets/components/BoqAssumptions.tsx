@@ -146,9 +146,9 @@ function ceilingHeightHint(used: AssumptionsInUse): string | undefined {
 const capitalised = (text: string) => (text ? text.charAt(0).toUpperCase() + text.slice(1) : 'Not stated');
 
 const FIELD = 'flex min-w-0 flex-col gap-1.5';
-const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wider text-[#A6A6A6]';
+const FIELD_LABEL = 'text-xs font-semibold uppercase tracking-wider text-[#a3afbf]';
 const DISABLED = 'disabled:cursor-not-allowed disabled:opacity-60';
-const SELECT = `h-11 w-full rounded border border-[#303030] bg-[#181818] px-3 text-sm text-white transition-colors duration-150 focus:border-[#C5A77B] focus:outline-none ${DISABLED}`;
+const SELECT = `h-11 w-full rounded-xl border border-[#243041] bg-[#0e141e] px-3 text-sm text-white transition-colors duration-150 focus:border-[#7ce8f2] focus:outline-none ${DISABLED}`;
 const NUMBER_INPUT = `${DISABLED} aria-invalid:border-[#FFB4AB] aria-invalid:focus:border-[#FFB4AB]`;
 
 const hintId = (id: string) => `${id}-hint`;
@@ -158,7 +158,7 @@ function FieldNotes({ id, hint, problem }: { id: string; hint?: string; problem?
   return (
     <>
       {hint && (
-        <p id={hintId(id)} className="m-0 break-words text-xs text-[#A6A6A6]">
+        <p id={hintId(id)} className="m-0 break-words text-xs text-[#a3afbf]">
           {hint}
         </p>
       )}
@@ -382,19 +382,19 @@ export function BoqAssumptions({ assumptions, choices, busy, error, onRecalculat
     <section
       ref={panel}
       aria-labelledby={titleId}
-      className="flex flex-col gap-4 rounded border border-[#303030] bg-[#141414] p-4"
+      className="flex flex-col gap-4 rounded-xl border border-[#243041] bg-[#0b1019] p-4"
     >
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h2 id={titleId} className="font-display text-lg font-semibold text-white">
+            <h2 id={titleId} className="text-[17px] font-medium text-white">
               Assumptions
             </h2>
-            <div role="status" aria-live="polite" className="font-mono text-xs text-[#C5A77B]">
+            <div role="status" aria-live="polite" className="font-mono text-xs text-[#7ce8f2]">
               {busy ? 'Recalculating...' : ''}
             </div>
           </div>
-          <p className="m-0 text-xs leading-relaxed text-[#A6A6A6]">
+          <p className="m-0 text-xs leading-relaxed text-[#a3afbf]">
             Changing these recalculates the quantities. The drawing is not read again.
           </p>
         </div>
@@ -451,7 +451,7 @@ export function BoqAssumptions({ assumptions, choices, busy, error, onRecalculat
       </div>
 
       {error && (
-        <div role="alert" className="flex items-start gap-2 rounded border border-[#FFB4AB]/40 bg-[#351010] p-3 text-xs text-[#FFB4AB]">
+        <div role="alert" className="flex items-start gap-2 rounded-xl border border-[#FFB4AB]/40 bg-[#351010] p-3 text-xs text-[#FFB4AB]">
           <AlertCircleIcon size={16} className="mt-px shrink-0" aria-hidden="true" />
           <span className="min-w-0 break-words leading-relaxed">{error}</span>
         </div>

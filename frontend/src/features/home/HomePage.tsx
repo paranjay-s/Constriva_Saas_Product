@@ -1,6 +1,6 @@
 /**
  * Route /home: project overview. Everything shown is read from the backend: the user's
- * projects, the 2D floor plans in each, and the image analyses.
+ * projects, the 2D floor plans and the 3D houses in each, and the image analyses.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -9,11 +9,13 @@ import { useProject } from '../../context/ProjectContext';
 import type { Project } from '../../types';
 import {
   ArrowRight,
+  CubeIcon,
   DashedRing,
   PhotoIcon,
   PlanIcon,
   Plus,
   Refresh,
+  SheetIcon,
   Skyline,
   Trash,
   dayLabel,
@@ -22,6 +24,7 @@ import {
 } from '../dashboard';
 import { type FloorplanSummary, floorplanApi } from '../floorplan';
 import { materialApi } from '../materials';
+import { type Plan3dJob, plan3dApi } from '../plan3d';
 import type { SessionSummary } from '../materials/schemas';
 
 const HERO = '/assets/house-bg.webp?v=lantern1';
@@ -44,6 +47,8 @@ export function HomePage() {
   const [plansError, setPlansError] = useState<string | null>(null);
   const [analyses, setAnalyses] = useState<SessionSummary[] | null>(null);
   const [analysesError, setAnalysesError] = useState<string | null>(null);
+  // 3D houses (2D to 3D jobs); a failure here only hides them, the rest of the overview stands
+  const [houses, setHouses] = useState<Plan3dJob[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
 
   // a project opened from the bottom of a long list would otherwise be half out of view
@@ -67,8 +72,18 @@ export function HomePage() {
         setAnalysesError(null);
       })
       .catch((err) => setAnalysesError(errorText(err, 'Image analyses could not be loaded.')));
+    plan3dApi
+      .list()
+      .then(setHouses)
+      .catch(() => setHouses([]));
   };
   useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const housesByProject = useMemo(() => {
+    const grouped: Record<string, Plan3dJob[]> = {};
+    for (const j of houses ?? []) if (j.project_id) (grouped[j.project_id] ??= []).push(j);
+    return grouped;
+  }, [houses]);
 
   const plansByProject = useMemo(() => {
     const grouped: Record<string, FloorplanSummary[]> = {};
@@ -137,6 +152,11 @@ export function HomePage() {
     navigate('/3d');
   };
 
+  const openHouse = (project: Project, jobId: string) => {
+    void selectProject(project);
+    navigate(`/3d/${encodeURIComponent(jobId)}`);
+  };
+
   const remove = async (project: Project) => {
     if (window.confirm(`Delete the project "${project.name}"? This cannot be undone.`)) {
       await deleteProject(project.id);
@@ -195,6 +215,7 @@ export function HomePage() {
                 <span className="is-alt" data-testid="count-analyses">
                   {analyses ? plural(analyses.length, 'image analysis', 'image analyses') : 'image analyses: –'}
                 </span>
+                <span data-testid="count-houses">{houses ? plural(houses.length, '3D house') : '3D houses: –'}</span>
               </div>
             </div>
             <Skyline projects={skyline} analyses={analyses?.length ?? 0} />
@@ -209,6 +230,14 @@ export function HomePage() {
             <Link to="/materials/analyse" className="cv-tile">
               <PhotoIcon />
               Image analysis
+            </Link>
+            <Link to="/3d" className="cv-tile" title="Upload a floor plan PDF, check it, and walk through the house in 3D">
+              <CubeIcon />
+              2D to 3D
+            </Link>
+            <Link to="/boq" className="cv-tile" title="Upload a floor plan PDF for an itemised raw-material sheet">
+              <SheetIcon />
+              BOQ raw materials
             </Link>
           </div>
 
@@ -333,6 +362,20 @@ export function HomePage() {
                           +{own.length - PLANS_SHOWN} more
                         </p>
                       )}
+                      <div className="cv-between" style={{ marginTop: 12 }}>
+                        <span className="cv-note" style={{ fontSize: 11, letterSpacing: '.05em' }}>
+                          3D HOUSES ({(housesByProject[proj.id] ?? []).length})
+                        </span>
+                        <button type="button" className="cv-link" style={{ margin: '-10px 0', fontSize: 13 }} onClick={() => void enterWorkspace(proj)}>
+                          + New 3D house
+                        </button>
+                      </div>
+                      {(housesByProject[proj.id] ?? []).slice(0, PLANS_SHOWN).map((job) => (
+                        <button key={job.job_id} type="button" className="cv-plan" onClick={() => openHouse(proj, job.job_id)}>
+                          <span>{job.name}</span>
+                          <span>{job.stage === 'done' ? 'Built · Open' : 'Open'}</span>
+                        </button>
+                      ))}
                       <div className="cv-between" style={{ marginTop: 12 }}>
                         <span className="cv-note" style={{ fontSize: 11 }}>
                           {dayLabel(proj.createdAt)}

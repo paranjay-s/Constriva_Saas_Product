@@ -25,7 +25,7 @@ import { useBoqJob } from './hooks/useBoqJob';
 
 function ErrorBanner({ message }: { message: string }) {
   return (
-    <div role="alert" className="flex items-start gap-3 rounded border border-[#FFB4AB]/40 bg-[#351010] p-4 text-xs text-[#FFB4AB]">
+    <div role="alert" className="flex items-start gap-3 rounded-xl border border-[#FFB4AB]/40 bg-[#351010] p-4 text-xs text-[#FFB4AB]">
       <AlertCircleIcon size={18} className="shrink-0" aria-hidden="true" />
       <span className="min-w-0 break-words leading-relaxed">{message}</span>
     </div>
@@ -61,9 +61,9 @@ function BoqResultView(props: BoqResultViewProps) {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="font-mono text-xs uppercase tracking-widest text-[#C5A77B]">Bill of quantities</span>
-          <h2 className="break-words font-display text-2xl font-semibold tracking-tight text-white">{title}</h2>
-          {facts.length > 0 && <div className="break-words font-mono text-xs text-[#737373]">{facts.join(' • ')}</div>}
+          <span className="font-mono text-xs uppercase tracking-widest text-[#7ce8f2]">Bill of quantities</span>
+          <h2 className="break-words text-2xl font-light tracking-[-0.02em] text-white">{title}</h2>
+          {facts.length > 0 && <div className="break-words font-mono text-xs text-[#8b97a8]">{facts.join(' • ')}</div>}
         </div>
         <div className="flex flex-col gap-2 lg:items-end">
           <div className="flex flex-wrap gap-2">
@@ -141,22 +141,22 @@ export function BoqPage() {
   const working = phase === 'uploading' || phase === 'processing' || phase === 'loading_result';
 
   return (
-    <div className="flex flex-1 flex-col bg-[#101010] text-white">
-      <main className={`mx-auto w-full flex-1 px-4 py-8 sm:px-6 sm:py-12 ${phase === 'ready' ? 'max-w-7xl' : 'max-w-3xl'}`}>
+    <div className="relative z-[2] flex flex-1 flex-col text-[#eef3f8]">
+      <main className={`mx-auto w-full flex-1 px-4 py-6 sm:px-7 sm:py-8 ${phase === 'ready' ? 'max-w-7xl' : 'max-w-3xl'}`}>
         <div className="flex flex-col gap-8">
           <div className="flex flex-col items-start gap-6">
             <button
               type="button"
               onClick={() => navigate('/home')}
-              className="inline-flex cursor-pointer items-center gap-2 rounded font-mono text-xs uppercase tracking-wider text-[#A6A6A6] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A77B]"
+              className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-[rgba(10,14,21,0.78)] px-4 text-sm text-[#c9d3df] hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#bff6fb]"
             >
               <ArrowLeftIcon size={16} aria-hidden="true" />
               Back to Home
             </button>
             <div className="flex flex-col gap-1.5">
-              <span className="font-mono text-xs uppercase tracking-widest text-[#C5A77B]">Pillar 03 // Quantities</span>
-              <h1 className="font-display text-3xl font-semibold tracking-tight text-white">BOQ Raw Material Sheet</h1>
-              <div className="text-sm text-[#A6A6A6]">
+              <span className="font-mono text-xs uppercase tracking-[0.08em] text-[#bff6fb]">Pillar 03 // Quantities</span>
+              <h1 className="text-[clamp(32px,3.6vw,48px)] font-light leading-[1.04] tracking-[-0.03em] text-white">BOQ Raw Material Sheet</h1>
+              <div className="mt-2 text-[15px] leading-relaxed text-[#c9d3df]">
                 Upload a floor plan PDF to get an itemised bill of quantities you can search, filter and download.
               </div>
             </div>
@@ -201,7 +201,7 @@ export function BoqPage() {
                     fileName={file?.name}
                     loadingResult={phase === 'loading_result'}
                   />
-                  <div className="flex justify-center border-t border-[#303030] pt-4">
+                  <div className="flex justify-center border-t border-[#243041] pt-4">
                     <Button variant="ghost" size="sm" onClick={reset}>
                       Cancel
                     </Button>
@@ -212,11 +212,11 @@ export function BoqPage() {
               {phase === 'error' && (
                 <div className="flex flex-col gap-6">
                   <div className="flex flex-col gap-1.5">
-                    <h2 className="font-display text-xl font-semibold text-white">The bill could not be prepared</h2>
-                    {file && <div className="truncate font-mono text-xs text-[#737373]">{file.name}</div>}
+                    <h2 className="text-[19px] font-medium text-white">The bill could not be prepared</h2>
+                    {file && <div className="truncate font-mono text-xs text-[#8b97a8]">{file.name}</div>}
                   </div>
                   <ErrorBanner message={job.error ?? 'Something went wrong.'} />
-                  <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#303030] pt-4">
+                  <div className="flex flex-wrap items-center justify-end gap-2 border-t border-[#243041] pt-4">
                     {job.canRetryResult && (
                       <Button variant="secondary" onClick={job.retryResult}>
                         Retry

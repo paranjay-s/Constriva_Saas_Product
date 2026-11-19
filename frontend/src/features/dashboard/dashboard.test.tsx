@@ -150,6 +150,29 @@ describe('project overview', () => {
     }
   });
 
+  it('puts 2D to 3D and BOQ beside the studios, and lists each project\'s 3D houses', async () => {
+    signedIn();
+    const job = (id: string, name: string, project: string | null, stage: string) => ({
+      job_id: id, name, project_id: project, source: 'upload', stage, progress: 100, message: '', floors: [],
+      scale_source: null, eta_left: null, queue_position: null, quality: null, build_seconds: null, created_at: NOW,
+    });
+    const calls = mockApi({
+      ...DATA_ROUTES,
+      'GET /api/v1/3d/jobs': { body: [job('aaaaaaaaaaa1', 'Villa ground floor', 'p1', 'done'), job('aaaaaaaaaaa2', 'Loose upload', null, 'detected')] },
+    });
+    renderApp(<HomePage />, '/home', <Route path="/3d/:jobId" element={<p data-testid="house-page" />} />);
+
+    expect(screen.getByRole('link', { name: '2D to 3D' }).getAttribute('href')).toBe('/3d');
+    expect(screen.getByRole('link', { name: 'BOQ raw materials' }).getAttribute('href')).toBe('/boq');
+    await waitFor(() => expect(screen.getByTestId('count-houses').textContent).toBe('2 3D houses'));
+
+    const open = screen.getByRole('article', { name: 'Courtyard House' });
+    expect(within(open).getByText('3D HOUSES (1)')).toBeDefined();
+    expect(calls.find((c) => c.path === '/api/v1/3d/jobs')?.auth).toBe('Bearer test-token');
+    fireEvent.click(within(open).getByRole('button', { name: /Villa ground floor/ }));
+    expect(await screen.findByTestId('house-page')).toBeDefined();
+  });
+
   it('draws one building per project, one storey per plan and one frame per analysis', async () => {
     signedIn();
     mockApi(DATA_ROUTES);

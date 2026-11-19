@@ -29,7 +29,7 @@ export function Plan3dFurniturePage() {
         </ErrorNotice>
       )}
       {embed.access && (
-        <div className="h-[75vh] min-h-[420px] overflow-hidden rounded-lg border border-[#303030] bg-[#141414]">
+        <div className="h-[75vh] min-h-[420px] overflow-hidden rounded-[22px] border border-[#243041] bg-[#0b1019]">
           <iframe title="Furniture models" src={embedUrl(embed.access.furniture_url)} className="h-full w-full border-0" />
         </div>
       )}

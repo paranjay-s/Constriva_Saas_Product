@@ -14,11 +14,11 @@ export function PreviewWalkthrough({ jobId }: { jobId: string }) {
   if (!url) return null;
   return (
     <section aria-label="Preview" className="flex flex-col gap-2">
-      <p className="text-sm text-[#bdbdbd]">
+      <p className="text-sm text-[#c9d3df]">
         A quick Low quality version to walk through while the chosen quality is
         built. It is replaced when the build is done.
       </p>
-      <div className="aspect-video w-full overflow-hidden rounded-lg border border-[#303030]">
+      <div className="aspect-video w-full overflow-hidden rounded-[22px] border border-[#243041]">
         <iframe
           ref={frame}
           title="3D walkthrough preview"

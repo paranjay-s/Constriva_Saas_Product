@@ -14,17 +14,20 @@ export const Card: React.FC<CardProps> = ({
   className = '',
   ...props
 }) => {
-  const bg = elevated ? 'bg-[#2A2A2A]' : 'bg-[#202020]';
+  // the dashboard's card (dashboard.css .cv-card): a dark gradient, a hairline border, blur behind
+  const bg = elevated
+    ? 'bg-[linear-gradient(180deg,rgba(18,26,38,0.92),rgba(10,15,22,0.88))]'
+    : 'bg-[linear-gradient(180deg,rgba(14,20,30,0.88),rgba(8,12,18,0.84))]';
   const border = selected
-    ? 'border-[#C5A77B] ring-1 ring-[#C5A77B]'
-    : 'border-[#303030] hover:border-[#444444]';
+    ? 'border-[#7ce8f2]/60 ring-1 ring-[#7ce8f2]/60'
+    : 'border-white/10 hover:border-white/20';
   const interactiveStyles = interactive
     ? 'cursor-pointer transition-all duration-150 hover:-translate-y-0.5'
     : '';
 
   return (
     <div
-      className={`rounded-lg border ${bg} ${border} ${interactiveStyles} p-6 ${className}`}
+      className={`rounded-[22px] border backdrop-blur-md ${bg} ${border} ${interactiveStyles} p-5 sm:p-6 ${className}`}
       {...props}
     >
       {children}

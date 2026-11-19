@@ -176,7 +176,7 @@ export function WalkthroughStep({
   return (
     <section aria-label="Walkthrough" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0 break-words font-mono text-xs text-[#A6A6A6]">
+        <div className="min-w-0 break-words font-mono text-xs text-[#a3afbf]">
           {built || "The 3D house is ready."}
         </div>
         <Button
@@ -207,7 +207,7 @@ export function WalkthroughStep({
         // no `sandbox`: the walkthrough locks the pointer to look around and saves screenshots and recordings
         <div
           ref={box}
-          className="h-[75vh] min-h-[420px] overflow-hidden rounded-lg border border-[#303030] bg-black"
+          className="h-[75vh] min-h-[420px] overflow-hidden rounded-[22px] border border-[#243041] bg-black"
         >
           <iframe
             ref={frame}
@@ -271,7 +271,7 @@ export function WalkthroughStep({
             value={shareUrl}
             onFocus={(e) => e.currentTarget.select()}
             aria-label="Share link to the walkthrough"
-            className="min-w-0 flex-1 rounded border border-[#303030] bg-[#181818] px-2 py-1 text-xs text-white"
+            className="min-w-0 flex-1 rounded-xl border border-[#243041] bg-[#0e141e] px-2 py-1 text-xs text-white"
           />
           <StatusNote>
             {copied ? "Copied. " : ""}Anyone with this link can walk through the
@@ -292,7 +292,7 @@ export function WalkthroughStep({
         aria-label="Video tour"
         role="group"
       >
-        <span className="font-mono text-xs text-[#A6A6A6]">Video tour</span>
+        <span className="font-mono text-xs text-[#a3afbf]">Video tour</span>
         {(["high", "ultra"] as const).map((q) =>
           job.tours[q] ? (
             <Button

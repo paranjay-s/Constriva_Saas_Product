@@ -13,7 +13,7 @@ interface Plan3dJobListProps {
   onDelete: (job: Plan3dJob) => void;
 }
 
-const FOCUS = 'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A77B]';
+const FOCUS = 'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7ce8f2]';
 
 function dayText(createdAt: string | null): string | null {
   if (!createdAt) return null;
@@ -34,11 +34,11 @@ export function Plan3dJobList({ jobs, qualities, deletingId, onDelete }: Plan3dJ
         return (
           <li
             key={job.job_id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded border border-[#303030] bg-[#141414] p-4"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#243041] bg-[#0b1019] p-4"
           >
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold text-white">{name}</div>
-              <div className="break-words font-mono text-xs text-[#737373]">{facts.join(' • ')}</div>
+              <div className="break-words font-mono text-xs text-[#8b97a8]">{facts.join(' • ')}</div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <LinkButton to={`/3d/${encodeURIComponent(job.job_id)}`} label={`Open ${name}`}>
@@ -51,7 +51,7 @@ export function Plan3dJobList({ jobs, qualities, deletingId, onDelete }: Plan3dJ
                 aria-label={`Delete ${name}`}
                 aria-busy={deleting}
                 title="Delete"
-                className={`cursor-pointer rounded p-2 text-[#737373] transition-colors hover:text-[#FFB4AB] disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS}`}
+                className={`cursor-pointer rounded-xl p-2 text-[#8b97a8] transition-colors hover:text-[#FFB4AB] disabled:cursor-not-allowed disabled:opacity-50 ${FOCUS}`}
               >
                 <TrashIcon size={16} aria-hidden="true" />
               </button>

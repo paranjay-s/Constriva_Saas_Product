@@ -34,16 +34,16 @@ export function BoqProgress({ uploading, events, fileName, loadingResult = false
   return (
     <section aria-label="Progress" className="flex flex-col gap-6 py-4">
       <div className="flex flex-col gap-1.5 text-center">
-        <h2 className="font-display text-xl font-semibold text-white">Preparing your bill of quantities</h2>
-        {fileName && <div className="truncate font-mono text-xs text-[#737373]">{fileName}</div>}
+        <h2 className="text-[19px] font-medium text-white">Preparing your bill of quantities</h2>
+        {fileName && <div className="truncate font-mono text-xs text-[#8b97a8]">{fileName}</div>}
       </div>
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-baseline justify-between gap-3 text-sm text-[#A6A6A6]">
+        <div className="flex items-baseline justify-between gap-3 text-sm text-[#a3afbf]">
           <span role="status" aria-live="polite">
             {detail}
           </span>
-          {percent !== null && <span className="font-mono text-xs font-bold text-[#C5A77B]">{percent}%</span>}
+          {percent !== null && <span className="font-mono text-xs font-bold text-[#7ce8f2]">{percent}%</span>}
         </div>
         <div
           role="progressbar"
@@ -52,10 +52,10 @@ export function BoqProgress({ uploading, events, fileName, loadingResult = false
           aria-valuemax={100}
           aria-valuenow={percent ?? undefined}
           aria-valuetext={percent === null ? detail : `${percent}%`}
-          className="h-2 w-full overflow-hidden rounded-full border border-[#303030] bg-[#101010]"
+          className="h-2 w-full overflow-hidden rounded-full border border-[#243041] bg-[#04060a]"
         >
           <div
-            className={`h-full bg-[#C5A77B] transition-all duration-500 ease-out ${percent === null ? 'animate-pulse' : ''}`}
+            className={`h-full bg-[#7ce8f2] transition-all duration-500 ease-out ${percent === null ? 'animate-pulse' : ''}`}
             style={{ width: `${percent === null ? 12 : Math.max(percent, 3)}%` }}
           />
         </div>
@@ -72,18 +72,18 @@ export function BoqProgress({ uploading, events, fileName, loadingResult = false
                   state === 'done'
                     ? 'border border-[#10B981] bg-[#102A1A] text-[#A7F3D0]'
                     : state === 'active'
-                      ? 'animate-spin border-2 border-[#C5A77B] border-t-transparent'
-                      : 'border border-[#303030]'
+                      ? 'animate-spin border-2 border-[#7ce8f2] border-t-transparent'
+                      : 'border border-[#243041]'
                 }`}
               >
                 {state === 'done' && <CheckIcon size={12} />}
               </span>
               <span className="flex flex-col">
-                <span className={`text-sm font-semibold ${state === 'todo' ? 'text-[#737373]' : 'text-white'}`}>
+                <span className={`text-sm font-semibold ${state === 'todo' ? 'text-[#8b97a8]' : 'text-white'}`}>
                   {step.label}
                   <span className="sr-only"> ({STATE_TEXT[state]})</span>
                 </span>
-                <span className="text-xs text-[#737373]">{step.hint}</span>
+                <span className="text-xs text-[#8b97a8]">{step.hint}</span>
               </span>
             </li>
           );
