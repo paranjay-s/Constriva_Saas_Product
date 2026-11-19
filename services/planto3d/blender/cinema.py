@@ -2,7 +2,8 @@
 garden uplights, one continuous camera glide through every room (route = tour.json), rendered frame by frame with
 heat locks on the GPU and CPU.  Resumable: frames already on disk are skipped.
 
-blender -b JOB/house.blend -P blender/cinema.py -- TOUR.json OUTDIR [--stills t1,t2,..] [--shots SHOTS.json] [--save OUT.blend] [--frames] [--res 1920x1080]
+blender -b JOB/house.blend -P blender/cinema.py -- TOUR.json OUTDIR [--stills t1,t2,..] [--shots SHOTS.json] [--save OUT.blend] [--frames]
+        [--start F] [--end F] [--res 1920x1080] [--engine eevee|cycles] [--samples N]
 TOUR.json: {"fps": 30, "eye": 5.1, "speed": 1.9, "keys": [{"p": [x, y, z], "t": [x, y, z], "hold": s, "room": "..."}]}
 (feet; 'hold' = seconds spent turning from the previous target to this one without moving)"""
 import bmesh, bpy, glob, json, math, os, subprocess, sys, time
@@ -268,6 +269,25 @@ try:
     ee.ray_tracing_options.use_denoise = True
 except Exception:
     pass
+# --engine cycles: path tracing on the GPU (Metal / CUDA / OptiX when there is one), --samples per pixel, denoised
+if "--engine" in argv and argv[argv.index("--engine") + 1] == "cycles":
+    sc.render.engine = "CYCLES"
+    cy = sc.cycles
+    prefs = bpy.context.preferences.addons["cycles"].preferences
+    for kind in ("METAL", "OPTIX", "CUDA", "HIP", "ONEAPI"):
+        try:
+            prefs.compute_device_type = kind
+            prefs.get_devices()
+            if any(d.type == kind for d in prefs.devices):
+                for d in prefs.devices:
+                    d.use = d.type == kind
+                cy.device = "GPU"
+                break
+        except (TypeError, ValueError):
+            continue
+    cy.samples = opt("--samples", 64)
+    cy.use_denoising = True
+    cy.max_bounces, cy.diffuse_bounces = 6, 3
 sc.render.resolution_x, sc.render.resolution_y = RES
 sc.render.resolution_percentage = 100
 sc.render.fps = FPS
@@ -363,7 +383,8 @@ if "--frames" in argv:
         pose(i / FPS)
         cam.keyframe_insert("location", frame=i)
         cam.keyframe_insert("rotation_euler", frame=i)
-    sc.frame_start, sc.frame_end, sc.frame_step = opt("--start", 0), n - 1, opt("--step", 1)   # step 2: odd frames blended later
+    # --start / --end: one chunk of the frames (a long tour is rendered as several short runs; done frames are skipped)
+    sc.frame_start, sc.frame_end, sc.frame_step = opt("--start", 0), min(n - 1, opt("--end", n - 1)), opt("--step", 1)
     sc.render.filepath = os.path.join(fd, "f_#####")
     sc.render.use_overwrite, sc.render.use_placeholder = False, True      # resumable: done frames are skipped
     stamp = [time.time()]
