@@ -511,6 +511,38 @@ def same_line(a, b, T, most=14.0):
     return band and 0 <= gap <= most * T
 
 
+
+PASS_GAP = 2.0      # feet: a gap this narrow beside a door cannot be walked along, so the door must go through
+
+
+def doors_through(openings, walls):
+    """a door needs a passable space on both sides: when a wall parallel to the door's own lies within PASS_GAP feet
+    of it and covers at least half its width (a doubled line, a chase or a closet front read as a wall), the door's
+    opening is extended through that wall too. Plan feet: openings {type, rect, axis}, walls [x0, x1, y0, y1, low].
+    -> the number of doors extended"""
+    n = 0
+    for o in openings:
+        if o["type"] != "door":
+            continue
+        r = o["rect"]
+        a = 0 if o["axis"] == "x" else 2             # the wall's length runs along x (a) or y; the band across it
+        b = 2 - a
+        span, band = (r[a], r[a + 1]), [r[b], r[b + 1]]
+        for w in walls:
+            if (w[1] - w[0] >= w[3] - w[2]) != (a == 0):
+                continue                             # not parallel
+            if w[b + 1] > band[0] - 1e-6 and w[b] < band[1] + 1e-6:
+                continue                             # the door's own wall line (or overlapping it)
+            gap = band[0] - w[b + 1] if w[b + 1] <= band[0] else w[b] - band[1]
+            cover = min(span[1], w[a + 1]) - max(span[0], w[a])
+            if 0 <= gap <= PASS_GAP and cover >= 0.5 * (span[1] - span[0]):
+                band = [min(band[0], w[b]), max(band[1], w[b + 1])]
+        if band != [r[b], r[b + 1]]:
+            r[b], r[b + 1] = round(band[0], 3), round(band[1], 3)
+            n += 1
+    return n
+
+
 def opening_links(walls, lines, arcs_, T):
     """the gap between two pieces of one wall band that holds a door swing or window glass. Drawings that cut
     their walls at every door and window (solid wall bands) leave the pieces of one house touching only across
@@ -1178,6 +1210,7 @@ def detect_floor(f, T, s, phr, lines, hatch, A, zone_lines, cuts=(), fills=()):
             d["swing"] = -lf["side"] if o["axis"] == "h" else lf["side"]   # +1: towards +y (or +x)
             d["double"] = len(o["leaves"]) > 1 or lf["radius"] < 0.62 * ((o["rect"][1] - o["rect"][0]) if o["axis"] == "h" else (o["rect"][3] - o["rect"][2]))
         ops_out.append(d)
+    doors_through(ops_out, [R(w) for w, _ in out_walls])
     return dict(
         _x=b[0], title=title, origin_pt=[X0, Y1], size=[round((b[1] - b[0]) / s, 2), round((b[3] - b[2]) / s, 2)],
         walls=[R(w) + [1 if low else 0] for w, low in out_walls],

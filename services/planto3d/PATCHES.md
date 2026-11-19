@@ -294,3 +294,12 @@ What: when the stairs cannot be walked to from where the tour is, it jumps to th
 ground floor. `stair_parts` reads a flight's `words` with `.get`, as the line before it did; plans imported through
 the server always have them, but plans written by other tools may not. Checked on 20 generated plans of 1 to 3
 storeys (model-only builds, 9-14 s each) and 8 stored jobs: 28 of 28 pass tests/test_tour.mjs.
+
+## 24. A door goes through a wall that leaves no room to pass (detect.py)
+
+What: `doors_through` covers the case where a wall parallel to a door's own wall lies within 2 ft of it and covers at
+least half the door's width (a doubled line, a chase or a closet front read as a wall). The door's opening is then
+extended through that wall, so there is passable space on both sides. A gap wider than 2 ft is a corridor and is left
+alone. The SF plan's door 9 was the case: a wall 0.84 ft below it covered 92% of its width. Re-detected and rebuilt,
+its openings test passes 82/82 (81/82 before). OPT 5 and paranjay-villa are unchanged (0 of 44 and 0 of 23 openings),
+and no other SF opening changes. The stored SF job keeps its old plan until it is read again.
