@@ -65,16 +65,8 @@ export const routes: RouteObject[] = [
         element: <Navigate to="/3d" replace />,
       },
       {
-        path: '/projects/ai-generator',
-        element: <AiGeneratorPage />,
-      },
-      {
         path: '/projects/ai-generator/legacy',
         element: <LegacyAiGeneratorPage />,
-      },
-      {
-        path: '/materials/analyse',
-        element: <MaterialFinderPage />,
       },
       {
         path: '/boq',
@@ -85,6 +77,24 @@ export const routes: RouteObject[] = [
         element: <LoanAnalysisPage />,
       },
     ],
+  },
+
+  // Chat studios (floor plans, image analysis): full screen with their own sidebar
+  {
+    path: '/projects/ai-generator',
+    element: (
+      <ProtectedRoute>
+        <AiGeneratorPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/materials/analyse',
+    element: (
+      <ProtectedRoute>
+        <MaterialFinderPage />
+      </ProtectedRoute>
+    ),
   },
 
   // Landing Page Route

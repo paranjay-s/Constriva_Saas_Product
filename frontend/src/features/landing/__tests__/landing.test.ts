@@ -10,7 +10,7 @@ describe("Constriva Landing Page Specifications & Invariants", () => {
 
   it("maintains strict tour frame and room configurations", () => {
     expect(FRAME_COUNT).toBe(421);
-    expect(VERSION).toBe("1");
+    expect(VERSION).toBe("2");
     expect(ROOMS).toBe(7);
     expect(siteContent.beats.length).toBe(8);
     expect(ROOMS).toBe(siteContent.beats.length - 1);

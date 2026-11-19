@@ -30,7 +30,7 @@ export function Hero({ heroRef }: HeroProps) {
       <div className="stage stage--bg" aria-hidden="true">
         <img
           className="stage__img"
-          src={`${getBaseUrl()}assets/house-bg.webp?v=evening1`}
+          src={`${getBaseUrl()}assets/house-bg.webp?v=lantern1`}
           width={1200}
           height={1000}
           alt=""
@@ -47,7 +47,7 @@ export function Hero({ heroRef }: HeroProps) {
       <div className="stage stage--fg" aria-hidden="true">
         <img
           className="stage__img"
-          src={`${getBaseUrl()}assets/house-fg.webp?v=evening1`}
+          src={`${getBaseUrl()}assets/house-fg.webp?v=lantern1`}
           width={1200}
           height={1000}
           alt=""
