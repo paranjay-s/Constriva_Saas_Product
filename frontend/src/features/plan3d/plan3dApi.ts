@@ -118,6 +118,12 @@ export const plan3dApi = {
       await apiRequest(`${jobPath(jobId)}/build`, { method: 'POST', body: JSON.stringify({ quality }) }),
     ),
 
+  /** Render a video tour of the built house (High: 720p, Ultra: 1080p). The answer is the job, now queued. */
+  tour: async (jobId: string, quality: 'high' | 'ultra'): Promise<Plan3dJob> =>
+    plan3dJobSchema.parse(
+      await apiRequest(`${jobPath(jobId)}/tour`, { method: 'POST', body: JSON.stringify({ quality }) }),
+    ),
+
   /** Pack the Blender file (up to a few minutes the first time). The answer is its file name. */
   exportBlender: async (jobId: string): Promise<{ file: string }> =>
     plan3dExportSchema.parse(await apiRequest(`${jobPath(jobId)}/export`, { method: 'POST' })),

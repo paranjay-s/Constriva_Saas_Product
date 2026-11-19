@@ -98,6 +98,11 @@ def job_status(
         quality=(asked or built) if building else (built or None),
         build_seconds=whole(service.get("build_seconds")),
         preview=building and service.get("preview") is True,
+        tours={
+            k: {"file": str(v.get("file")), "seconds": whole(v.get("seconds"))}
+            for k, v in (service.get("tours") or {}).items()
+            if k in ("high", "ultra") and isinstance(v, dict) and v.get("file")
+        },
         created_at=row.get("created_at"),
         reader=str(service.get("reader") or ""),
         notice=str(service.get("notice") or ""),

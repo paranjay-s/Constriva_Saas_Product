@@ -178,6 +178,7 @@ function JobFlow({ jobId }: { jobId: string }) {
           qualities={qualities ?? []}
           onEdit={() => setReviewing(true)}
           onDeleted={() => navigate('/3d')}
+          onTourStarted={(next) => followed.setJob(next)}
         />
       )}
     </PageFrame>

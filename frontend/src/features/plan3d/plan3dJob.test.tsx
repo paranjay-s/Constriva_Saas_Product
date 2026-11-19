@@ -961,3 +961,33 @@ describe('Low preview while High builds', () => {
     expect(screen.getByTitle('3D walkthrough')).toBeDefined();
   });
 });
+
+describe('video tours', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem(TOKEN_STORAGE_KEY, 'test-jwt-token');
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('asks for a tour of the built house and offers a finished one for download', async () => {
+    fakeClock();
+    const fetchMock = mockApi({
+      [`GET ${JOB}`]: () => json({ ...DONE, tours: { high: { file: 'tour_high.mp4', seconds: 300 } } }),
+      [`POST ${JOB}/embed`]: () => json(rawEmbed()),
+      [`POST ${JOB}/tour`]: () => json(rawJob({ stage: 'queued', quality: 'medium' })),
+    });
+    renderJob();
+    await settle();
+    const tours = screen.getByRole('group', { name: 'Video tour' });
+    expect(within(tours).getByRole('button', { name: /High \(720p\) video/ })).toBeDefined();
+    fireEvent.click(within(tours).getByRole('button', { name: 'Render Ultra (1080p)' }));
+    await settle();
+    const [asked] = callsTo(fetchMock, 'POST', `${JOB}/tour`);
+    expect(JSON.parse(String(asked.init.body))).toEqual({ quality: 'ultra' });
+    expect(screen.getByRole('progressbar', { name: 'Build progress' })).toBeDefined();
+  });
+});

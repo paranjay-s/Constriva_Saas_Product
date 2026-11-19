@@ -1,6 +1,6 @@
 """Request and response models of /api/v1/3d."""
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -53,6 +53,8 @@ class JobStatus(BaseModel):
     build_seconds: int | None = None
     # while High builds, a Low house can be walked through (replaced when High is done)
     preview: bool = False
+    # rendered video tours: quality -> {file, seconds}
+    tours: dict[str, dict[str, Any]] = Field(default_factory=dict)
     created_at: str | None = None
     # who read the plan: detector (PlanTo3D's own), ai (our AI plan parser), stored (our floor
     # plan generator), trace (nothing could be read: traced by hand); "" before it is read
@@ -91,3 +93,9 @@ class EmbedAccess(BaseModel):
 
 class ExportReady(BaseModel):
     file: str  # name of the file under the job's `files_url`
+
+
+class TourRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    quality: Literal["high", "ultra"]

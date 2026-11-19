@@ -57,6 +57,7 @@ from app.modules.plan3d.schemas import (
     JobStatus,
     NotificationSettings,
     SystemStatus,
+    TourRequest,
 )
 from app.modules.plan3d.store import JobStore, get_job_store
 from app.modules.projects.service import user_owns_project
@@ -318,6 +319,20 @@ async def notifications(user: User) -> dict:
 async def notification_settings(payload: NotificationSettings, user: User) -> dict:
     notify.set_email(user.id, payload.email)
     return {"email": notify.email_on(user.id)}
+
+
+@router.post("/jobs/{job_id}/tour", response_model=JobStatus, summary="Render a video tour")
+async def render_tour(
+    job_id: str, payload: TourRequest, user: User, planto3d: Service, store: Store
+) -> JobStatus:
+    """A video tour of the built house: High (EEVEE, 720p) or Ultra (Cycles, 1080p). Rendered in
+    chunks by PlanTo3D; the job reads as building until the video is ready."""
+    row = await _own_job(store, job_id, user)
+    try:
+        await planto3d.tour(job_id, payload.quality)
+        return service.job_status(row, await planto3d.job(job_id))
+    except Plan3dError as e:
+        raise _http_error(e) from e
 
 
 @router.post("/jobs/{job_id}/export", response_model=ExportReady, summary="Pack the Blender file")

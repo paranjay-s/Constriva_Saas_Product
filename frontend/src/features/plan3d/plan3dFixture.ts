@@ -53,6 +53,7 @@ export function rawJob(overrides: Record<string, unknown> = {}) {
     quality: null,
     build_seconds: null,
     preview: false,
+    tours: {},
     created_at: '2026-11-18T10:00:00+00:00',
     ...overrides,
   };

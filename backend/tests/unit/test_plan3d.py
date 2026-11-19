@@ -116,6 +116,12 @@ class FakePlanTo3D:
                 return httpx.Response(200, json={"ok": True})
             if parts[3] == "export":
                 return httpx.Response(200, json={"url": f"/jobs/{parts[2]}/house_blender.zip"})
+            if parts[3] == "tour":
+                quality = json.loads(self.bodies[-1])["quality"]
+                if job.get("stage") != "done":
+                    return httpx.Response(409, json={"error": "build the house first"})
+                job.update(stage="queued", progress=0, asked_tour=quality)
+                return httpx.Response(200, json={"ok": True})
         if path.startswith(("/web/", "/three/", "/jobs/", "/thumbs/")):
             kind = (
                 "text/html; charset=utf-8" if path.endswith(".html") else "application/octet-stream"
@@ -625,7 +631,7 @@ def test_the_page_proxy_is_the_only_gateway_route_without_bearer_auth():
         if not any(d.call is get_current_user for d in route.dependant.dependencies)
     )
     assert open_routes == ["/embed/{token}/{path:path}"]
-    assert len(router.routes) == 14
+    assert len(router.routes) == 15
 
 
 def test_embed_tokens_are_redacted_from_logs_and_responses_are_private(client, planto3d):
@@ -669,3 +675,21 @@ def test_furniture_requests_go_to_the_persons_own_set():
     )
     assert service.furniture_route("thumbs/sofa.png", "", mine) == (f"thumbs/{mine}/sofa.png", "")
     assert service.furniture_route("web/view.js", "job=1", mine) == ("web/view.js", "job=1")
+
+
+def test_a_video_tour_of_a_built_house(client, planto3d):
+    job_id = upload(client)
+    # not built yet: PlanTo3D refuses and the person is told why
+    early = client.post(f"{API}/jobs/{job_id}/tour", json={"quality": "high"})
+    assert early.status_code == 409, early.text
+    planto3d.jobs[job_id].update(stage="done", quality="high", progress=100)
+    r = client.post(f"{API}/jobs/{job_id}/tour", json={"quality": "ultra"})
+    assert r.status_code == 200, r.text
+    assert r.json()["stage"] == "queued" and planto3d.jobs[job_id]["asked_tour"] == "ultra"
+    assert client.post(f"{API}/jobs/{job_id}/tour", json={"quality": "cinema"}).status_code == 422
+    # a finished tour is listed with the job
+    planto3d.jobs[job_id].update(
+        stage="done", tours={"ultra": {"file": "tour_ultra.mp4", "seconds": 600}}
+    )
+    body = client.get(f"{API}/jobs/{job_id}").json()
+    assert body["tours"] == {"ultra": {"file": "tour_ultra.mp4", "seconds": 600}}

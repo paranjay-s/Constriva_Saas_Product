@@ -102,6 +102,10 @@ class Plan3dClient:
         )
         return str(body["type"])
 
+    async def tour(self, job_id: str, quality: str) -> None:
+        """Queue a rendered video tour of the built house (PlanTo3D blender/cinema.py)."""
+        await self._json("POST", f"/api/jobs/{job_id}/tour", json={"quality": quality})
+
     async def page_png(self, job_id: str) -> bytes:
         """The drawing's first page as PlanTo3D rendered it."""
         try:
