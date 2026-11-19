@@ -87,91 +87,10 @@ if "--no-preview" not in argv:
     for n in [o.name for o in scene.objects if o.name.startswith("pv_")]:
         bpy.data.objects.remove(bpy.data.objects[n])
 
-# ---- browser model: everything joined, modifiers applied, colours baked into one atlas
-GLOW = {n for n in style.RECIPES if n in ("Cove", "CoveSoft", "Downlight", "Bulb", "Shade", "Lantern", "MirrorRing")}
-CLEAR = {"Glass", "FlutedGlass"}
-# metals have no diffuse colour (a colour bake turns them black): they keep a flat metallic glTF material
-METALS = {"Brass": ("#b08d57", 0.3), "Bronze": ("#4b3a27", 0.35), "DarkMetal": ("#1c1a18", 0.5), "Chrome": ("#d9dcdd", 0.12),
-          "Mirror": ("#f2f4f4", 0.02)}
-for o in list(scene.objects):
-    if o.type != "MESH":
-        bpy.data.objects.remove(o)
-meshes = [o for o in scene.objects if o.type == "MESH"]
-bpy.ops.object.select_all(action="DESELECT")
-for o in meshes:
-    o.select_set(True)
-bpy.context.view_layer.objects.active = meshes[0]
-bpy.ops.object.convert(target="MESH")          # applies bevel / subdivision
-bpy.ops.object.join()
-ob = bpy.context.view_layer.objects.active
-budget = BUDGET.get(kind, 20000)
-if tris([ob]) > budget:
-    d = ob.modifiers.new("decimate", "DECIMATE")
-    d.ratio = budget / tris([ob])
-    bpy.ops.object.modifier_apply(modifier=d.name)
-bpy.ops.object.mode_set(mode="EDIT")
-bpy.ops.mesh.select_all(action="SELECT")
-bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.02)
-bpy.ops.object.mode_set(mode="OBJECT")
-img = bpy.data.images.new(f"{NAME}_atlas", 1024, 1024)
-bakeable = [m for m in ob.data.materials if m and m.name not in GLOW | CLEAR | set(METALS)]
-for m in bakeable:
-    n = m.node_tree.nodes.new("ShaderNodeTexImage")
-    n.image = img
-    m.node_tree.nodes.active = n
-scene.render.engine = "CYCLES"
-scene.cycles.samples = 4
-scene.cycles.device = "CPU"
-if bakeable:
-    bpy.ops.object.bake(type="DIFFUSE", pass_filter={"COLOR"}, margin=4)
-img.filepath_raw = os.path.join(folder, f"{NAME}_atlas.png")
-img.file_format = "PNG"
-img.save()
-# simple glTF materials: one textured for everything baked, flat ones for light and glass
-atlas = bpy.data.materials.new(f"{NAME}_baked")
-atlas.use_nodes = True
-bsdf = atlas.node_tree.nodes["Principled BSDF"]
-tex = atlas.node_tree.nodes.new("ShaderNodeTexImage")
-tex.image = img
-atlas.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
-bsdf.inputs["Roughness"].default_value = 0.55
-swap = {}
-for i, m in enumerate(ob.data.materials):
-    if m is None or m.name in GLOW:
-        g = bpy.data.materials.new(f"{NAME}_glow")
-        g.use_nodes = True
-        b = g.node_tree.nodes["Principled BSDF"]
-        b.inputs["Base Color"].default_value = (1.0, 0.78, 0.52, 1)
-        b.inputs["Emission Color"].default_value = (1.0, 0.78, 0.52, 1)
-        b.inputs["Emission Strength"].default_value = 3.0
-        swap[i] = g
-    elif m.name in METALS:
-        g = bpy.data.materials.new(f"{NAME}_{m.name.lower()}")
-        g.use_nodes = True
-        b = g.node_tree.nodes["Principled BSDF"]
-        b.inputs["Base Color"].default_value = style.rgba(METALS[m.name][0])
-        # 0.55, not 1: the house's light bake is diffuse, so a fully metallic surface bakes black; the walkthrough
-        # adds its reflection above 0.5
-        b.inputs["Metallic"].default_value = 0.55
-        b.inputs["Roughness"].default_value = METALS[m.name][1]
-        swap[i] = g
-    elif m.name in CLEAR:
-        g = bpy.data.materials.new(f"{NAME}_glass")
-        g.use_nodes = True
-        b = g.node_tree.nodes["Principled BSDF"]
-        b.inputs["Base Color"].default_value = (0.9, 0.95, 0.94, 1)
-        b.inputs["Alpha"].default_value = 0.25
-        b.inputs["Roughness"].default_value = 0.05
-        swap[i] = g
-    else:
-        swap[i] = atlas
-for i, g in swap.items():
-    ob.data.materials[i] = g
-browser_tris = tris([ob])
-bpy.ops.object.select_all(action="DESELECT")
-ob.select_set(True)
-bpy.ops.export_scene.gltf(filepath=os.path.join(folder, f"{NAME}.glb"), export_format="GLB", use_selection=True,
-                          export_draco_mesh_compression_enable=True)
+# ---- browser model: everything joined, modifiers applied, colours baked into one atlas (browser_bake.py)
+import browser_bake  # noqa: E402
+
+_, browser_tris = browser_bake.bake_browser(scene, NAME, folder, BUDGET.get(kind, 20000))
 
 entry = dict(id=NAME, kind=kind, rooms=list(rooms), size_m=[round(v, 3) for v in size],
              fits=dict(w=[round(size[0] * 0.6, 2), round(size[0] * 1.6, 2)], d=[round(size[1] * 0.6, 2), round(size[1] * 1.6, 2)]),

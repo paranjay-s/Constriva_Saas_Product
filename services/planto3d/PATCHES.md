@@ -490,3 +490,19 @@ the room's far edge, so walls, openings, rooms and stairs past it move too and s
 "Spiral stair" checkbox. tests/test_review.mjs passes (it caught the scale item blocking a freshly traced plan).
 Not done from Stage 6: a rebuild in the frontend's own style, a live 3D preview of the shell, autosave, split and
 merge of rooms, and a phone layout.
+
+## 44. The creator agent's Blender sessions, the asset review page, and a shared browser bake (server.py, library/build/, web/library.html, blender/gen.py)
+
+What: `POST /api/creator/start` opens a Blender worker (`library/build/creator_worker.py`) in its own folder under
+`jobs/.creator/`, with an empty environment (no secrets, no network use), a 10-minute limit and a triangle budget.
+The worker knows only fixed operations (boxes, cylinders, lathes, rods, materials from the style, small lights,
+transform, delete, scene listing, a 640 px preview, export); there is no code evaluation and every file it writes has a
+fixed name in its folder. `POST /api/creator/{id}/op` forwards one operation; a preview comes back with the image, so
+the agent can look at it. `/finish` checks the asset fits the area (2% + 5 cm), stands on the floor and has its
+preview, .blend and .glb, then adds it to `library/creator/<area>/` as **unreviewed**, with its prompt, cost, turns and
+model. `web/library.html` lists the library with previews; Approve and Reject (`/api/library/<dir>/<id>/review`) work
+only in developer mode. Builds (gen.py) use AI-made assets once approved, or with `PLAN3D_USE_UNREVIEWED`; a
+`custom` area whose `area_type` names a creator asset gets that asset fitted to it. The browser bake moved from
+make_library.py to `browser_bake.py`, shared by both (it also zeroes metalness during the colour bake).
+Measured: a scripted (no model) helipad session ran in 4.6 s (1476 triangles, preview checked by eye); an oversized
+asset was refused with "6.00 x 6.00 x 0.20 m does not fit the area (4.00 x 4.00 x 1.00 m)".

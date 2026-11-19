@@ -631,7 +631,7 @@ def test_the_page_proxy_is_the_only_gateway_route_without_bearer_auth():
         if not any(d.call is get_current_user for d in route.dependant.dependencies)
     )
     assert open_routes == ["/embed/{token}/{path:path}"]
-    assert len(router.routes) == 15
+    assert len(router.routes) == 16  # + POST /creator (admins only)
 
 
 def test_embed_tokens_are_redacted_from_logs_and_responses_are_private(client, planto3d):

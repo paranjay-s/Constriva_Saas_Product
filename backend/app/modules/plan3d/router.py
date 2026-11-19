@@ -41,7 +41,7 @@ from app.core.security import AuthenticatedUser, clean_uuid, get_current_user
 from app.core.signed_token import TokenError
 from app.modules.ai.floorplan import service as floorplan_service
 from app.modules.parsing.service import read_plan_upload
-from app.modules.plan3d import areas, fallback, gapfill, notify, service, verify
+from app.modules.plan3d import areas, creator, fallback, gapfill, notify, service, verify
 from app.modules.plan3d.client import (
     Plan3dClient,
     Plan3dError,
@@ -59,6 +59,7 @@ from app.modules.plan3d.schemas import (
     SystemStatus,
     TourRequest,
 )
+from app.modules.plan3d.settings import get_settings
 from app.modules.plan3d.store import JobStore, get_job_store
 from app.modules.projects.service import user_owns_project
 
@@ -355,6 +356,27 @@ async def embed_job(job_id: str, user: User, store: Store) -> EmbedAccess:
 @router.post("/embed", response_model=EmbedAccess, summary="Access for the furniture models page")
 async def embed_furniture(user: User) -> EmbedAccess:
     return service.embed_access(user.id, None)
+
+
+@router.post("/creator", summary="Have the creator agent make a library asset (admins)")
+async def run_creator(body: dict[str, Any], user: User) -> dict[str, Any]:
+    """Off unless PLAN3D_CREATOR_AGENT, and only for the ids in PLAN3D_CREATOR_ADMINS. The asset is
+    added to the library as unreviewed."""
+    settings = get_settings()
+    admins = {a.strip() for a in settings.creator_admins.split(",") if a.strip()}
+    if not settings.creator_agent or str(user.id) not in admins:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "The creator agent is not available.")
+    area = str(body.get("area") or "")
+    size = body.get("size_m")
+    if not re.fullmatch(r"[a-z0-9_]{2,40}", area) or not (
+        isinstance(size, list) and len(size) == 3 and all(isinstance(v, int | float) for v in size)
+    ):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "area and size_m [w, d, h] needed"
+        )
+    name = str(body.get("name") or area.replace("_", " "))[:80]
+    description = str(body.get("description") or "")[:1000]
+    return await run_in_threadpool(creator.run, area, name, description, [float(v) for v in size])
 
 
 @router.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a job")

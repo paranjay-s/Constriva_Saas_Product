@@ -42,6 +42,10 @@ class Plan3dSettings(BaseSettings):
     ai_verify: bool = False
     # the AI gap-filler: one call per read plan fills what the readers missed (gapfill.py)
     ai_gapfill: bool = False
+    # the creator agent: designs a library asset for an area no kit serves (creator.py)
+    creator_agent: bool = False
+    # user ids (comma-separated) allowed to run it; empty means nobody
+    creator_admins: str = ""
     frame_ancestors: str = ""
 
 

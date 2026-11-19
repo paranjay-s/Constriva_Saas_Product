@@ -477,6 +477,119 @@ def support(jid, k, segments):
     return out + [0.0] * (len(segments) - len(out))
 
 
+# ------------------------------------------------------------------ the creator agent's Blender sessions
+# The agent loop runs in the 3D gateway (it holds the API key); its tool calls come here and go to a worker Blender
+# (library/build/creator_worker.py) that knows only a fixed set of operations, in its own folder, with an empty
+# environment (no secrets), a 10-minute limit and a polygon budget. finish() validates the asset and adds it to the
+# library as unreviewed.
+LIBRARY_DIR = os.path.join(HERE, "library")
+CREATOR_LIMIT_S = 600
+creators = {}
+
+
+def creator_start(area, size_m, max_tris=40000):
+    if not re.match(r"^[a-z0-9_]{2,40}$", area or ""):
+        raise ValueError("area must be a short snake_case name")
+    sid = uuid.uuid4().hex[:12]
+    folder = os.path.join(JOBS, ".creator", sid)
+    os.makedirs(folder)
+    env = {"PATH": "/usr/bin:/bin", "HOME": folder, "TMPDIR": folder}
+    pr = subprocess.Popen([BLENDER, "-b", "--factory-startup", "-P", os.path.join(LIBRARY_DIR, "build", "creator_worker.py"), "--",
+                           folder, str(int(max_tris))], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                          text=True, bufsize=1, cwd=folder, env=env)
+    ready = ""
+    for line in pr.stdout:
+        if line.startswith("READY"):
+            ready = line[6:]
+            break
+    creators[sid] = dict(proc=pr, folder=folder, area=area, size=size_m, started=time.time(), lock=threading.Lock(), done=False)
+    threading.Timer(CREATOR_LIMIT_S, lambda: pr.poll() is None and pr.kill()).start()
+    return sid, json.loads(ready or "{}")
+
+
+def creator_op(sid, op, args):
+    c = creators.get(sid)
+    if not c or c["done"]:
+        raise ValueError("no such session")
+    if time.time() - c["started"] > CREATOR_LIMIT_S or c["proc"].poll() is not None:
+        raise ValueError("the session has ended (10-minute limit)")
+    with c["lock"]:
+        c["proc"].stdin.write(json.dumps(dict(op=op, args=args)) + "\n")
+        c["proc"].stdin.flush()
+        for line in c["proc"].stdout:
+            if line.startswith("RESULT "):
+                out = json.loads(line[7:])
+                if out.get("final"):
+                    c["exported"] = out
+                if op == "render_preview" and out.get("ok"):      # the agent looks at its preview
+                    import base64
+                    with open(os.path.join(c["folder"], "preview.png"), "rb") as fh:
+                        out["png_b64"] = base64.b64encode(fh.read()).decode()
+                return out
+    raise ValueError("the worker stopped")
+
+
+def creator_finish(sid, meta):
+    """validate the exported asset (fits the area, within budget, preview made, only its own files) and add it to the
+    library as unreviewed -> the entry"""
+    c = creators.get(sid)
+    if not c or c["done"]:
+        raise ValueError("no such session")
+    c["done"] = True
+    try:
+        if c["proc"].poll() is None:
+            c["proc"].stdin.write(json.dumps(dict(op="quit")) + "\n")
+            c["proc"].stdin.flush()
+            c["proc"].wait(timeout=30)
+    except Exception:
+        c["proc"].kill()
+    ex = c.get("exported")
+    problems = []
+    if not ex:
+        problems.append("the asset was never exported")
+    else:
+        w, d, h = ex["size_m"]
+        W, D, H = c["size"]
+        if w > W * 1.02 + 0.05 or d > D * 1.02 + 0.05 or h > max(H, 0.5) * 1.02 + 0.05:
+            problems.append(f"{w:.2f} x {d:.2f} x {h:.2f} m does not fit the area ({W:.2f} x {D:.2f} x {H:.2f} m)")
+        if abs(ex["min"][2]) > 0.05:
+            problems.append("it does not stand on the floor (z = 0)")
+    files = sorted(os.listdir(c["folder"]))
+    for f in ("asset.glb", "asset.blend", "preview.png"):
+        if f not in files:
+            problems.append(f"{f} is missing")
+    if problems:
+        return dict(ok=False, problems=problems)
+    out = os.path.join(LIBRARY_DIR, "creator", c["area"])
+    if os.path.exists(out):
+        shutil.rmtree(out)
+    shutil.copytree(c["folder"], out, ignore=shutil.ignore_patterns("*.blend1", ".*", "Library", "tmp*"))
+    entry = dict(id=c["area"], kind="room_kit", rooms=["custom"], size_m=ex["size_m"], fits=dict(w=[0, c["size"][0]], d=[0, c["size"][1]]),
+                 shape="rectangular", style=["lantern"], detailed=f"creator/{c['area']}/asset.blend", browser=f"creator/{c['area']}/asset.glb",
+                 preview=f"creator/{c['area']}/preview.png", tris=ex["triangles"], source="creator agent",
+                 licence="team-made (AI-generated)", version=1, review="unreviewed",
+                 prompt=str(meta.get("prompt") or "")[:4000], cost_usd=meta.get("cost_usd"), turns=meta.get("turns"),
+                 model=str(meta.get("model") or "")[:60], built_s=round(time.time() - c["started"], 1))
+    with open(os.path.join(out, "entry.json"), "w") as fh:
+        json.dump(entry, fh, indent=1)
+    subprocess.run([sys.executable, os.path.join(LIBRARY_DIR, "build", "index.py")], capture_output=True, timeout=60)
+    return dict(ok=True, entry=entry)
+
+
+def library_review(kind, ident, review):
+    """the admin page's approve / reject: rewrites the entry and the index"""
+    if review not in ("approved", "rejected", "unreviewed") or not re.match(r"^[a-z0-9_]+$", kind + ident):
+        raise ValueError("bad review")
+    path = os.path.join(LIBRARY_DIR, kind, ident, "entry.json")
+    with open(path) as fh:
+        e = json.load(fh)
+    e["review"] = review
+    with open(path, "w") as fh:
+        json.dump(e, fh, indent=1)
+    subprocess.run([sys.executable, os.path.join(LIBRARY_DIR, "build", "index.py")], capture_output=True, timeout=60)
+    return e
+
+
 def builder():
     """High is built after a Low preview: the house can be walked through in about a minute while High bakes into
     .next/, whose files then replace the preview's (a failed High leaves the Low house in place)"""
@@ -862,6 +975,14 @@ class H(BaseHTTPRequestHandler):
             return self.file(os.path.join(HERE, "examples", p[10:]), os.path.join(HERE, "examples"))
         if p.startswith("/thumbs/"):
             return self.file(os.path.join(THUMBS, p[8:]), THUMBS)        # /thumbs/<fn>.png or /thumbs/<set>/<fn>.png
+        if p == "/api/library":        # the asset library's index (the admin page reads it)
+            try:
+                with open(os.path.join(LIBRARY_DIR, "index.json")) as fh:
+                    return self.send(200, json.load(fh))
+            except OSError:
+                return self.send(200, {"entries": []})
+        if p.startswith("/library/") and p.endswith(".png"):      # previews only
+            return self.file(os.path.join(LIBRARY_DIR, p[9:]), LIBRARY_DIR)
         if p == "/api/areas":          # the area library (areaspec.py): specs of area types no builder knows
             return self.send(200, areaspec.load())
         if p == "/api/furniture":
@@ -981,6 +1102,22 @@ class H(BaseHTTPRequestHandler):
                 reading.add(jid)
                 threading.Thread(target=run_detect, args=(jid,), daemon=True).start()
                 return self.send(200, {"id": jid})
+            if p == "/api/creator/start":
+                req_c = json.loads(self.body() or b"{}")
+                size = req_c.get("size_m")
+                if not (isinstance(size, list) and len(size) == 3 and all(isinstance(v, (int, float)) and 0.1 <= v <= 60 for v in size)):
+                    return self.send(400, {"error": "size_m must be [w, d, h] in metres"})
+                sid, info = creator_start(str(req_c.get("area") or ""), [float(v) for v in size], min(80000, int(req_c.get("max_tris") or 40000)))
+                return self.send(200, {"session": sid, **info})
+            m = re.match(r"^/api/creator/([a-f0-9]{12})/(op|finish)$", p)
+            if m:
+                req_c = json.loads(self.body() or b"{}")
+                if m.group(2) == "op":
+                    return self.send(200, creator_op(m.group(1), str(req_c.get("op")), req_c.get("args") or {}))
+                return self.send(200, creator_finish(m.group(1), req_c))
+            m = re.match(r"^/api/library/([a-z_]+)/([a-z0-9_]+)/review$", p)
+            if m and TRUTH_DIR:                    # the admin page: developer mode only (run_planto3d.sh --dev)
+                return self.send(200, library_review(m.group(1), m.group(2), json.loads(self.body() or b"{}").get("review")))
             if p == "/api/areas":      # add a spec (from our backend's AI classifier, or a person): validated first
                 body = json.loads(self.body() or b"null")
                 if not isinstance(body, dict):

@@ -588,7 +588,10 @@ LIB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 LIBRARY = {}
 if os.environ.get("PLAN3D_LIBRARY", "1") != "0" and os.path.exists(os.path.join(LIB_DIR, "index.json")):
     with open(os.path.join(LIB_DIR, "index.json")) as _fh:
-        LIBRARY = {e["id"]: e for e in json.load(_fh)["entries"] if e.get("review") != "rejected"}
+        # usable: approved entries, the team-made pieces, and unreviewed AI-made ones only with PLAN3D_USE_UNREVIEWED
+        _unrev = os.environ.get("PLAN3D_USE_UNREVIEWED", "").lower() in ("1", "true", "yes")
+        LIBRARY = {e["id"]: e for e in json.load(_fh)["entries"] if e.get("review") == "approved" or
+                   (e.get("review") != "rejected" and (str(e.get("source", "")).startswith("team-made") or _unrev))}
 HANGING = {"chandelier", "pendant_cluster"}       # hung from the ceiling over (x, y), at their own size
 USED_KITS = {}                                   # piece -> how many times the library served it (meta.json)
 
@@ -791,6 +794,15 @@ for k, f in enumerate(floors):
             continue
         if zn["type"] == "court":          # its own surface and markings (court_parts)
             water += court_parts(zn)
+            continue
+        if zn["type"] == "custom" and LIBRARY.get(str(zn.get("area_type") or "")) and \
+                LIBRARY[zn["area_type"]].get("source") == "creator agent":
+            # the creator agent's asset for this area type, fitted to the area (its own floor, walkable)
+            e = LIBRARY[zn["area_type"]]
+            for r in zn["rects"]:
+                if custom(dict(fn=zn["area_type"], box=r, args=[(r[0] + r[1]) / 2, (r[2] + r[3]) / 2, 0]),
+                          os.path.join(LIB_DIR, e["browser"]), any_fn=True):
+                    USED_KITS[zn["area_type"]] = USED_KITS.get(zn["area_type"], 0) + 1
             continue
         if zn["type"] == "custom":         # an area built from its spec (areaspec.py), or a labelled generic zone
             spec = areaspec.spec_for(zn.get("area_type") or zn.get("label"))
