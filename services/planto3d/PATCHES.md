@@ -358,3 +358,14 @@ which was the problem in docs/reference/issues/. The blob stays only as a fallba
 fetch_assets.py writes `assets/manifest.json` (kind, source, licence, page) for each asset. Sources are allowed only with
 a licence that permits redistribution (`SOURCES`, `ALLOWED_LICENCES`). tests/test_assets.py fails if an asset on disk is
 missing from the manifest or has another licence: 35 assets, all CC0.
+
+## 31. Kitchen island; the potted plant is lit in real time (furnish.py, blender/lib.py, blender/gen.py)
+
+What: a kitchen gets an island parallel to its main run when the room allows it. The island is 5-8 ft long and 3 ft
+deep, with a 3.5 ft working aisle to the run, at least 3 ft free behind it, and no clash with anything already placed.
+It has base cabinets, a marble top that overhangs on the stools' side, and three pendant lights. When 2 ft more are
+free behind it, counter stools go on that side. On 63 plans (stored jobs and generated plans) 19 of 77 kitchens get an
+island, with 0 clashes. The dock house's kitchen was checked by screenshot.
+Fix: the Poly Haven plant from §30 turned the whole ground-floor light map black (mean 0.0, against 39.5 without it).
+The plant's objects are now marked unbaked and exported with the trees, which the walkthrough lights in real time.
+The map is back to 39.9.

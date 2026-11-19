@@ -775,6 +775,39 @@ def kitchen_run(x0, x1, y0, y1, front, sink=None, hob=None, doors=True):
     return done(r)
 
 
+def kitchen_island(x0, x1, y0, y1, stools=None):
+    """a kitchen island in world feet: base cabinets on the cook's side, a white marble top that overhangs 0.9 ft on
+    the stools' side (stools = '+y', '-y', '+x' or '-x'; None: no overhang), and three pendant lights over it"""
+    along_x = x1 - x0 >= y1 - y0
+    L, Dp = (x1 - x0, y1 - y0) if along_x else (y1 - y0, x1 - x0)
+    r = item("kitchen_island", (x0 + x1) / 2, (y0 + y1) / 2, 0 if along_x else 90)
+    # local +y is world +y when along x; turned 90 degrees it is world -x
+    side = {"+y": 1, "-y": -1, "-x": 1, "+x": -1}.get(stools, 0) if stools else 0
+    over = 0.9 if side else 0.0
+    body = Dp - over
+    cy = -side * over / 2
+    p_box(r, "plinth", L - 0.3, body - 0.3, 0.33, "black", (0, cy, 0), bevel=0)
+    p_box(r, "carcass", L - 0.1, body - 0.05, 2.42, "laminate_w", (0, cy, 0.33), bevel=0.005)
+    _doors(r, L - 0.1, body, 0.36, 2.72, 2.55, cy - side * (body / 2 - 0.05) if side else -body / 2 + 0.05)
+    p_box(r, "island_top", L, Dp, 0.15, "marble_top", (0, 0, 2.75), bevel=0.02)
+    for k in (-1, 0, 1):            # pendants: a cord from the ceiling and a glowing shade over the top
+        px = k * L / 3.2
+        p_cyl(r, "pendant_cord", 0.015, 0.015, WALL_H - 6.6, "black", (px, 0, 6.6))
+        p_cyl(r, "pendant_shade", 0.45, 0.2, 0.5, "black", (px, 0, 6.1), segs=32)
+        p_cyl(r, "pendant_bulb", 0.3, 0.3, 0.04, "led", (px, 0, 6.08), segs=24)
+    return done(r)
+
+
+def bar_stool(x, y, rot):
+    """a counter stool: round black seat on a chrome column and base, with a foot ring"""
+    r = item("bar_stool", x, y, rot)
+    p_cyl(r, "stool_base", 0.6, 0.55, 0.05, "chrome", (0, 0, 0), segs=32)
+    p_cyl(r, "stool_column", 0.08, 0.08, 2.0, "chrome", (0, 0, 0.05), segs=16)
+    p_cyl(r, "stool_ring", 0.5, 0.5, 0.04, "chrome", (0, 0, 0.9), segs=32)
+    p_cyl(r, "stool_seat", 0.6, 0.62, 0.18, "black", (0, 0, 2.0), segs=32, bevel=0.03)
+    return done(r, collide=False)
+
+
 def wall_cab2(x0, x1, y0, y1, front, z0=4.9, z1=7.2):
     along_x = front in ("-y", "+y")
     L, Dp = (x1 - x0, y1 - y0) if along_x else (y1 - y0, x1 - x0)

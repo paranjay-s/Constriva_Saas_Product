@@ -478,6 +478,41 @@ def kitchen(R):
                     box = {"N": (u, v, y1 - 1.1, y1), "S": (u, v, y0, y0 + 1.1), "E": (x1 - 1.1, x1, u, v), "W": (x0, x0 + 1.1, u, v)}[sd]
                     R.add("wall_cab2", (0, 0, 0, 0), *box, FRONT[sd], solid=False)
     fridge(R)
+    island(R, side, a_, b_)
+
+
+ISLAND_AISLE, ISLAND_DEPTH, ISLAND_BEHIND, STOOL_ROOM = 3.5, 3.0, 3.0, 2.0      # feet
+
+
+def island(R, side, a_, b_):
+    """a kitchen island parallel to the main run, a working aisle away from it, where the room leaves a way past it
+    (ISLAND_BEHIND) and nothing is in the way; counter stools on the far side when there is room for them too"""
+    x0, x1, y0, y1 = R.rect
+    length = min(8.0, b_ - a_ - 1.0)
+    if length < 5.0:
+        return
+    c = (a_ + b_) / 2
+    inward = {"N": -1, "S": 1, "E": -1, "W": 1}[side]
+    near = {"N": y1, "S": y0, "E": x1, "W": x0}[side] + inward * (2.0 + ISLAND_AISLE)
+    far = near + inward * ISLAND_DEPTH
+    behind = abs({"N": y0, "S": y1, "E": x0, "W": x1}[side] - far)
+    if behind < ISLAND_BEHIND:
+        return
+    lo, hi = sorted((near, far))
+    box = (c - length / 2, c + length / 2, lo, hi) if side in "NS" else (lo, hi, c - length / 2, c + length / 2)
+    if not R.fits(box):
+        return
+    stools = behind >= ISLAND_BEHIND + STOOL_ROOM
+    face = {"N": "-y", "S": "+y", "E": "-x", "W": "+x"}[side] if stools else None
+    R.add("kitchen_island", box, *box, face)
+    if stools:
+        n = max(2, int(length // 2.0))
+        for k in range(n):
+            u = c - length / 2 + (k + 0.5) * length / n
+            v = far + inward * 1.0
+            x, y = (u, v) if side in "NS" else (v, u)
+            rot = {"N": 0, "S": 180, "E": 90, "W": 270}[side]
+            R.add("bar_stool", (x - 0.6, x + 0.6, y - 0.6, y + 0.6), x, y, rot, solid=False)
 
 
 def fridge(R):

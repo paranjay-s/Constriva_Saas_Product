@@ -540,7 +540,12 @@ PLANT = "potted_plant_02"       # 0.7 m as modelled; a floor plant stands about 
 
 def plant(x, y, rot):
     if os.path.exists(os.path.join(ASSETS, "models", PLANT, f"{PLANT}_1k.gltf")):
-        return place(PLANT, x, y, rot, scale=1.6, collide=False)
+        root = place(PLANT, x, y, rot, scale=1.6, collide=False)
+        # not baked: its leaf material turned a storey's whole light map black (PATCHES §31); lit in real time, as
+        # the trees are
+        for o in [root, *root.children_recursive]:
+            o["unbaked"] = True
+        return root
     r = item("plant", x, y, rot)
     p_cyl(r, "pot", 0.55, 0.75, 1.5, "terracotta", segs=24)
     p_cyl(r, "soil", 0.68, 0.68, 0.05, "concrete", (0, 0, 1.4), segs=24)
@@ -609,7 +614,7 @@ def custom(it):
     return True
 
 
-CALLS = dict(bathtub=bathtub, round_rug=round_rug, model=model, bed=bed, nightstand=nightstand, wardrobe=wardrobe, desk=desk, wc2=wc2, vanity=vanity,
+CALLS = dict(kitchen_island=kitchen_island, bar_stool=bar_stool, bathtub=bathtub, round_rug=round_rug, model=model, bed=bed, nightstand=nightstand, wardrobe=wardrobe, desk=desk, wc2=wc2, vanity=vanity,
              shower2=lambda x, y, rot: shower2(x, y, rot), geyser=lambda x, y, rot: geyser(x, y, rot),
              kitchen_run=kitchen_run, chimney=chimney, wall_cab2=wall_cab2, fridge2=fridge2, washer2=washer2,
              puja_mandir=puja_mandir, sofa=sofa, coffee_table=coffee_table, rug=rug, tv_unit=tv_unit,
@@ -620,6 +625,7 @@ CALLS = dict(bathtub=bathtub, round_rug=round_rug, model=model, bed=bed, nightst
 COLLIDERS, META_FLOORS, LAMPS = [], [], []
 WET_GROUND = []     # pools, water and docks of the ground storey: the plinth and the site ground are open over them
 by_floor = {}
+UNBAKED = []           # objects lit in real time in the walkthrough instead of baked (see plant)
 
 
 def new_objects(before):
@@ -823,7 +829,8 @@ for k, f in enumerate(floors):
         cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
         ceiling_light(cx, cy, 0.7)
         LAMPS.append((cx, cy, z + H - 0.25, (x1 - x0) * (y1 - y0), zn["type"]))
-    by_floor[k] = new_objects(before)
+    by_floor[k] = [o for o in new_objects(before) if not o.get("unbaked")]
+    UNBAKED.extend(o for o in new_objects(before) if o.get("unbaked"))
     # walker data (metres): full-height and low walls block, and so do windows (the detector leaves a gap in the
     # wall at every window, so the wall built under a sill is not in f["walls"]); doors and plain openings do not
     F_ = lib.F
@@ -886,7 +893,7 @@ for k, (tx, ty, sz) in enumerate(((X0 - 16, Y0 - 8.5, 1.0), (X1 + 16, Y0 - 8.5, 
                                   (X1 + 22, Y1 - 4, 1.0), ((X0 + X1) / 2 + 20, Y0 - 40, 1.1), ((X0 + X1) / 2 - 25, Y0 - 42, 0.9))):
     tree(tx, ty, sz, seed=k + 1)
 place("street_lamp_01", (X0 + X1) / 2 - 12, Y0 - 9.5, 90, collide=False)
-trees = [o for o in new_objects(before) if o not in site]
+trees = [o for o in new_objects(before) if o not in site] + UNBAKED
 progress(32, "lighting")
 
 # ------------------------------------------------------------------ lights + world
