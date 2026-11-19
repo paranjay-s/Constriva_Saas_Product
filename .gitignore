@@ -33,3 +33,9 @@ services/planto3d/library/*
 !services/planto3d/library/build/
 !services/planto3d/library/README.md
 services/planto3d/library/build/out/
+docs/run3/**/*.png
+docs/run3/**/*.jpg
+docs/run3/**/*.webp
+docs/run3/**/*.mp4
+docs/run3/**/*.exr
+docs/run3/**/*.blend
