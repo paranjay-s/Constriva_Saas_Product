@@ -582,11 +582,39 @@ def model(name, x, y, rot=0, z=0.0, scale=1.0):
     place(name, x, y, rot, z=z, scale=scale, collide=False)
 
 
-def custom(it):
-    """the person's own model (assets/custom/<fn>.glb) in place of a built-in item, fitted to the item's footprint"""
-    path = os.path.join(ASSETS, "custom", *([FURNITURE_SET] if FURNITURE_SET else []), it["fn"] + ".glb")
+# the asset library (services/planto3d/library, built by library/build/): pieces in the house style, used in place of
+# the built-in builders when present. PLAN3D_LIBRARY=0 turns it off
+LIB_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "library")
+LIBRARY = {}
+if os.environ.get("PLAN3D_LIBRARY", "1") != "0" and os.path.exists(os.path.join(LIB_DIR, "index.json")):
+    with open(os.path.join(LIB_DIR, "index.json")) as _fh:
+        LIBRARY = {e["id"]: e for e in json.load(_fh)["entries"] if e.get("review") != "rejected"}
+HANGING = {"chandelier", "pendant_cluster"}       # hung from the ceiling over (x, y), at their own size
+USED_KITS = {}                                   # piece -> how many times the library served it (meta.json)
+
+
+def library_model(it):
+    e = LIBRARY.get(it["fn"])
+    if not e:
+        return False
+    path = os.path.join(LIB_DIR, e["browser"])
+    if not os.path.exists(path):
+        return False
+    ok = custom(it, path, any_fn=True)
+    if ok:
+        USED_KITS[it["fn"]] = USED_KITS.get(it["fn"], 0) + 1
+    return ok
+
+
+def custom(it, path=None, any_fn=False):
+    """the person's own model (assets/custom/<fn>.glb) in place of a built-in item, fitted to the item's footprint;
+    with `path`, that model (a library piece)"""
+    path = path or os.path.join(ASSETS, "custom", *([FURNITURE_SET] if FURNITURE_SET else []), it["fn"] + ".glb")
     x0, x1, y0, y1 = it.get("box") or (0, 0, 0, 0)
-    if it["fn"] not in CATALOG or not os.path.exists(path) or x1 - x0 < 0.1 or y1 - y0 < 0.1:
+    hang = it["fn"] in HANGING
+    if not hang and ((it["fn"] not in CATALOG and not any_fn) or x1 - x0 < 0.1 or y1 - y0 < 0.1):
+        return False
+    if not os.path.exists(path):
         return False
     before = set(bpy.data.objects)
     bpy.ops.import_scene.gltf(filepath=path)        # shortcut: imported once per item, fine for a house; cache if plans grow huge
@@ -598,8 +626,13 @@ def custom(it):
     lo = Vector([min(p[i] for p in pts) for i in range(3)])
     hi = Vector([max(p[i] for p in pts) for i in range(3)])
     rot = it["args"][2]
-    bw, bd = ((y1 - y0), (x1 - x0)) if round(rot) % 180 == 90 else ((x1 - x0), (y1 - y0))
-    s = min(bw * lib.F / max(hi.x - lo.x, 1e-6), bd * lib.F / max(hi.y - lo.y, 1e-6))
+    if hang:              # at its own size over the point it was given
+        s = 1.0
+        x0 = x1 = it["args"][0]
+        y0 = y1 = it["args"][1]
+    else:
+        bw, bd = ((y1 - y0), (x1 - x0)) if round(rot) % 180 == 90 else ((x1 - x0), (y1 - y0))
+        s = min(bw * lib.F / max(hi.x - lo.x, 1e-6), bd * lib.F / max(hi.y - lo.y, 1e-6))
     root = bpy.data.objects.new(f"custom_{it['fn']}", None)
     collection("furniture").objects.link(root)
     for o in new:
@@ -849,7 +882,11 @@ for k, f in enumerate(floors):
     items = [] if plan.get("furnish") is False else f.get("items") or furnish.furnish_floor(f)
     for it in items:
         try:
-            custom(it) or CALLS[it["fn"]](*it["args"], **it["kw"])
+            if not (custom(it) or library_model(it)):
+                if it["fn"] in CALLS:
+                    CALLS[it["fn"]](*it["args"], **it["kw"])
+                else:
+                    print("ITEM SKIPPED (library piece not built)", it["fn"], flush=True)
         except Exception as e:     # one bad item must not stop the build
             print("ITEM FAILED", it["fn"], e, flush=True)
     if items:
@@ -966,7 +1003,7 @@ import bake  # noqa: E402
 groups = {f"level_{k}": objs for k, objs in by_floor.items()}
 groups["site"] = site
 res = bake.bake_and_export(groups, unbaked=trees, out=JOB, quality=QUALITY, do_bake=BAKE, progress=progress)
-meta = dict(version=1, floors=META_FLOORS, roof_z=round(top * lib.F, 3), eye=1.6,
+meta = dict(version=1, floors=META_FLOORS, roof_z=round(top * lib.F, 3), eye=1.6, kits=USED_KITS,
             bounds=[round(v * lib.F, 3) for v in (X0, X1, Y0, Y1)], **res)
 with open(os.path.join(JOB, "meta.json"), "w") as fh:
     json.dump(meta, fh)

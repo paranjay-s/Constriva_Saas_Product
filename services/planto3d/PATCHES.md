@@ -424,3 +424,15 @@ Wall ends with nothing within 6 ft and rooms closed on fewer than 2 sides are in
 too. `checks.all_checks` merges both lists, most severe first, wherever a plan is written. On all 200 generated (true)
 plans it raises nothing critical and no warning. On the stored, read plans it finds 9 windows between rooms and 2
 overlaps.
+
+## 38. The house is assembled from the asset library (blender/gen.py, furnish.py, web/rooms.json, library/)
+
+What: gen.py reads `library/index.json` (`PLAN3D_LIBRARY=0` turns it off) and places library pieces through the
+same fitting as custom models. The order is the person's own model first, then a library piece, then the built-in
+builder. A piece only the library has (armchair, console, prayer rug…) is skipped with a log line when the library
+is missing. Chandeliers and pendants hang at their own size. meta.json records which piece served how many items
+(`kits`). New room types: `prayer` (musalla) and `majlis`. Prayer labels (PRAYER, MUSALLA, مصلى) used to be typed
+puja and got a Hindu mandir; now they get a niche on the wall facing the qibla (bearing `PLAN3D_QIBLA_BEARING`,
+default 258° for Dubai, turned by the floor's `north_deg`), rugs in rows turned to the qibla, and a Quran stand.
+Living, dining, foyer, laundry, gym, cinema and study rooms get the extra pieces where they fit.
+Browser models keep metal parts as flat metallic glTF materials, because a colour bake turns metals black.

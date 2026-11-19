@@ -90,6 +90,9 @@ if "--no-preview" not in argv:
 # ---- browser model: everything joined, modifiers applied, colours baked into one atlas
 GLOW = {n for n in style.RECIPES if n in ("Cove", "CoveSoft", "Downlight", "Bulb", "Shade", "Lantern", "MirrorRing")}
 CLEAR = {"Glass", "FlutedGlass"}
+# metals have no diffuse colour (a colour bake turns them black): they keep a flat metallic glTF material
+METALS = {"Brass": ("#b08d57", 0.3), "Bronze": ("#4b3a27", 0.35), "DarkMetal": ("#1c1a18", 0.5), "Chrome": ("#d9dcdd", 0.12),
+          "Mirror": ("#f2f4f4", 0.02)}
 for o in list(scene.objects):
     if o.type != "MESH":
         bpy.data.objects.remove(o)
@@ -111,7 +114,7 @@ bpy.ops.mesh.select_all(action="SELECT")
 bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.02)
 bpy.ops.object.mode_set(mode="OBJECT")
 img = bpy.data.images.new(f"{NAME}_atlas", 1024, 1024)
-bakeable = [m for m in ob.data.materials if m and m.name not in GLOW | CLEAR]
+bakeable = [m for m in ob.data.materials if m and m.name not in GLOW | CLEAR | set(METALS)]
 for m in bakeable:
     n = m.node_tree.nodes.new("ShaderNodeTexImage")
     n.image = img
@@ -141,6 +144,14 @@ for i, m in enumerate(ob.data.materials):
         b.inputs["Base Color"].default_value = (1.0, 0.78, 0.52, 1)
         b.inputs["Emission Color"].default_value = (1.0, 0.78, 0.52, 1)
         b.inputs["Emission Strength"].default_value = 3.0
+        swap[i] = g
+    elif m.name in METALS:
+        g = bpy.data.materials.new(f"{NAME}_{m.name.lower()}")
+        g.use_nodes = True
+        b = g.node_tree.nodes["Principled BSDF"]
+        b.inputs["Base Color"].default_value = style.rgba(METALS[m.name][0])
+        b.inputs["Metallic"].default_value = 1.0
+        b.inputs["Roughness"].default_value = METALS[m.name][1]
         swap[i] = g
     elif m.name in CLEAR:
         g = bpy.data.materials.new(f"{NAME}_glass")
