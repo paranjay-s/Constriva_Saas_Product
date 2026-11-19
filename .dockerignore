@@ -1,0 +1,12 @@
+# PlanTo3D image (services/planto3d/Dockerfile): never ship jobs, local assets, built library files or client drawings
+services/planto3d/jobs
+services/planto3d/assets
+services/planto3d/node_modules
+services/planto3d/library/*
+!services/planto3d/library/build
+services/planto3d/library/build/out
+docs/reference
+docs/overnight
+docs/run3
+**/.venv
+**/node_modules
