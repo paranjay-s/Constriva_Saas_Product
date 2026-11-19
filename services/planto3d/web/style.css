@@ -80,3 +80,13 @@ h1 { font-size: 28px; margin: 0 0 6px; }
 #checklist { list-style: none; margin: 0 0 10px; padding: 0; max-height: 180px; overflow: auto; font-size: 12px; }
 #checklist li { padding: 4px 6px; border-left: 3px solid #e8892f; margin-bottom: 3px; cursor: pointer; background: rgba(232, 137, 47, .1); }
 #checklist li:hover { background: rgba(232, 137, 47, .25); }
+
+/* Needs checking: severity badges, Fix / Dismiss */
+#checklist li { display: flex; gap: 6px; align-items: flex-start; flex-wrap: wrap; }
+#checklist .sev { font: 600 10px ui-monospace, Menlo, monospace; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; }
+#checklist .sev-critical .sev { background: #c0392b; color: #fff; }
+#checklist .sev-warning .sev { background: #e8892f; color: #fff; }
+#checklist .sev-info .sev { background: #556; color: #fff; }
+#checklist .msg { flex: 1 1 160px; }
+#checklist .acts { display: flex; gap: 4px; }
+#checklist .mini { font-size: 11px; padding: 1px 6px; }

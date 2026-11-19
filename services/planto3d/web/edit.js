@@ -284,8 +284,17 @@ function drawFloor(f, dx, dy, active) {
     const r = mv(z.rects.reduce((a, b) => (area(b) > area(a) ? b : a)));
     if ((r[1] - r[0]) * view.k < 30) return;
     const [x, y] = toC((r[0] + r[1]) / 2, (r[2] + r[3]) / 2);
+    // the room's name (its label without the size written in it, or its type) and its size as built
+    const name = ((z.label || '').split(/\s+/).filter((w) => !/\d/.test(w)).join(' ') || z.type).toUpperCase();
+    const ftin = (v) => { const ft = Math.floor(v + 1e-6), inch = Math.round((v - ft) * 12); return inch === 12 ? `${ft + 1}'` : inch ? `${ft}'${inch}"` : `${ft}'`; };
+    const q = z.rects[0];
     g.fillStyle = '#111';
-    g.fillText(z.type, x, y);
+    g.font = '600 12px system-ui';
+    g.fillText(name, x, y - 2);
+    if (z.rects.length === 1 && (r[3] - r[2]) * view.k > 34) {
+      g.font = '11px system-ui'; g.fillStyle = '#444';
+      g.fillText(`${ftin(q[1] - q[0])} × ${ftin(q[3] - q[2])}${z.size_source === 'label' ? '' : ''}`, x, y + 12);
+    }
   });
   g.globalAlpha = 1;
 }
@@ -311,6 +320,16 @@ function draw() {
 // ---------------------------------------------------------------- what the build needs
 // gen.py takes each storey's outline from its walls and lays floors, lamps and furniture per room. A traced plan is
 // at 1:100 until its scale is set, which is rarely right.
+// stretch one storey along an axis: everything at or beyond `at` moves by `delta` feet (a room's far wall moves, and
+// the walls, openings, rooms and stairs past it move with it, so shared walls stay shared)
+function stretch(f, axis, at, delta) {
+  const [lo, hi] = axis === 0 ? [0, 1] : [2, 3];
+  const move = (r) => { if (r[lo] >= at - 0.4) r[lo] = r3(r[lo] + delta); if (r[hi] >= at - 0.4) r[hi] = r3(r[hi] + delta); };
+  f.walls.forEach(move);
+  f.openings.forEach((o) => move(o.rect));
+  (f.stairs || []).forEach((st) => move(st.rect));
+  f.rooms.forEach((z) => { z.rects.forEach(move); z.area = +z.rects.reduce((a, q) => a + (q[1] - q[0]) * (q[3] - q[2]), 0).toFixed(1); });
+}
 function problem() {
   if (!plan) return 'The plan is not loaded yet.';
   for (const f of plan.floors) {
@@ -320,6 +339,8 @@ function problem() {
   }
   if (!plan.floors.some((f) => f.rooms.length)) return 'There are no rooms yet: close the walls around each room (rooms are found between walls, doors and windows).';
   if (['trace', 'manual'].includes(reader) && plan.scale_source === 'assumed') return 'Set the scale first: Set scale, then click two points a known distance apart.';
+  const crit = openChecks().filter((c) => c.severity === 'critical');
+  if (crit.length) return `${crit.length} critical item${crit.length > 1 ? 's' : ''} in Needs checking: fix or dismiss ${crit.length > 1 ? 'them' : 'it'} first.`;
   return null;
 }
 function checkBuildable() {
@@ -406,13 +427,29 @@ async function refreshChecks() {        // the server works out the checks again
   try { plan.checks = (await (await fetch(`../jobs/${job}/plan.json`, { cache: 'no-store' })).json()).checks || []; } catch { return; }
   showChecks(); draw();
 }
+// each item: its severity, Fix (go to it) and Dismiss (kept in plan.dismissed, saved with the plan). Critical items
+// keep "Build" off until they are fixed or dismissed (problem())
+const SEV = { critical: 0, warning: 1, info: 2 };
+const checkKey = (c) => `${c.kind}|${c.floor}|${(c.item || []).join(':')}|${c.message}`;
+// (an item the person has just put right on the page counts as done before the server checks again on save: the
+// scale once it is set)
+const openChecks = () => (plan.checks || []).filter((c) => !(plan.dismissed || []).includes(checkKey(c)) &&
+  !(c.kind === 'scale_unknown' && plan.scale_source !== 'assumed'));
 function showChecks() {
-  const list = plan.checks || [];
+  const list = openChecks().sort((a, b) => (SEV[a.severity] ?? 2) - (SEV[b.severity] ?? 2) || a.floor - b.floor);
+  const crit = list.filter((c) => c.severity === 'critical').length;
   $('checks').hidden = !list.length;
-  $('nchecks').textContent = `(${list.length})`;
+  $('nchecks').textContent = crit ? `(${list.length} to check · ${crit} critical)` : `(${list.length} to check)`;
   $('checklist').replaceChildren(...list.map((c) => {
-    const li = el('li', { textContent: c.message });
-    li.onclick = () => { fi = c.floor; sel = c.item[0] === 'plan' ? null : { kind: c.item[0], i: c.item[1] }; tabs(); fit(); ui(); };
+    const go = () => { fi = c.floor; sel = !c.item || c.item[0] === 'plan' || c.item[0] === 'wall' ? null : { kind: c.item[0], i: c.item[1] }; tabs(); fit(); ui(); };
+    const li = el('li', { className: `sev-${c.severity || 'info'}` },
+      el('span', { className: 'sev', textContent: c.severity || 'info' }), el('span', { className: 'msg', textContent: c.message }),
+      el('span', { className: 'acts' },
+        el('button', { className: 'mini', textContent: 'Fix', title: 'Go to it', onclick: (ev) => { ev.stopPropagation(); go(); } }),
+        el('button', { className: 'mini', textContent: 'Dismiss', title: 'It is right as it is', onclick: (ev) => {
+          ev.stopPropagation(); snapshot(); plan.dismissed = [...(plan.dismissed || []), checkKey(c)]; ui(); checkBuildable();
+        } })));
+    li.onclick = go;
     return li;
   }));
 }
@@ -483,6 +520,18 @@ function ui() {
       el('p', { className: 'muted', style: 'font-size:12px', textContent: `${+z.area} sq ft. Furniture follows the type.` }));
     const zl = sourceLine(z);
     if (zl) P.append(zl);
+    if (z.rects.length === 1) {
+      const q = z.rects[0];
+      P.append(row(el('span', { textContent: 'Size (ft)' }), num('rw', +(q[1] - q[0]).toFixed(2), 0.25, 64), el('span', { textContent: '×' }),
+        num('rd', +(q[3] - q[2]).toFixed(2), 0.25, 64)));
+      const resize = (axis, v) => {
+        const lo = axis === 0 ? q[0] : q[2], hi = axis === 0 ? q[1] : q[3];
+        if (!(v >= 3 && v <= 200)) return;
+        snapshot(); stretch(f, axis, hi, v - (hi - lo)); mine(z); edited(f); ui();
+      };
+      $('rw').onchange = (e) => resize(0, +e.target.value);
+      $('rd').onchange = (e) => resize(1, +e.target.value);
+    }
     rt.value = z.type; rt.onchange = (e) => { snapshot(); z.type = e.target.value; mine(z); draw(); };
     rl.oninput = (e) => { z.label = e.target.value.slice(0, 80); mine(z); };
   } else if (sel.kind === 'stair') {
@@ -492,6 +541,9 @@ function ui() {
       // room for the stair's own controls (its direction, for one), kept apart from the generic panel
       el('div', { id: 'stairctl' }));
     $('ss').onchange = (e) => { const v = Math.round(+e.target.value); if (v >= 3 && v <= 30) { snapshot(); s.steps = v; } };
+    const sp = el('input', { type: 'checkbox', id: 'spiral', checked: s.shape === 'spiral' });
+    P.append(el('label', { className: 'row' }, sp, ' Spiral stair (built round a column)'));
+    sp.onchange = () => { snapshot(); if (sp.checked) s.shape = 'spiral'; else delete s.shape; draw(); };
   }
   if (sel.kind !== 'room') P.append(el('button', { className: 'btn ghost', textContent: 'Delete', style: 'margin-top:8px', onclick: del }));
   draw();

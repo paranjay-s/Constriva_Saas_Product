@@ -479,3 +479,14 @@ Bake: metal surfaces have no diffuse light, so they baked black and showed black
 steel and chrome as well as library pieces). Materials are baked as non-metal and their metalness is put back after
 the bake. Checked by screenshot on a generated two-storey plan with a spiral stair and a lift.
 Not done: circular rooms. The readers do not find curved walls yet, so nothing would produce one.
+
+## 43. Review page: a checklist with severities, room names and sizes, typed sizes, spiral stairs (web/edit.js, style.css)
+
+What: "Needs checking" is sorted by severity, with a badge and a count ("5 to check · 1 critical"). Each item has Fix
+(go to it) and Dismiss (kept in `plan.dismissed` and saved with the plan). Build stays off while a critical item is
+open; the scale item counts as done as soon as a scale is set. Every room shows its name (its label without the size)
+and its built size in feet and inches. A one-rectangle room's width and depth can be typed: the plan stretches along
+the room's far edge, so walls, openings, rooms and stairs past it move too and shared walls stay shared. Stairs get a
+"Spiral stair" checkbox. tests/test_review.mjs passes (it caught the scale item blocking a freshly traced plan).
+Not done from Stage 6: a rebuild in the frontend's own style, a live 3D preview of the shell, autosave, split and
+merge of rooms, and a phone layout.
