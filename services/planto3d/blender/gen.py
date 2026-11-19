@@ -872,10 +872,20 @@ for k, f in enumerate(floors):
             mesh_from_boxes(f"guards_{k}", [(*b, "exterior") for b in guards])
     # stairs rising from this storey
     sboxes, smeta = stair_parts(f, FFH)
-    if sboxes:
-        mesh_from_boxes(f"stairs_{k}", sboxes)
-        stair_box_prev = bbox_of([b[:4] for b in sboxes])
-        well_prev = [b[:4] for b in sboxes if b[5] > FFH - HEADROOM]
+    # a spiral stair (the detector or the review page marks it): wedge treads round a column instead of box flights;
+    # the walker still climbs along its rectangle (meta.json)
+    for s_ in f["stairs"]:
+        if s_.get("shape") == "spiral":
+            r_ = s_["rect"]
+            sboxes = [b for b in sboxes if not (r_[0] - 0.1 <= b[0] and b[1] <= r_[1] + 0.1 and r_[2] - 0.1 <= b[2] and b[3] <= r_[3] + 0.1)]
+            spiral_stair(f"spiral_{k}", r_, 0.0, FFH, steps=s_.get("steps"))
+    spirals = [tuple(s_["rect"]) for s_ in f["stairs"] if s_.get("shape") == "spiral"]
+    if sboxes or spirals:
+        if sboxes:
+            mesh_from_boxes(f"stairs_{k}", sboxes)
+        stair_box_prev = bbox_of([b[:4] for b in sboxes] + spirals)
+        # the floor above opens over a spiral stair's whole footprint (it climbs all round)
+        well_prev = [b[:4] for b in sboxes if b[5] > FFH - HEADROOM] + spirals
     else:
         stair_box_prev, well_prev = None, []
     # furniture: none if the review page's "Furniture" box was unticked; hand-placed items win over the rules
@@ -891,6 +901,39 @@ for k, f in enumerate(floors):
             print("ITEM FAILED", it["fn"], e, flush=True)
     if items:
         curtains(f, items)
+    # lifts: a landing door on the side facing the most open neighbour, a call panel beside it, and on the lowest
+    # storey a cabin standing in the shaft (the shaft stays closed to the walker)
+    for zn in f["rooms"]:
+        if zn["type"] != "lift" or not zn["rects"]:
+            continue
+        x0, x1, y0, y1 = max(zn["rects"], key=lambda r: (r[1] - r[0]) * (r[3] - r[2]))
+        t_ = 0.75
+        def open_at(px, py):
+            r2 = next((z for z in f["rooms"] if z is not zn and any(q[0] <= px <= q[1] and q[2] <= py <= q[3] for q in z["rects"])), None)
+            return r2 is not None and r2["type"] not in WATER | SHAFT
+        sides = {"S": ((x0 + x1) / 2, y0 - t_ - 1.5), "N": ((x0 + x1) / 2, y1 + t_ + 1.5), "W": (x0 - t_ - 1.5, (y0 + y1) / 2), "E": (x1 + t_ + 1.5, (y0 + y1) / 2)}
+        side = next((sd for sd in "SNWE" if open_at(*sides[sd])), "S")
+        dw = min(3.5, (x1 - x0 if side in "SN" else y1 - y0) - 0.6)
+        c = (x0 + x1) / 2 if side in "SN" else (y0 + y1) / 2
+        face = {"S": y0 - t_, "N": y1 + t_, "W": x0 - t_, "E": x1 + t_}[side]
+        out = 1 if side in "NE" else -1
+        f0, f1 = sorted((face, face + out * 0.08))
+        g0, g1 = sorted((face, face + out * 0.12))
+        if side in "SN":
+            door = [(c - dw / 2, c, f0, f1, 0.0, 7.0, "steel"), (c, c + dw / 2, f0, f1, 0.0, 7.0, "steel"),
+                    (c - dw / 2 - 0.25, c + dw / 2 + 0.25, g0, g1, 7.0, 7.4, "chrome"),
+                    (c + dw / 2 + 0.5, c + dw / 2 + 0.85, g0, g1, 3.2, 3.9, "chrome"),
+                    (c + dw / 2 + 0.6, c + dw / 2 + 0.75, g0 - 0.01, g1 + 0.01, 3.45, 3.6, "light")]
+        else:
+            door = [(f0, f1, c - dw / 2, c, 0.0, 7.0, "steel"), (f0, f1, c, c + dw / 2, 0.0, 7.0, "steel"),
+                    (g0, g1, c - dw / 2 - 0.25, c + dw / 2 + 0.25, 7.0, 7.4, "chrome"),
+                    (g0, g1, c + dw / 2 + 0.5, c + dw / 2 + 0.85, 3.2, 3.9, "chrome"),
+                    (g0 - 0.01, g1 + 0.01, c + dw / 2 + 0.6, c + dw / 2 + 0.75, 3.45, 3.6, "light")]
+        mesh_from_boxes(f"lift_door_{k}_{int(x0)}_{int(y0)}", door, coll="furniture")
+        if k == 0:
+            cab = [(x0 + 0.2, x1 - 0.2, y0 + 0.2, y1 - 0.2, 0.0, 0.15, "steel"),
+                   (x0 + 0.2, x1 - 0.2, y0 + 0.2, y1 - 0.2, 7.6, 7.75, "steel")]
+            mesh_from_boxes(f"lift_cabin_{int(x0)}_{int(y0)}", cab, coll="furniture")
     # lamps (emissive panel + area light for the bake) in roofed rooms
     for zn in f["rooms"]:
         if zn["type"] not in INDOOR and zn["type"] not in ("balcony", "parking", "stair"):

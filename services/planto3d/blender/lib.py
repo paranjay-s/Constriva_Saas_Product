@@ -174,6 +174,59 @@ def collection(name):
     return COLL[name]
 
 
+def spiral_stair(name, rect, z0, rise, steps=None, turn=0.85, coll="arch"):
+    """a spiral (helical) stair in feet: wedge treads round a central column inside rect, climbing `rise` from z0 in
+    `turn` revolutions, with a helical handrail at the outer edge. -> the objects (treads, column, rail)"""
+    x0, x1, y0, y1 = rect
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    R = max(1.5, min(x1 - x0, y1 - y0) / 2 - 0.1)
+    rc = 0.3
+    n = steps or max(10, round(rise / 0.62))
+    da = 2 * math.pi * turn / n
+    bm = bmesh.new()
+    for i in range(n):
+        a0, a1 = i * da, (i + 1) * da + 0.04
+        zt = z0 + rise * (i + 1) / n
+        ring = []
+        for a in (a0, (a0 + a1) / 2, a1):
+            ring.append((cx + R * math.cos(a), cy + R * math.sin(a)))
+        pts = [(cx + rc * math.cos(a0), cy + rc * math.sin(a0))] + ring + [(cx + rc * math.cos(a1), cy + rc * math.sin(a1))]
+        top = [bm.verts.new((px * F, py * F, zt * F)) for px, py in pts]
+        bot = [bm.verts.new((px * F, py * F, (zt - 0.18) * F)) for px, py in pts]
+        bm.faces.new(top)
+        bm.faces.new(list(reversed(bot)))
+        for k in range(len(pts)):
+            j = (k + 1) % len(pts)
+            bm.faces.new((bot[k], bot[j], top[j], top[k]))
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(MATS["stair"])
+    treads = bpy.data.objects.new(name, me)
+    collection(coll).objects.link(treads)
+    col = bpy.data.meshes.new(f"{name}_column")
+    bm = bmesh.new()
+    bmesh.ops.create_cone(bm, cap_ends=True, segments=24, radius1=rc * F, radius2=rc * F, depth=(rise + 3.2) * F)
+    bm.to_mesh(col)
+    bm.free()
+    col.materials.append(MATS["steel"])
+    column = bpy.data.objects.new(f"{name}_column", col)
+    column.location = (cx * F, cy * F, (z0 + (rise + 3.2) / 2) * F)
+    collection(coll).objects.link(column)
+    cu = bpy.data.curves.new(f"{name}_rail", "CURVE")
+    cu.dimensions, cu.bevel_depth, cu.bevel_resolution = "3D", 0.025, 3
+    sp = cu.splines.new("POLY")
+    m = n * 4
+    sp.points.add(m)
+    for i in range(m + 1):
+        a = 2 * math.pi * turn * i / m
+        sp.points[i].co = ((cx + (R - 0.1) * math.cos(a)) * F, (cy + (R - 0.1) * math.sin(a)) * F, (z0 + rise * i / m + 3.0) * F, 1)
+    cu.materials.append(MATS["steel"])
+    rail = bpy.data.objects.new(f"{name}_rail", cu)
+    collection(coll).objects.link(rail)
+    return [treads, column, rail]
+
+
 def mesh_from_boxes(name, boxes, coll="arch", bevel=0.0, seg=2):
     """boxes: list of (x0,x1,y0,y1,z0,z1,matname) in FEET (object-local). One object, multi-material."""
     me = bpy.data.meshes.new(name)

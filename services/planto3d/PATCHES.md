@@ -466,3 +466,16 @@ count), or when pen strokes run the same way on both sides of it within 0.75 of 
 stored vector plans: 20 of 32 real long walls score 0.6 or more, and 0 of 25 made-up lines across rooms do. A line
 the drawing does not support is never built; the gateway turns it into a suggestion. Scans have no pen strokes, so
 there every AI wall is a suggestion.
+
+## 42. Spiral stairs, lift landings, and metals that bake right (detect.py, blender/gen.py, blender/lib.py, blender/bake.py)
+
+What: a stair with a SPIRAL, CIRCULAR or HELICAL label on it or within 6 ft of it is marked `shape: "spiral"`; the
+review page can set it too. It is built as wedge treads round a steel column inside the stair's footprint, climbing
+the storey height in 0.85 of a turn, with a helical handrail, and the floor above opens over its whole footprint. The
+walker still climbs along the stair's rectangle. A lift gets a brushed-steel landing door on every storey, on the side
+facing a walkable neighbour, with a lintel and a call panel with a lit button, plus a cabin standing in the shaft on
+the lowest storey. The shaft stays closed to the walker.
+Bake: metal surfaces have no diffuse light, so they baked black and showed black in the walkthrough (the built-in
+steel and chrome as well as library pieces). Materials are baked as non-metal and their metalness is put back after
+the bake. Checked by screenshot on a generated two-storey plan with a spiral stair and a lift.
+Not done: circular rooms. The readers do not find curved walls yet, so nothing would produce one.

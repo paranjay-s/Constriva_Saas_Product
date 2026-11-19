@@ -165,6 +165,16 @@ def _bake(ob, size, samples):
         n.select = True
         nt.nodes.active = n
         nodes.append((nt, n))
+    # metals have no diffuse light: baked as they are, they come out black in the walkthrough (which multiplies the
+    # colour by the light map). Bake them as if not metal, then put the metalness back (the viewer adds the shine)
+    metal = []
+    for m in ob.data.materials:
+        if not m or not m.use_nodes:
+            continue
+        for p in m.node_tree.nodes:
+            if p.type == "BSDF_PRINCIPLED" and not p.inputs["Metallic"].is_linked and p.inputs["Metallic"].default_value > 0:
+                metal.append((p, p.inputs["Metallic"].default_value))
+                p.inputs["Metallic"].default_value = 0.0
     sc = bpy.context.scene
     sc.cycles.samples = samples
     sc.cycles.use_denoising = False
@@ -177,6 +187,8 @@ def _bake(ob, size, samples):
                         target="IMAGE_TEXTURES")
     for nt, n in nodes:
         nt.nodes.remove(n)
+    for p, v in metal:
+        p.inputs["Metallic"].default_value = v
     return img
 
 

@@ -543,6 +543,22 @@ def doors_through(openings, walls):
     return n
 
 
+
+SPIRAL_WORDS = ("SPIRAL", "CIRCULAR STAIR", "HELICAL", "SPIRAL STAIR")
+
+
+def mark_spiral(floor):
+    """a stair with a SPIRAL / CIRCULAR / HELICAL label on it or within 6 ft of it is a spiral stair (shape "spiral")"""
+    for st in floor.get("stairs", []):
+        x0, x1, y0, y1 = st["rect"]
+        for lab in floor.get("labels", []) + [{"text": w[0], "at": w[1:]} for w in st.get("words") or []]:
+            t = str(lab.get("text", "")).upper()
+            ax, ay = lab.get("at", [None, None])[:2]
+            if any(k in t for k in SPIRAL_WORDS) and ax is not None and x0 - 6 <= ax <= x1 + 6 and y0 - 6 <= ay <= y1 + 6:
+                st["shape"] = "spiral"
+    return floor
+
+
 def opening_links(walls, lines, arcs_, T):
     """the gap between two pieces of one wall band that holds a door swing or window glass. Drawings that cut
     their walls at every door and window (solid wall bands) leave the pieces of one house touching only across
@@ -1211,7 +1227,7 @@ def detect_floor(f, T, s, phr, lines, hatch, A, zone_lines, cuts=(), fills=()):
             d["double"] = len(o["leaves"]) > 1 or lf["radius"] < 0.62 * ((o["rect"][1] - o["rect"][0]) if o["axis"] == "h" else (o["rect"][3] - o["rect"][2]))
         ops_out.append(d)
     doors_through(ops_out, [R(w) for w, _ in out_walls])
-    return dict(
+    return mark_spiral(dict(
         _x=b[0], title=title, origin_pt=[X0, Y1], size=[round((b[1] - b[0]) / s, 2), round((b[3] - b[2]) / s, 2)],
         walls=[R(w) + [1 if low else 0] for w, low in out_walls],
         openings=ops_out,
@@ -1219,7 +1235,7 @@ def detect_floor(f, T, s, phr, lines, hatch, A, zone_lines, cuts=(), fills=()):
         stairs=[dict(rect=R(fl["rect"]), axis=fl["axis"], steps=fl["n"], up=fl["up"],
                      words=[(t, *P(x, y)) for t, x, y in fl["words"]]) for fl in flights],
         labels=[dict(text=p["text"], at=P(p["cx"], p["cy"])) for p in names],
-    )
+    ))
 
 
 def detect(pdf):
