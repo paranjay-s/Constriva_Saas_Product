@@ -322,3 +322,12 @@ Where the time goes (dock house, Low, M1 Pro, with nice): model 2.5 s, light-map
 (-50%). The walkthrough looks the same from inside and outside at the same camera poses (compared side by side). High
 keeps 4096. The server's default Low bake rates are now the measured ones (6.5 s per megapixel per storey map, 4 s for
 the site).
+
+## 27. Blueprint minimap, bottom left (web/view.js, web/view.html)
+
+What: the map (M) moves to the bottom left and is drawn as a blueprint. It has a deep blue sheet, a grid every metre
+(stronger every 5 m), white walls, thin room outlines (dashed outdoors, orange for custom areas), stair treads and a
+5 m (or 1 m) scale bar, with lettering in monospace. Water, closed shafts and other large blocked areas are outlined
+and hatched rather than filled white, so the pool and the dock show as such. A room name that does not fit is tried
+two sizes smaller before it is left out. The orange "you are here" dot, the view cone and the room highlight are as
+before.

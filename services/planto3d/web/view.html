@@ -24,10 +24,11 @@
   #bar button.live { background: #b3261e; border-color: #b3261e; color: #fff; }
   #fps { color: #bbb; font-size: 12px; margin-left: auto; background: rgba(0,0,0,.4); padding: 4px 8px; border-radius: 6px; }
   #floors { display: contents; }
-  #map { position: fixed; right: 12px; bottom: 58px; width: 220px; height: 220px; border-radius: 12px; cursor: pointer;
-         background: rgba(14, 16, 20, .78); border: 1px solid rgba(255, 255, 255, .18); }
-  #map.big { right: 50%; bottom: 50%; transform: translate(50%, 50%); width: min(88vw, 88vh, 900px); height: min(88vw, 88vh, 900px);
-             background: rgba(14, 16, 20, .92); }
+  /* the map: a blueprint, bottom left (white lines on deep blue) */
+  #map { position: fixed; left: 12px; bottom: 58px; width: 220px; height: 220px; border-radius: 10px; cursor: pointer;
+         background: rgba(16, 58, 112, .9); border: 1px solid rgba(190, 220, 255, .45); box-shadow: 0 4px 18px rgba(0, 0, 0, .35); }
+  #map.big { left: 50%; bottom: 50%; transform: translate(-50%, 50%); width: min(88vw, 88vh, 900px); height: min(88vw, 88vh, 900px);
+             background: rgba(16, 58, 112, .96); }
   .mapbig #room, .mapbig #cross { visibility: hidden; }      /* the large map shows the room itself */
   @media (max-width: 600px) { #map:not(.big) { width: 130px; height: 130px; bottom: 100px; } }
   @media (pointer: coarse) { .desk { display: none; } }

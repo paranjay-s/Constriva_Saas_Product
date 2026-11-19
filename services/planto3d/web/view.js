@@ -232,7 +232,7 @@ floors.forEach((f, i) => {
 const map = $('map'), mg = map.getContext('2d');
 // water (pool, water body, dock) is blue on the map and in the top view (web/rooms.json kinds)
 const WATER = new Set(['pool', 'water', 'dock']);
-const OUTSIDE = new Set(['open', 'garden', 'yard', 'balcony', 'parking']);
+const OUTSIDE = new Set(['open', 'garden', 'yard', 'balcony', 'parking', 'court', 'custom']);
 const roomName = (r) => (r.label || r.type).split(/\s+/).filter((w) => !/\d/.test(w)).join(' ').toUpperCase() || r.type.toUpperCase();   // without the size
 let mapBig = false;
 function toggleMap() { mapBig = !mapBig; map.classList.toggle('big', mapBig); document.body.classList.toggle('mapbig', mapBig); }
@@ -249,28 +249,79 @@ function drawMap(lv) {
   const X = (x) => (w - (x1 - x0) * k) / 2 + (x - x0) * k, Y = (y) => (h + (y1 - y0) * k) / 2 - (y - y0) * k;   // plan +y is up
   const box = (r) => mg.fillRect(X(r[0]), Y(r[3]), (r[1] - r[0]) * k, (r[3] - r[2]) * k);
   const here = f.rooms.find((r) => r.rects.some((q) => walk.inRect(q, p.x, p.y)));
+  // blueprint grid: a fine line every metre, a stronger one every 5 m (when they are far enough apart)
+  if (k >= 4) {
+    for (let m = Math.ceil(x0); m <= x1; m++) {
+      mg.fillStyle = m % 5 ? 'rgba(190, 220, 255, .08)' : 'rgba(190, 220, 255, .18)';
+      mg.fillRect(Math.round(X(m)), 0, 1, h);
+    }
+    for (let m = Math.ceil(y0); m <= y1; m++) {
+      mg.fillStyle = m % 5 ? 'rgba(190, 220, 255, .08)' : 'rgba(190, 220, 255, .18)';
+      mg.fillRect(0, Math.round(Y(m)), w, 1);
+    }
+  }
+  const outline = (r) => mg.strokeRect(X(r[0]) + 0.5, Y(r[3]) + 0.5, (r[1] - r[0]) * k - 1, (r[3] - r[2]) * k - 1);
   // an upper storey is drawn only where it has a floor: a void or a yard open to the storey below stays dark
   mg.save();
   if (f.floor) { mg.beginPath(); [...f.floor, ...(f.stairs || []).map((s) => s.rect)].forEach((r) => mg.rect(X(r[0]), Y(r[3]), (r[1] - r[0]) * k, (r[3] - r[2]) * k)); mg.clip(); }
+  mg.lineWidth = 1;
   for (const r of f.rooms) {
-    mg.fillStyle = r === here ? 'rgba(224, 122, 72, .5)' : WATER.has(r.type) ? 'rgba(74, 163, 223, .75)'
-      : OUTSIDE.has(r.type) ? 'rgba(120, 170, 110, .22)' : 'rgba(255, 255, 255, .13)';
+    mg.fillStyle = r === here ? 'rgba(255, 170, 110, .35)' : WATER.has(r.type) ? 'rgba(120, 205, 255, .55)'
+      : OUTSIDE.has(r.type) ? 'rgba(160, 230, 170, .10)' : 'rgba(255, 255, 255, .07)';
     r.rects.forEach(box);
+    mg.strokeStyle = r.type === 'custom' ? 'rgba(255, 170, 70, .9)' : 'rgba(220, 238, 255, .35)';
+    mg.setLineDash(OUTSIDE.has(r.type) ? [3, 3] : []);
+    r.rects.forEach(outline);
   }
+  mg.setLineDash([]);
   mg.restore();
-  mg.fillStyle = 'rgba(196, 154, 108, .85)';
-  (f.stairs || []).forEach((s) => box(s.rect));
-  mg.fillStyle = 'rgba(255, 255, 255, .85)';
-  f.colliders.forEach(box);
+  // stairs: an outline with treads
+  mg.strokeStyle = 'rgba(235, 245, 255, .8)';
+  for (const s of f.stairs || []) {
+    outline(s.rect);
+    if (s.landing) continue;
+    const [a0, a1, b0, b1] = s.axis === 'x' ? [s.rect[0], s.rect[1], s.rect[2], s.rect[3]] : [s.rect[2], s.rect[3], s.rect[0], s.rect[1]];
+    for (let t = a0 + 0.28; t < a1; t += 0.28) {
+      mg.beginPath();
+      if (s.axis === 'x') { mg.moveTo(X(t), Y(b0)); mg.lineTo(X(t), Y(b1)); } else { mg.moveTo(X(b0), Y(t)); mg.lineTo(X(b1), Y(t)); }
+      mg.stroke();
+    }
+  }
+  // walls in white; a larger blocked area (water, a closed shaft) only outlined and hatched, so its colour shows
+  mg.fillStyle = 'rgba(245, 250, 255, .95)';
+  for (const c of f.colliders) {
+    if (Math.min(c[1] - c[0], c[3] - c[2]) <= 0.6) { box(c); continue; }
+    mg.save();
+    mg.beginPath(); mg.rect(X(c[0]), Y(c[3]), (c[1] - c[0]) * k, (c[3] - c[2]) * k); mg.clip();
+    mg.strokeStyle = 'rgba(220, 238, 255, .3)';
+    for (let t = -h; t < w; t += 7) { mg.beginPath(); mg.moveTo(t, h); mg.lineTo(t + h, 0); mg.stroke(); }
+    mg.restore();
+    mg.strokeStyle = 'rgba(235, 245, 255, .7)';
+    outline(c);
+  }
+  // scale bar: 5 m (or 1 m on a small plan), bottom right
+  const bar = (x1 - x0) > 8 ? 5 : 1, bx = w - pad - bar * k, by = h - pad / 2 - 4;
+  if (bar * k > 12 && bar * k < w / 2) {
+    mg.fillStyle = 'rgba(235, 245, 255, .85)';
+    mg.fillRect(bx, by, bar * k, 2); mg.fillRect(bx, by - 4, 1.5, 6); mg.fillRect(bx + bar * k - 1.5, by - 4, 1.5, 6);
+    mg.font = `${mapBig ? 12 : 9}px ui-monospace, Menlo, monospace`; mg.textAlign = 'center'; mg.textBaseline = 'bottom';
+    mg.fillText(`${bar} m`, bx + bar * k / 2, by - 3);
+  }
   const size = mapBig ? 13 : 9;
-  mg.font = `600 ${size}px system-ui, sans-serif`;
+  mg.font = `600 ${size}px ui-monospace, Menlo, monospace`;
   mg.textAlign = 'center';
   mg.textBaseline = 'middle';
-  mg.fillStyle = '#fff';
+  mg.fillStyle = '#eaf4ff';
   for (const r of f.rooms) {            // a name is drawn only where it fits inside its room
     const q = r.rects.reduce((a, b) => ((b[1] - b[0]) * (b[3] - b[2]) > (a[1] - a[0]) * (a[3] - a[2]) ? b : a));
     const name = roomName(r);
-    if (mg.measureText(name).width < (q[1] - q[0]) * k - 2 && size < (q[3] - q[2]) * k - 2) mg.fillText(name, X((q[0] + q[1]) / 2), Y((q[2] + q[3]) / 2));
+    for (const sz of [size, size - 2, size - 3]) {      // smaller lettering before leaving a name out
+      mg.font = `600 ${sz}px ui-monospace, Menlo, monospace`;
+      if (mg.measureText(name).width < (q[1] - q[0]) * k - 2 && sz < (q[3] - q[2]) * k - 2) {
+        mg.fillText(name, X((q[0] + q[1]) / 2), Y((q[2] + q[3]) / 2));
+        break;
+      }
+    }
   }
   // you: a view cone and a dot (yaw 0 looks along plan +y, turning left is positive)
   const px = X(p.x), py = Y(p.y), a = -Math.PI / 2 - p.yaw, len = mapBig ? 70 : 30;
