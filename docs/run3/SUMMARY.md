@@ -25,7 +25,7 @@ The run started on battery (35 %, discharging): no renders until it was charging
   palm (the library uses a simple potted crown); `post.py` (bloom, S-curve, vignette, grain, sharpening); and the
   still-plus-depth tour (Stage 10).
 
-## Stage 1: the library (in progress)
+## Stage 1: the library (partial)
 - 44 pieces: sofa, armchair, coffee and side tables, floor and table lamps, TV unit, rug, plant, dining set for 6 to
   10, sideboard, pendant cluster, bed, nightstand, wardrobe, dresser, desk, WC, vanity with a mirror halo, shower with
   fluted glass, bathtub, towel rail, fridge, oven and microwave tower, dishwasher, coffee machine, washer, dryer,
@@ -37,3 +37,56 @@ The run started on battery (35 %, discharging): no renders until it was charging
 - Contact sheet: `docs/run3/library/contact_sheet.png` (git-ignored).
 - Index: `services/planto3d/library/index.json`. The `asset_library` table migration is written, not applied.
 - The house is now assembled from these pieces (§38). Prayer rooms are no longer furnished as puja rooms.
+- Parametric: spiral stairs (marked by label or the review page's checkbox), lift landing doors, call panels and
+  cabin (§42). A metals-black bug in the house's light bake was fixed for every build (metalness is zeroed during
+  the colour bake). **Not done:** circular rooms and curved walls (no reader finds curved walls yet), any-polygon room
+  shells, pool/dock/exterior kits in the new style, the library tests (polygon budgets, clash-free placement in rooms
+  of 6-80 m², determinism), a daylight preset, LOD foliage.
+
+## Stage 2: readers (not done)
+The scanned reader (OpenCV + OCR) and a reader router were not started this run. The existing vector reader,
+AI plan reader and tracing fallbacks are unchanged.
+
+## Stage 3: AI gap-filler (done, off by default)
+One cached call per plan (`gapfill.py`, prompt `gapfill_v1.md`, fixed schema) fills names, types and legends. Walls
+are added only where the drawing backs them (PlanTo3D `/support`: strokes on both faces, thin fills); everything
+else becomes a suggestion in "Needs checking". On the drawing check, 20 of 32 real walls were supported and 0 of 25
+made-up lines. Live test: with hints of the drawing's unused labels, the model proposed the lobby walls and doors,
+which became 4 suggestions. Switch: `PLAN3D_AI_GAPFILL`.
+
+## Stage 4: verifier (done)
+`services/planto3d/verify.py`, pure code with severities (critical, warning, info): overlaps, open rooms, dangling
+walls, doors that lead nowhere, windows inside the house, stairs without direction or landing, overhangs, area
+totals, size mismatches, unknown scale. 0 warnings on 200 true generated plans.
+
+## Stage 5: dimensions (partial)
+`fit.py` fits wall lines to the printed room sizes by least squares (wall thickness weighted, a global scale ratio
+first, 0.1 ft tolerance) and reports the rest. On held-out vector plans, labelled rooms within 2 % of their label went
+from 172/316 to 217/316; area error against the truth from 43.4 % to 42.4 %. **Not done:** dimension lines, the AI
+scale estimate for undimensioned plans, the ceiling-height control. The 2 % target is not met (69 % of rooms).
+
+## Stage 6: review page (partial)
+Severity checklist with Fix and Dismiss and a count; critical items keep Build off; room names and ft-in sizes on
+the plan; typed room sizes; spiral checkbox (§43). Screenshots: `docs/run3/review/`. **Not done:** rebuild in the
+frontend's style, live 3D shell preview, autosave, split and merge, phone layout.
+
+## Stage 7: assembly (partial)
+Rooms are furnished from the library kits and the kit used for each room is recorded in the build's meta. **Not
+done:** a style seeded by a plan hash.
+
+## Stage 8: creator agent (done, off by default)
+- `backend/app/modules/plan3d/creator.py`: a Messages API tool loop (claude-opus-5-5, medium effort, server-side
+  fallbacks) with 11 client tools. Each call goes to a Blender worker on PlanTo3D that knows only fixed operations,
+  runs in its own folder with an empty environment, a 10-minute limit and a triangle budget. The API key never
+  leaves the gateway. Blender MCP was not used: a closed operation set is easier to sandbox than a general MCP server.
+- Validation: fits the area, stands on the floor, preview + .blend + .glb present. Saved as **unreviewed** with its
+  prompt, cost, turns and model; builds use it only after approval or with `PLAN3D_USE_UNREVIEWED`.
+- Admin page: `web/library.html` (approve and reject in developer mode). Gateway endpoint `POST /api/v1/3d/creator`
+  needs `PLAN3D_CREATOR_AGENT` and a user id in `PLAN3D_CREATOR_ADMINS`.
+- **What it made:** for an invented area, "koi pond with deck" (6 × 4 m), the live agent built a sunken pond with a
+  stone edge, a timber deck with a step, two lanterns, koi, lily pads and corner planting in 4 calls, 67 s and $0.29;
+  1,886 triangles, 6.00 × 4.00 × 0.85 m. Preview: `docs/run3/creator/koi_pond_preview.png`. The water reads very dark
+  in the evening preview. A scripted helipad tested the pipeline without a model.
+
+## Running totals
+Live AI calls: 6 of 80. Render time: about 30 minutes. Free disk: about 299 GB.
