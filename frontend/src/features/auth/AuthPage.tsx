@@ -4,7 +4,7 @@
  */
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { DEMO_ALLOWED, useAuth } from '../../context/AuthContext';
 import { SESSION_NOTICE_KEY } from '../../lib/api';
 import '../dashboard/dashboard.css';
 import { ArchMark, ArrowRight } from '../dashboard/icons';
@@ -187,14 +187,18 @@ export const AuthPage: React.FC = () => {
               <ArrowRight />
             </button>
 
-            <div className="cv-or" aria-hidden="true">
-              or
-            </div>
+            {DEMO_ALLOWED && (
+              <>
+                <div className="cv-or" aria-hidden="true">
+                  or
+                </div>
 
-            <button type="button" className="cv-btn" style={{ minHeight: 52 }} onClick={handleDemoAccess}>
-              <span className="cv-dot cv-pulse" style={{ width: 8, height: 8 }} aria-hidden="true" />
-              Instant architect demo access
-            </button>
+                <button type="button" className="cv-btn" style={{ minHeight: 52 }} onClick={handleDemoAccess}>
+                  <span className="cv-dot cv-pulse" style={{ width: 8, height: 8 }} aria-hidden="true" />
+                  Instant architect demo access
+                </button>
+              </>
+            )}
           </form>
         </section>
       </main>

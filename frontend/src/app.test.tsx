@@ -12,6 +12,7 @@ import { AiGeneratorPage } from './features/chat/AiGeneratorPage';
 import { LegacyAiGeneratorPage } from './features/chat/LegacyAiGeneratorPage';
 import { MaterialFinderPage } from './features/materials';
 import { LoanAnalysisPage } from './features/loan/LoanAnalysisPage';
+import { TOKEN_STORAGE_KEY } from './lib/api';
 
 // Helper to render within required providers
 function renderWithProviders(ui: React.ReactElement, initialRoute = '/') {
@@ -29,7 +30,8 @@ describe('Constriva Frontend - 9 Core Required Pages', () => {
     renderWithProviders(<AuthPage />);
     expect(screen.getByText(/architectural intelligence platform/i)).toBeDefined();
     expect(screen.getByText(/sign in to workspace/i)).toBeDefined();
-    expect(screen.getByText(/instant architect demo access/i)).toBeDefined();
+    // demo access is off unless VITE_ALLOW_DEMO_USER is set (the API refuses requests without a token)
+    expect(screen.queryByText(/instant architect demo access/i)).toBeNull();
   });
 
   it('renders Route 2: /home (Project overview)', () => {
@@ -105,6 +107,7 @@ describe('2D to 3D routes', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    localStorage.setItem(TOKEN_STORAGE_KEY, 'test-token'); // a signed-in session (checked with /auth/me)
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     // the server as it answers an account without projects or plans
     vi.stubGlobal(
@@ -112,6 +115,9 @@ describe('2D to 3D routes', () => {
       vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const path = new URL(String(input)).pathname;
         const method = init?.method ?? 'GET';
+        if (method === 'GET' && path === '/api/v1/auth/me') {
+          return json({ id: '11111111-1111-1111-1111-111111111111', email: 'asha@studio.example', full_name: 'Asha Verma' });
+        }
         if (method === 'GET' && path === '/api/v1/3d/system') {
           return json({ reachable: true, ready: true, checks: {}, detail: '', qualities: [] });
         }
@@ -172,4 +178,21 @@ describe('2D to 3D routes', () => {
     expect(await screen.findByRole('heading', { name: 'This plan was not found' })).toBeDefined();
     expect(router.state.location.pathname).toBe('/3d/a1b2c3d4e5f6');
   });
+});
+
+describe('signed out', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each(['/home', '/projects/ai-generator', '/materials/analyse', '/boq', '/3d', '/3d/abcdef012345', '/projects/new'])(
+    'sends a visit to %s to sign in',
+    async (path) => {
+      const router = openRoute(path);
+      await screen.findByText(/sign in to workspace/i);
+      expect(router.state.location.pathname).toBe('/auth');
+    },
+  );
 });

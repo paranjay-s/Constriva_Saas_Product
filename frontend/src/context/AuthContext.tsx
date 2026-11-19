@@ -2,6 +2,10 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from '../types';
 import { authApi, clearSession, saveSession, SESSION_EXPIRED_EVENT, TOKEN_STORAGE_KEY } from '../lib/api';
 
+/** Demo access without signing in: off unless VITE_ALLOW_DEMO_USER is true, matching the API, which
+ * refuses requests without a token unless AUTH_ALLOW_DEMO_USER is set (backend/app/core/security.py). */
+export const DEMO_ALLOWED = import.meta.env.VITE_ALLOW_DEMO_USER === 'true';
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -48,10 +52,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
 
-        if (storedUser) {
+        if (storedUser && (storedToken || DEMO_ALLOWED)) {
+          // (a user saved without a token is the demo user: kept only while demo access is on)
           setUser(JSON.parse(storedUser));
-        } else {
-          // Provide demo user initially so pages are easily testable
+        } else if (DEMO_ALLOWED) {
+          // demo access is on: a first visit starts as the demo user
           const demoUser: User = {
             id: '00000000-0000-0000-0000-000000000001',
             email: 'demo@construtiva.ai',
@@ -128,6 +133,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginAsDemo = () => {
+    if (!DEMO_ALLOWED) return;
     const demoUser: User = {
       id: '00000000-0000-0000-0000-000000000001',
       email: 'demo@construtiva.ai',
