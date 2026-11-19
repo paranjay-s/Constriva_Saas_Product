@@ -50,22 +50,32 @@ export const router = createBrowserRouter([
         element: <WorkspacePage />,
       },
       {
-        path: '/projects/ai-generator',
-        element: <AiGeneratorPage />,
-      },
-      {
         path: '/projects/ai-generator/legacy',
         element: <LegacyAiGeneratorPage />,
-      },
-      {
-        path: '/materials/analyse',
-        element: <MaterialFinderPage />,
       },
       {
         path: '/projects/loan-analysis',
         element: <LoanAnalysisPage />,
       },
     ],
+  },
+
+  // Chat studios (floor plans, image analysis): full screen with their own sidebar
+  {
+    path: '/projects/ai-generator',
+    element: (
+      <ProtectedRoute>
+        <AiGeneratorPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/materials/analyse',
+    element: (
+      <ProtectedRoute>
+        <MaterialFinderPage />
+      </ProtectedRoute>
+    ),
   },
 
   // Landing Page Route

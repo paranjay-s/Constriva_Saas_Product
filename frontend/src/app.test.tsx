@@ -38,10 +38,12 @@ describe('Constriva Frontend - 9 Core Required Pages', () => {
     expect(screen.getByText(/instant architect demo access/i)).toBeDefined();
   });
 
-  it('renders Route 2: /home (Strictly 2 Primary Choices: Create Project & Analyse Materials)', () => {
+  it('renders Route 2: /home (Project overview)', () => {
     renderWithProviders(<HomePage />);
-    expect(screen.getByText(/create new project/i)).toBeDefined();
-    expect(screen.getByText(/analyse interior materials/i)).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Project overview' })).toBeDefined();
+    expect(screen.getByRole('link', { name: /create new project/i })).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Floor plan chat' })).toBeDefined();
+    expect(screen.getByRole('link', { name: 'Image analysis' })).toBeDefined();
   });
 
   it('renders Route 3: /projects/new (Project Setup Information)', () => {
@@ -53,7 +55,7 @@ describe('Constriva Frontend - 9 Core Required Pages', () => {
 
   it('renders Route 4: /projects/options (Strictly 2 Workflow Choices)', () => {
     renderWithProviders(<ProjectOptionsPage />);
-    expect(screen.getByText(/how would you like to build your plan\?/i)).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Choose a plan source' })).toBeDefined();
     expect(screen.getByText(/import existing 2d plan/i)).toBeDefined();
     expect(screen.getByText(/create your own 2d plan/i)).toBeDefined();
   });
@@ -68,16 +70,16 @@ describe('Constriva Frontend - 9 Core Required Pages', () => {
   it('renders Route 6: /projects/3d-workspace (3D Model & BOQ Material Estimate)', () => {
     renderWithProviders(<WorkspacePage />);
     expect(screen.getByText(/bill of materials/i)).toBeDefined();
-    expect(screen.getByText(/total estimated material cost/i)).toBeDefined();
+    expect(screen.getByText(/engineering quantity survey/i)).toBeDefined();
     expect(screen.getByTestId('mock-3d-plan-viewer')).toBeDefined();
   });
 
   it('renders Route 7: /projects/ai-generator (AI Floor Plan Generator)', () => {
     renderWithProviders(<AiGeneratorPage />);
-    expect(screen.getByText(/ai floor plan generator/i)).toBeDefined();
-    // a floor plan is always made inside a project: the page asks for one first
-    expect(screen.getByText(/choose a project first/i)).toBeDefined();
-    expect(screen.getByRole('button', { name: /create a new project/i })).toBeDefined();
+    // chat studio: sidebar with history, composer in the middle, project picker
+    expect(screen.getByRole('complementary', { name: 'Sidebar' })).toBeDefined();
+    expect(screen.getByRole('textbox', { name: /describe the house/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /choose project/i })).toBeDefined();
   });
 
   it('keeps the old generator at /projects/ai-generator/legacy until it is retired', () => {
@@ -87,9 +89,9 @@ describe('Constriva Frontend - 9 Core Required Pages', () => {
 
   it('renders Route 8: /materials/analyse (Material Finder)', () => {
     renderWithProviders(<MaterialFinderPage />);
-    expect(screen.getByText(/material finder/i)).toBeDefined();
-    expect(screen.getByText(/upload a photo of a room, kitchen or facade/i)).toBeDefined();
-    expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeDefined();
+    expect(screen.getByText(/material finder · the ai names the finishes/i)).toBeDefined();
+    expect(screen.getByRole('textbox', { name: /ask about the photo/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /add photos/i })).toBeDefined();
     expect(screen.queryByText('What should I look at?')).toBeNull();
   });
 

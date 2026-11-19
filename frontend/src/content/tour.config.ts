@@ -1,7 +1,7 @@
 import { siteContent } from "./site";
 
 export const FRAME_COUNT = 421;
-export const VERSION = "1";
+export const VERSION = "2";
 export const ROOMS = siteContent.beats.length - 1;
 export const PER_ROOM = (FRAME_COUNT - 1) / ROOMS;
 

@@ -1,9 +1,10 @@
 /**
- * Step 2: show what was understood before anything is drawn. Conflicts (description vs
- * form), assumptions and unknowns are listed so nothing is decided silently.
+ * "Is this right?": what was understood before anything is drawn, styled for the chat
+ * studio. Conflicts, assumptions and unknowns are listed so nothing is decided silently.
+ * The villa and owner names go into the plan's title block (PROJECT / OWNER).
  */
-import { Button } from '../../../components/ui/Button';
-import { IconArrowLeft, IconSparkles } from '../../../components/ui/Icons';
+import type { ReactNode } from 'react';
+import { Icon } from '../../studio/icons';
 import { POOL_LAYOUTS, type ParseResponse } from '../schemas';
 
 const ROOM_NAMES: Record<string, string> = {
@@ -34,11 +35,10 @@ function plotText(p: ParseResponse['brief']['plot']): string {
 
 function List({ title, items, tone }: { title: string; items: string[]; tone: 'warn' | 'info' | 'error' }) {
   if (!items.length) return null;
-  const color = { warn: 'text-[#F2C46D]', info: 'text-[#9AA3B2]', error: 'text-[#FFB4AB]' }[tone];
   return (
-    <div>
-      <h4 className={`mb-1 text-xs font-semibold uppercase tracking-wide ${color}`}>{title}</h4>
-      <ul className="list-disc space-y-0.5 pl-5 text-sm text-[#D5DAE1]">
+    <div className="st-blist" data-tone={tone}>
+      <h4>{title}</h4>
+      <ul>
         {items.map((t) => (
           <li key={t}>{t}</li>
         ))}
@@ -47,14 +47,23 @@ function List({ title, items, tone }: { title: string; items: string[]; tone: 'w
   );
 }
 
+export interface PlanNames {
+  project: string;
+  owner: string;
+}
+
 interface Props {
   parsed: ParseResponse;
   busy: boolean;
   onBack: () => void;
   onGenerate: () => void;
+  /** Villa and owner names for the title block; editable while the card is current. */
+  names?: PlanNames;
+  onNames?: (n: PlanNames) => void;
+  footer?: ReactNode;
 }
 
-export function ConfirmationCard({ parsed, busy, onBack, onGenerate }: Props) {
+export function ConfirmationCard({ parsed, busy, onBack, onGenerate, names, onNames, footer }: Props) {
   const b = parsed.brief;
   const rows: [string, string][] = [
     ['Plot', plotText(b.plot) + (b.plot.shape_assumed ? ' (shape assumed from the area)' : '')],
@@ -66,64 +75,100 @@ export function ConfirmationCard({ parsed, busy, onBack, onGenerate }: Props) {
     const layout = POOL_LAYOUTS.find((p) => p.value === (b.pool_layout ?? 'side'));
     if (layout) rows.push(['Pool', `${layout.label} (${layout.hint})`]);
   }
-  if (b.project_name) rows.push(['Project', b.project_name]);
-  if (b.owner_name) rows.push(['Owner', b.owner_name]);
+  if (!names) {
+    if (b.project_name) rows.push(['Project', b.project_name]);
+    if (b.owner_name) rows.push(['Owner', b.owner_name]);
+  }
   const conflicts = b.conflicts.map(
     (c) => `${c.field}: the form said ${c.form_value}, the description said ${c.text_value}; ${c.resolution}.`,
   );
+  const editable = !!onNames && !busy;
 
   return (
-    <section aria-labelledby="fp-confirm-title" className="flex flex-col gap-4">
-      <div>
-        <h3 id="fp-confirm-title" className="text-base font-semibold text-white">
-          Is this right?
-        </h3>
-        <p className="text-sm text-[#9AA3B2]">{parsed.summary}</p>
-      </div>
-
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-md border border-[#23272F] bg-[#0F1115] p-3 text-sm">
-        {rows.map(([k, v]) => (
-          <div key={k} className="contents">
-            <dt className="text-[#7D8594]">{k}</dt>
-            <dd className="text-white">{v}</dd>
-          </div>
-        ))}
-      </dl>
-
-      {b.rooms.length > 0 && (
-        <div className="flex flex-wrap gap-1.5" aria-label="Rooms">
-          {b.rooms.map((r, i) => (
-            <span key={`${r.type}-${i}`} className="rounded-full bg-[#1C1F26] px-2.5 py-1 text-xs text-[#D5DAE1]">
-              {r.count > 1 ? `${r.count}× ` : ''}
-              {r.label ?? roomName(r.type)}
-              {r.attached_bath ? ' + attached bath' : ''}
-              {r.dress_room ? ' + dress' : ''}
-            </span>
-          ))}
+    <section aria-labelledby="fp-confirm-title" className="st-card st-brief">
+      <header className="st-brief-head">
+        <span className="st-brief-icon" aria-hidden="true">
+          <Icon name="plan" small />
+        </span>
+        <div>
+          <h3 id="fp-confirm-title">Is this right?</h3>
+          <p>{parsed.summary}</p>
         </div>
-      )}
+      </header>
 
-      <List title="Needed before drawing" items={parsed.missing} tone="error" />
-      <List title="Form and description disagree" items={conflicts} tone="warn" />
-      <List title="Please note" items={[...parsed.warnings, ...b.unknowns]} tone="warn" />
-      <List title="Assumed" items={b.assumptions} tone="info" />
+      <div className="st-brief-body">
+        <dl className="st-kv">
+          {rows.map(([k, v]) => (
+            <div key={k}>
+              <dt>{k}</dt>
+              <dd>{v}</dd>
+            </div>
+          ))}
+        </dl>
 
-      <div className="flex gap-2">
-        <Button type="button" variant="secondary" onClick={onBack} leftIcon={<IconArrowLeft className="h-4 w-4" />}>
-          Change
-        </Button>
-        <Button
-          type="button"
-          variant="accent"
-          fullWidth
-          disabled={!parsed.ready || busy}
-          loading={busy}
-          onClick={onGenerate}
-          leftIcon={<IconSparkles className="h-4 w-4" />}
-        >
-          Generate plan
-        </Button>
+        {b.rooms.length > 0 && (
+          <div className="st-tags" aria-label="Rooms">
+            {b.rooms.map((r, i) => (
+              <span key={`${r.type}-${i}`} className="st-tag">
+                {r.count > 1 ? `${r.count}× ` : ''}
+                {r.label ?? roomName(r.type)}
+                {r.attached_bath ? ' + attached bath' : ''}
+                {r.dress_room ? ' + dress' : ''}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {names && (
+          <div className="st-names">
+            <label className="st-field">
+              <span>Villa / project name</span>
+              <input
+                value={names.project}
+                maxLength={120}
+                placeholder="e.g. Granite Villa"
+                disabled={!editable}
+                onChange={(e) => onNames?.({ ...names, project: e.target.value })}
+              />
+            </label>
+            <label className="st-field">
+              <span>Owner name</span>
+              <input
+                value={names.owner}
+                maxLength={120}
+                placeholder="e.g. Mr. A. Sharma"
+                disabled={!editable}
+                onChange={(e) => onNames?.({ ...names, owner: e.target.value })}
+              />
+            </label>
+            <p className="st-names-hint">Printed in the title block of the plan, next to the total area.</p>
+          </div>
+        )}
+
+        <List title="Needed before drawing" items={parsed.missing} tone="error" />
+        <List title="Form and description disagree" items={conflicts} tone="warn" />
+        <List title="Please note" items={[...parsed.warnings, ...b.unknowns]} tone="warn" />
+        <List title="Assumed" items={b.assumptions} tone="info" />
+
+        {footer}
       </div>
+
+      <footer className="st-brief-actions">
+        <button type="button" className="st-btn" onClick={onBack} disabled={busy}>
+          <Icon name="pen" small />
+          Change
+        </button>
+        <button
+          type="button"
+          className="st-btn st-btn-primary"
+          disabled={!parsed.ready || busy}
+          aria-busy={busy || undefined}
+          onClick={onGenerate}
+        >
+          <Icon name="spark" small />
+          Generate plan
+        </button>
+      </footer>
     </section>
   );
 }

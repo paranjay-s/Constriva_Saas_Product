@@ -1,342 +1,355 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  ArrowRightIcon,
-  BoxIcon,
-  ImageIcon,
-  RefreshIcon,
-  TrashIcon,
-  IconSparkles,
-  IconFilePdf,
-} from '../../components/ui/Icons';
+/**
+ * Route /home: project overview. Everything shown is read from the backend: the user's
+ * projects, the 2D floor plans in each, and the image analyses.
+ */
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import { useProject } from '../../context/ProjectContext';
+import type { Project } from '../../types';
+import {
+  ArrowRight,
+  DashedRing,
+  PhotoIcon,
+  PlanIcon,
+  Plus,
+  Refresh,
+  Skyline,
+  Trash,
+  dayLabel,
+  plural,
+  shortDate,
+} from '../dashboard';
 import { type FloorplanSummary, floorplanApi } from '../floorplan';
+import { materialApi } from '../materials';
+import type { SessionSummary } from '../materials/schemas';
 
-export const HomePage: React.FC = () => {
+const HERO = '/assets/house-bg.webp?v=lantern1';
+const PLANS_SHOWN = 3;
+const CHATS_SHOWN = 3;
+
+type Chat =
+  | { kind: 'plan'; id: string; title: string; meta: string; at: string; plan: FloorplanSummary }
+  | { kind: 'image'; id: string; title: string; meta: string; at: string };
+
+const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
+
+export function HomePage() {
   const navigate = useNavigate();
-  const {
-    projects,
-    isLoadingProjects,
-    fetchProjects,
-    selectProject,
-    deleteProject,
-    activeProject,
-  } = useProject();
+  const { user } = useAuth();
+  const { projects, isLoadingProjects, projectsError, fetchProjects, selectProject, deleteProject, activeProject } =
+    useProject();
 
-  // 2D floor plans made with the generator, grouped by their project
-  const [plansByProject, setPlansByProject] = useState<Record<string, FloorplanSummary[]>>({});
-  const loadPlans = async () => {
-    try {
-      const grouped: Record<string, FloorplanSummary[]> = {};
-      for (const p of await floorplanApi.list()) {
-        if (p.project_id) (grouped[p.project_id] ??= []).push(p);
-      }
-      setPlansByProject(grouped);
-    } catch (err) {
-      console.warn('Could not load floor plans:', err);
+  const [plans, setPlans] = useState<FloorplanSummary[] | null>(null);
+  const [plansError, setPlansError] = useState<string | null>(null);
+  const [analyses, setAnalyses] = useState<SessionSummary[] | null>(null);
+  const [analysesError, setAnalysesError] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  // a project opened from the bottom of a long list would otherwise be half out of view
+  useEffect(() => {
+    if (openId) document.getElementById(`cv-project-${openId}`)?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+  }, [openId]);
+
+  const load = () => {
+    void fetchProjects();
+    floorplanApi
+      .list()
+      .then((list) => {
+        setPlans(list);
+        setPlansError(null);
+      })
+      .catch((err) => setPlansError(errorText(err, 'Floor plans could not be loaded.')));
+    materialApi
+      .list()
+      .then((list) => {
+        setAnalyses(list);
+        setAnalysesError(null);
+      })
+      .catch((err) => setAnalysesError(errorText(err, 'Image analyses could not be loaded.')));
+  };
+  useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const plansByProject = useMemo(() => {
+    const grouped: Record<string, FloorplanSummary[]> = {};
+    for (const p of plans ?? []) if (p.project_id) (grouped[p.project_id] ??= []).push(p);
+    return grouped;
+  }, [plans]);
+
+  const skyline = useMemo(
+    () => projects.map((p) => ({ id: p.id, name: p.name, plans: plansByProject[p.id]?.length ?? 0 })),
+    [projects, plansByProject],
+  );
+
+  const chats = useMemo<Chat[]>(() => {
+    const all: Chat[] = [
+      ...(plans ?? []).map(
+        (p): Chat => ({
+          kind: 'plan',
+          id: p.id,
+          title: p.name,
+          meta: [`v${p.version}`, dayLabel(p.created_at)].filter(Boolean).join(' · '),
+          at: p.created_at,
+          plan: p,
+        }),
+      ),
+      ...(analyses ?? []).map(
+        (a): Chat => ({
+          kind: 'image',
+          id: a.id,
+          title: a.title || a.scene || 'Image analysis',
+          meta: [a.materials != null ? plural(a.materials, 'material') : '', dayLabel(a.created_at)]
+            .filter(Boolean)
+            .join(' · '),
+          at: a.created_at,
+        }),
+      ),
+    ];
+    return all.sort((a, b) => b.at.localeCompare(a.at)).slice(0, CHATS_SHOWN);
+  }, [plans, analyses]);
+
+  // the expanded card: the one the user opened, else the active project, else the newest
+  const expanded =
+    projects.find((p) => p.id === openId) ?? projects.find((p) => p.id === activeProject?.id) ?? projects[0] ?? null;
+
+  const openChat = (c: Chat) => {
+    if (c.kind === 'image') {
+      navigate(`/materials/analyse?analysis=${encodeURIComponent(c.id)}`);
+      return;
     }
+    const owner = projects.find((p) => p.id === c.plan.project_id);
+    if (owner) void selectProject(owner);
+    navigate(`/projects/ai-generator?plan=${encodeURIComponent(c.id)}`);
   };
 
-  useEffect(() => {
-    fetchProjects();
-    void loadPlans();
-  }, []);
-
-  const openFloorplan = (e: React.MouseEvent, project: (typeof projects)[0], planId: string) => {
-    e.stopPropagation();
+  const openPlan = (project: Project, planId: string) => {
     void selectProject(project);
     navigate(`/projects/ai-generator?plan=${encodeURIComponent(planId)}`);
   };
 
-  const newFloorplan = (e: React.MouseEvent, project: (typeof projects)[0]) => {
-    e.stopPropagation();
+  const newPlan = (project: Project) => {
     void selectProject(project);
     navigate('/projects/ai-generator');
   };
 
-  const handleOpenProject = async (project: (typeof projects)[0]) => {
+  const enterWorkspace = async (project: Project) => {
     await selectProject(project);
     navigate('/projects/3d-workspace');
   };
 
-  const handleDeleteProject = async (e: React.MouseEvent, projectId: string) => {
-    e.stopPropagation();
-    if (window.confirm('Are you sure you want to delete this project?')) {
-      await deleteProject(projectId);
+  const remove = async (project: Project) => {
+    if (window.confirm(`Delete the project "${project.name}"? This cannot be undone.`)) {
+      await deleteProject(project.id);
     }
   };
 
+  const loadingProjects = isLoadingProjects && projects.length === 0;
+  const today = shortDate(new Date());
+
   return (
-    <div className="flex-1 bg-[#0d0f12] text-white flex flex-col font-ui relative overflow-hidden">
-      {/* Background Architectural Ambient Lighting */}
-      <div
-        className="absolute top-0 left-1/4 w-96 h-96 bg-[#0f2f6b]/20 rounded-full blur-3xl pointer-events-none"
-        aria-hidden="true"
-      />
-      <div
-        className="absolute bottom-10 right-10 w-96 h-96 bg-[#c5a77b]/10 rounded-full blur-3xl pointer-events-none"
-        aria-hidden="true"
-      />
-
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-10 lg:py-14 flex flex-col justify-start z-10">
-        {/* Studio Hero Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full arch-glass text-[11px] font-mono uppercase tracking-widest text-[#ffbf7a] mb-4">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#ffbf7a] animate-pulse-glow" />
-              <span>Constriva Architectural OS</span>
-            </div>
-            <h1 className="font-display font-medium text-3xl sm:text-4xl lg:text-5xl text-white tracking-tight leading-tight">
-              Architectural Studio Workspace
-            </h1>
-            <p className="text-sm sm:text-base text-white/70 mt-2 max-w-2xl font-normal leading-relaxed">
-              Transform architectural drawings into photorealistic 3D environments with automated Bill of Quantities (BOQ) material schedules.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate('/projects/new')}
-              className="group inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white text-[#101418] font-semibold text-xs hover:bg-[#f0f4f8] transition-all shadow-md hover:-translate-y-0.5 cursor-pointer"
-            >
-              <span>+ Create New Project</span>
-              <span className="w-5 h-5 rounded-full bg-[#101418] text-white flex items-center justify-center group-hover:rotate-45 transition-transform duration-300">
-                <ArrowRightIcon size={12} />
-              </span>
-            </button>
-          </div>
+    <>
+      <div className="cv-hero cv-fade">
+        <div className="cv-hero-mask cv-breathe">
+          <img src={HERO} alt="A two-storey sand-stone villa at dusk with glowing patterned screens, palm trees and a dark reflecting pool" />
+          <svg aria-hidden="true" viewBox="0 0 736 736" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <linearGradient id="cvScan" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#7ce8f2" stopOpacity="0" />
+                <stop offset=".85" stopColor="#bff6fb" stopOpacity=".22" />
+                <stop offset="1" stopColor="#ffffff" stopOpacity=".75" />
+              </linearGradient>
+            </defs>
+            <rect className="cv-scan" x="0" y="0" width="736" height="34" fill="url(#cvScan)" style={{ mixBlendMode: 'screen' }} />
+            <path className="cv-march" d="M175 205 L500 118 L420 278 M500 118 L540 400 L200 395 L175 205" fill="none" stroke="rgba(255,255,255,.7)" strokeWidth="1" strokeDasharray="2 6" strokeLinecap="round" />
+            <g fill="rgba(4,6,10,.3)" stroke="#ffffff" strokeWidth="1.1" strokeDasharray="2.5 2.5">
+              {[
+                [167, 197, 0],
+                [492, 110, -2],
+                [412, 270, -3.4],
+                [532, 392, -1.2],
+                [192, 387, -4.4],
+              ].map(([x, y, d]) => (
+                <rect key={`${x}-${y}`} className="cv-drift" x={x} y={y} width="16" height="16" style={{ ['--d' as string]: `${d}s` }} />
+              ))}
+            </g>
+          </svg>
         </div>
+      </div>
+      <div className="cv-scrim" aria-hidden="true" />
 
-        {/* 4 Core Pillars Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-14">
-          {/* Action 1: 2D Plan to 3D */}
-          <div
-            onClick={() => navigate('/projects/new')}
-            className="arch-glass arch-glass-hover p-6 rounded-2xl flex flex-col justify-between cursor-pointer group"
-          >
-            <div>
-              <div className="w-12 h-12 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-[#ffbf7a] mb-4 group-hover:scale-105 transition-transform">
-                <BoxIcon size={22} />
-              </div>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-white/50 block mb-1">
-                Pillar 01 // Spatial BIM
-              </span>
-              <h2 className="font-display font-medium text-lg text-white group-hover:text-[#fff1e2] transition-colors">
-                2D Plan to 3D
-              </h2>
-              <p className="text-xs text-white/70 mt-2 leading-relaxed">
-                Upload CAD floor plans or architectural PDFs to synthesize an interactive 3D walkthrough.
-              </p>
-            </div>
-            <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-[#C5A77B]">
-              <span>Upload PDF</span>
-              <ArrowRightIcon size={14} className="group-hover:translate-x-1 transition-transform" />
-            </div>
+      <main className="cv-main">
+        <section className="cv-col cv-ov-left">
+          <div className="cv-title cv-rise">
+            <h1>Project overview</h1>
+            <p className="cv-sub">{[today, user?.name].filter(Boolean).join(' · ')}</p>
           </div>
 
-          {/* Action 2: Prompt to Plan */}
-          <div
-            onClick={() => navigate('/projects/ai-generator')}
-            className="arch-glass arch-glass-hover p-6 rounded-2xl flex flex-col justify-between cursor-pointer group"
-          >
-            <div>
-              <div className="w-12 h-12 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-[#C5A77B] mb-4 group-hover:scale-105 transition-transform">
-                <IconSparkles size={22} />
+          <div className="cv-card cv-sky cv-rise" style={{ ['--d' as string]: '.15s' }}>
+            <div className="cv-between" style={{ alignItems: 'flex-end' }}>
+              <div className="cv-sky-count">
+                <b data-testid="count-projects">{loadingProjects ? '–' : projects.length}</b>
+                <span>{projects.length === 1 ? 'project' : 'projects'}</span>
               </div>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-white/50 block mb-1">
-                Pillar 02 // Synthesis
-              </span>
-              <h2 className="font-display font-medium text-lg text-white group-hover:text-[#fff1e2] transition-colors">
-                Prompt to Plan
-              </h2>
-              <p className="text-xs text-white/70 mt-2 leading-relaxed">
-                Describe desired plot dimensions and layout requirements in words to generate 2D CAD blueprints.
-              </p>
+              <div className="cv-pills">
+                <span data-testid="count-plans">{plans ? plural(plans.length, 'floor plan') : 'floor plans: –'}</span>
+                <span className="is-alt" data-testid="count-analyses">
+                  {analyses ? plural(analyses.length, 'image analysis', 'image analyses') : 'image analyses: –'}
+                </span>
+              </div>
             </div>
-            <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-[#C5A77B]">
-              <span>Prompt Studio</span>
-              <ArrowRightIcon size={14} className="group-hover:translate-x-1 transition-transform" />
-            </div>
+            <Skyline projects={skyline} analyses={analyses?.length ?? 0} />
+            <p className="cv-legend">building = project · floor = 2D plan · frame = image analysis</p>
           </div>
 
-          {/* Action 3: BOQ Sheets */}
-          <div
-            onClick={() => navigate('/projects/options')}
-            className="arch-glass arch-glass-hover p-6 rounded-2xl flex flex-col justify-between cursor-pointer group"
-          >
-            <div>
-              <div className="w-12 h-12 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-[#A7F3D0] mb-4 group-hover:scale-105 transition-transform">
-                <IconFilePdf size={22} />
-              </div>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-white/50 block mb-1">
-                Pillar 03 // Quantities
-              </span>
-              <h2 className="font-display font-medium text-lg text-white group-hover:text-[#fff1e2] transition-colors">
-                BOQ Sheets (PDF)
-              </h2>
-              <p className="text-xs text-white/70 mt-2 leading-relaxed">
-                Automated itemized material schedules with spatial 3D highlighting and downloadable PDFs.
-              </p>
-            </div>
-            <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-[#C5A77B]">
-              <span>Cost Sheets</span>
-              <ArrowRightIcon size={14} className="group-hover:translate-x-1 transition-transform" />
-            </div>
+          <div className="cv-duo cv-rise" style={{ ['--d' as string]: '.25s' }}>
+            <Link to="/projects/ai-generator" className="cv-tile is-primary">
+              <PlanIcon />
+              Floor plan chat
+            </Link>
+            <Link to="/materials/analyse" className="cv-tile">
+              <PhotoIcon />
+              Image analysis
+            </Link>
           </div>
 
-          {/* Action 4: Material AI */}
-          <div
-            onClick={() => navigate('/materials/analyse')}
-            className="arch-glass arch-glass-hover p-6 rounded-2xl flex flex-col justify-between cursor-pointer group"
-          >
-            <div>
-              <div className="w-12 h-12 rounded-xl bg-white/[0.06] border border-white/10 flex items-center justify-center text-[#ffbf7a] mb-4 group-hover:scale-105 transition-transform">
-                <ImageIcon size={22} />
-              </div>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-white/50 block mb-1">
-                Pillar 04 // Vision AI
-              </span>
-              <h2 className="font-display font-medium text-lg text-white group-hover:text-[#fff1e2] transition-colors">
-                Photo to Materials
-              </h2>
-              <p className="text-xs text-white/70 mt-2 leading-relaxed">
-                Take or upload a photo of any facade or room to inspect finishes, textures, and quantity estimates.
-              </p>
-            </div>
-            <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-[#C5A77B]">
-              <span>Analyse Interior Materials</span>
-              <ArrowRightIcon size={14} className="group-hover:translate-x-1 transition-transform" />
-            </div>
+          <div className="cv-card cv-card-glow cv-push cv-rise" style={{ ['--d' as string]: '.35s' }}>
+            <h2 className="cv-h2" style={{ marginBottom: 8 }}>
+              Recent chats
+            </h2>
+            {plansError && <p className="cv-error">{plansError}</p>}
+            {analysesError && <p className="cv-error" style={{ marginTop: 6 }}>{analysesError}</p>}
+            {plans === null && analyses === null && !plansError && !analysesError ? (
+              <p className="cv-state">Loading your chats…</p>
+            ) : chats.length === 0 && !plansError && !analysesError ? (
+              <p className="cv-state">No chats yet. Start a floor plan or analyse a photo.</p>
+            ) : (
+              chats.map((c) => (
+                <button key={`${c.kind}-${c.id}`} type="button" className="cv-chat" onClick={() => openChat(c)}>
+                  <span className={c.kind === 'plan' ? 'cv-tag' : 'cv-tag is-alt'}>{c.kind === 'plan' ? 'PLAN' : 'IMAGE'}</span>
+                  <span className="cv-chat-body">
+                    <b>{c.title}</b>
+                    <small>{c.meta}</small>
+                  </span>
+                </button>
+              ))
+            )}
           </div>
-        </div>
+        </section>
 
-        {/* Existing Projects Section */}
-        <section className="w-full">
-          <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
-            <div>
-              <span className="text-[10px] font-mono uppercase tracking-widest text-[#C5A77B] block mb-1">
-                Studio Archive // {projects.length} Repositories
+        <section className="cv-col cv-ov-mid">
+          <div className="cv-spacer" />
+          <div className="cv-create cv-rise" style={{ ['--d' as string]: '.7s' }}>
+            <Link to="/projects/new" className="cv-create-pill">
+              <span>
+                <DashedRing className="cv-pulse" style={{ color: 'var(--cv-ac)' }} />
+                Create new project
               </span>
-              <h2 className="font-display font-medium text-2xl text-white">
-                Active Architectural Projects
-              </h2>
-            </div>
-            <button
-              onClick={() => {
-                fetchProjects();
-                void loadPlans();
-              }}
-              disabled={isLoadingProjects}
-              className="inline-flex items-center gap-2 text-xs font-mono text-white/70 hover:text-white arch-glass px-4 py-2 rounded-full transition-all cursor-pointer hover:border-white/20"
-            >
-              <RefreshIcon size={14} className={isLoadingProjects ? 'animate-spin' : ''} />
-              <span>Refresh Studio</span>
-            </button>
+              <span className="cv-create-plus" aria-hidden="true">
+                <Plus />
+              </span>
+            </Link>
           </div>
+        </section>
 
-          {isLoadingProjects && projects.length === 0 ? (
-            <div className="p-12 text-center text-sm font-mono text-white/50 arch-glass rounded-2xl">
-              Loading architectural models from repository...
+        <section className="cv-col cv-ov-right">
+          <div className="cv-card cv-push cv-rise" style={{ ['--d' as string]: '.25s' }}>
+            <div className="cv-between">
+              <h2 className="cv-h2">Your projects</h2>
+              <span className="cv-between" style={{ gap: 4 }}>
+                <span className="cv-note">{loadingProjects ? 'loading' : plural(projects.length, 'project')}</span>
+                <button type="button" className="cv-icon-btn" aria-label="Refresh projects" disabled={isLoadingProjects} onClick={load}>
+                  <Refresh size={16} className={isLoadingProjects ? 'cv-spin' : undefined} />
+                </button>
+              </span>
             </div>
-          ) : projects.length === 0 ? (
-            <div className="p-12 text-center arch-glass rounded-3xl drafting-grid">
-              <div className="w-12 h-12 rounded-full bg-white/[0.06] border border-white/15 flex items-center justify-center text-[#C5A77B] mx-auto mb-3">
-                <BoxIcon size={24} />
-              </div>
-              <h3 className="font-display font-medium text-lg text-white">No architectural projects found</h3>
-              <p className="text-xs text-white/60 mt-1 max-w-md mx-auto">
-                Begin your first spatial model by uploading a 2D floor plan PDF or using the AI CAD generator.
-              </p>
-              <button
-                onClick={() => navigate('/projects/new')}
-                className="mt-5 px-5 py-2.5 rounded-full bg-white text-[#101418] font-semibold text-xs hover:bg-white/90 transition-all shadow-md cursor-pointer"
-              >
-                + Create First Project
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {projects.map((proj) => {
-                const isActive = activeProject?.id === proj.id;
-                return (
-                  <div
-                    key={proj.id}
-                    onClick={() => handleOpenProject(proj)}
-                    className={`group relative p-6 rounded-2xl arch-glass arch-glass-hover transition-all cursor-pointer flex flex-col justify-between ${
-                      isActive ? 'border-[#C5A77B] shadow-[0_0_24px_rgba(197,167,123,0.15)]' : ''
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-[10px] font-mono uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-white/[0.08] text-[#ffbf7a] border border-white/10">
-                          {proj.type || 'Residential'}
+
+            {projectsError && <p className="cv-error" style={{ marginTop: 10 }}>{projectsError}</p>}
+
+            {loadingProjects ? (
+              <p className="cv-state">Loading your projects…</p>
+            ) : projects.length === 0 ? (
+              !projectsError && (
+                <div className="cv-state">
+                  <p>No projects yet.</p>
+                  <Link to="/projects/new" className="cv-btn cv-btn-primary" style={{ marginTop: 12 }}>
+                    Create first project
+                  </Link>
+                </div>
+              )
+            ) : (
+              <div className="cv-projects">
+                {projects.map((proj) => {
+                  const own = plansByProject[proj.id] ?? [];
+                  if (proj.id !== expanded?.id) {
+                    return (
+                      <button key={proj.id} type="button" className="cv-proj-row" aria-expanded="false" onClick={() => setOpenId(proj.id)}>
+                        <span style={{ minWidth: 0 }}>
+                          <b>{proj.name}</b>
+                          <small>
+                            {proj.type} · {proj.status} · {own.length === 0 ? 'no plans yet' : plural(own.length, 'plan')}
+                          </small>
                         </span>
+                        <span className="cv-note" style={{ flex: 'none' }}>
+                          {dayLabel(proj.createdAt)}
+                        </span>
+                      </button>
+                    );
+                  }
+                  return (
+                    <article key={proj.id} id={`cv-project-${proj.id}`} className="cv-proj-open" aria-label={proj.name}>
+                      <div className="cv-between">
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          <span className="cv-badge">{proj.type}</span>
+                          <span className="cv-badge is-quiet">{proj.status}</span>
+                        </div>
                         <button
                           type="button"
-                          onClick={(e) => handleDeleteProject(e, proj.id)}
-                          className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-red-400 p-1 transition-all cursor-pointer"
-                          title="Delete project"
+                          className="cv-icon-btn is-danger"
+                          style={{ margin: '-8px -8px -8px 0' }}
+                          aria-label={`Delete project ${proj.name}`}
+                          onClick={() => void remove(proj)}
                         >
-                          <TrashIcon size={14} />
+                          <Trash />
                         </button>
                       </div>
-
-                      <h3 className="font-display font-medium text-lg text-white group-hover:text-[#fff1e2] line-clamp-1 transition-colors">
-                        {proj.name}
-                      </h3>
-                      {proj.description && (
-                        <p className="text-xs text-white/70 mt-2 line-clamp-2 leading-relaxed">
-                          {proj.description}
+                      <h3>{proj.name}</h3>
+                      {proj.description && <p>{proj.description}</p>}
+                      <div className="cv-between" style={{ marginTop: 12 }}>
+                        <span className="cv-note" style={{ fontSize: 11, letterSpacing: '.05em' }}>
+                          2D FLOOR PLANS ({own.length})
+                        </span>
+                        <button type="button" className="cv-link" style={{ margin: '-10px 0', fontSize: 13 }} onClick={() => newPlan(proj)}>
+                          + New 2D plan
+                        </button>
+                      </div>
+                      {own.slice(0, PLANS_SHOWN).map((fp) => (
+                        <button key={fp.id} type="button" className="cv-plan" onClick={() => openPlan(proj, fp.id)}>
+                          <span>{fp.name}</span>
+                          <span>v{fp.version} · Open</span>
+                        </button>
+                      ))}
+                      {own.length > PLANS_SHOWN && (
+                        <p className="cv-note" style={{ marginTop: 6, fontSize: 11 }}>
+                          +{own.length - PLANS_SHOWN} more
                         </p>
                       )}
-
-                      <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-mono uppercase tracking-wider text-white/50">
-                            2D floor plans ({plansByProject[proj.id]?.length ?? 0})
-                          </span>
-                          <button
-                            type="button"
-                            onClick={(e) => newFloorplan(e, proj)}
-                            className="text-[11px] font-mono text-[#C5A77B] hover:text-white cursor-pointer"
-                          >
-                            + New 2D plan
-                          </button>
-                        </div>
-                        {(plansByProject[proj.id] ?? []).slice(0, 3).map((fp) => (
-                          <button
-                            key={fp.id}
-                            type="button"
-                            onClick={(e) => openFloorplan(e, proj, fp.id)}
-                            className="mt-2 w-full flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-white/80 bg-white/[0.04] hover:bg-white/[0.08] cursor-pointer"
-                          >
-                            <span className="truncate">{fp.name}</span>
-                            <span className="shrink-0 font-mono text-[10px] text-white/50">
-                              v{fp.version} · Open
-                            </span>
-                          </button>
-                        ))}
-                        {(plansByProject[proj.id]?.length ?? 0) > 3 && (
-                          <p className="mt-1.5 text-[10px] font-mono text-white/40">
-                            +{(plansByProject[proj.id]?.length ?? 0) - 3} more
-                          </p>
-                        )}
+                      <div className="cv-between" style={{ marginTop: 12 }}>
+                        <span className="cv-note" style={{ fontSize: 11 }}>
+                          {dayLabel(proj.createdAt)}
+                        </span>
+                        <button type="button" className="cv-link" style={{ fontWeight: 500 }} onClick={() => void enterWorkspace(proj)}>
+                          Enter workspace
+                          <ArrowRight size={16} />
+                        </button>
                       </div>
-                    </div>
-
-                    <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-[11px] font-mono text-white/60">
-                      <span>{new Date(proj.createdAt).toLocaleDateString()}</span>
-                      <span className="text-[#C5A77B] group-hover:translate-x-1 transition-transform inline-flex items-center gap-1.5 font-semibold">
-                        Enter Workspace <ArrowRightIcon size={12} />
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </section>
       </main>
-    </div>
+    </>
   );
-};
+}

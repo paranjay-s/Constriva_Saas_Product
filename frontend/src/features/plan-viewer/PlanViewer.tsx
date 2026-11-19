@@ -206,7 +206,17 @@ export function getRoomIcon(roomName: string): string {
   return '🚪';
 }
 
-export function PlanViewer() {
+/** Free space (px) to keep clear on the left of the viewport, set by the page through --pv-left. */
+function leftInset(el: HTMLElement): number {
+  const raw = getComputedStyle(el).getPropertyValue('--pv-left');
+  const px = parseFloat(raw);
+  return Number.isFinite(px) && px > 0 ? px : 0;
+}
+
+/**
+ * @param transparent draw the model on the page background instead of the sky colour
+ */
+export function PlanViewer({ transparent = false }: { transparent?: boolean } = {}) {
   const {
     planData,
     activeRoomId,
@@ -299,7 +309,7 @@ export function PlanViewer() {
 
     const scene = new THREE.Scene();
     scene.name = 'EnscapeWalkthroughScene';
-    scene.background = new THREE.Color('#EBF3F9');
+    scene.background = transparent ? null : new THREE.Color('#EBF3F9');
     sceneRef.current = scene;
 
     // Camera: default narrow isometric perspective (30°), auto-widens to 94° in rooms
@@ -380,7 +390,11 @@ export function PlanViewer() {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         if (width > 0 && height > 0) {
-          camera.aspect = width / height;
+          // keep the model centred in the part of the viewport the page leaves free
+          const inset = Math.min(leftInset(container), width * 0.5);
+          camera.aspect = (width + inset) / height;
+          if (inset > 0) camera.setViewOffset(width + inset, height, 0, 0, width, height);
+          else camera.clearViewOffset();
           camera.updateProjectionMatrix();
           renderer.setSize(width, height);
         }
@@ -696,18 +710,20 @@ export function PlanViewer() {
   };
 
   return (
-    <div className="relative w-full h-full min-h-[580px] bg-[#EBF3F9] overflow-hidden select-none font-sans">
+    <div
+      className={`relative w-full h-full min-h-[580px] overflow-hidden select-none font-sans ${transparent ? '' : 'bg-[#EBF3F9]'}`}
+    >
       {/* 3D WebGL Canvas */}
       <div ref={containerRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
 
       {/* Cinematic Room Entrance Title Card / Banner (Appears only when entering any room) */}
       {activeEnteringRoom && showEntranceBanner && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 max-w-lg w-[92%] sm:w-auto pointer-events-auto">
-          <div className="relative px-5 py-3.5 rounded-2xl bg-slate-950/90 backdrop-blur-xl border border-emerald-500/40 shadow-2xl shadow-emerald-950/40 text-white flex flex-col gap-1.5 ring-1 ring-white/10">
+        <div className="absolute top-16 left-[calc(50%+var(--pv-left,0px)/2)] -translate-x-1/2 z-30 max-w-lg w-[92%] sm:w-auto pointer-events-auto">
+          <div className="relative px-5 py-3.5 rounded-2xl bg-slate-950/90 backdrop-blur-xl border border-cyan-300/40 shadow-2xl shadow-cyan-950/40 text-white flex flex-col gap-1.5 ring-1 ring-white/10">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase">
+                <span className="w-2.5 h-2.5 rounded-full bg-cyan-300 animate-ping" />
+                <span className="text-[10px] font-bold tracking-widest text-cyan-300 uppercase">
                   Entering Room
                 </span>
               </div>
@@ -727,7 +743,7 @@ export function PlanViewer() {
                 {activeEnteringRoom.name}
               </h2>
               {activeEnteringRoom.dims && (
-                <span className="text-xs font-medium text-emerald-300 font-mono">
+                <span className="text-xs font-medium text-cyan-200 font-mono">
                   {activeEnteringRoom.dims}
                 </span>
               )}
@@ -750,16 +766,20 @@ export function PlanViewer() {
 
             <div className="flex items-center justify-between text-[10px] text-white/50 pt-1 border-t border-white/5">
               <span>WASD or Scroll Wheel to Walk • Drag to Look 360°</span>
-              <span className="text-emerald-400 font-medium">Panoramic Lens ({currentFovPreset}°)</span>
+              <span className="text-cyan-300 font-medium">Panoramic Lens ({currentFovPreset}°)</span>
             </div>
           </div>
         </div>
       )}
 
+      <div
+        className="absolute top-4 right-4 z-20 flex flex-wrap items-start justify-between gap-2 pointer-events-none [&>*]:pointer-events-auto"
+        style={{ left: 'calc(var(--pv-left, 0px) + 1rem)' }}
+      >
       {/* Top Left: Mode & Status Indicator */}
-      <div className="absolute top-4 left-4 z-20 flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/85 backdrop-blur-md border border-white/10 text-xs text-white shadow-lg">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="w-2 h-2 rounded-full bg-cyan-300 animate-pulse" />
           <span className="font-semibold tracking-wide">Enscape 4D Studio</span>
           <span className="text-white/30">|</span>
           <span className="text-white/80 capitalize">
@@ -779,7 +799,7 @@ export function PlanViewer() {
       </div>
 
       {/* Top Right: View Controls, Drone Tour Stop & Panoramic Lens Switchers */}
-      <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 ml-auto">
         {navMode === 'drone' ? (
           <button
             type="button"
@@ -802,7 +822,7 @@ export function PlanViewer() {
               }}
               className={`px-2.5 py-1 rounded-full font-medium transition-all ${
                 currentFovPreset === 84
-                  ? 'bg-emerald-500 text-slate-950 font-bold'
+                  ? 'bg-cyan-300 text-slate-950 font-bold'
                   : 'text-white/80 hover:text-white hover:bg-white/10'
               }`}
               title="84° Wide Lens"
@@ -817,7 +837,7 @@ export function PlanViewer() {
               }}
               className={`px-2.5 py-1 rounded-full font-medium transition-all ${
                 currentFovPreset === 94
-                  ? 'bg-emerald-500 text-slate-950 font-bold'
+                  ? 'bg-cyan-300 text-slate-950 font-bold'
                   : 'text-white/80 hover:text-white hover:bg-white/10'
               }`}
               title="94° Panoramic Lens (Optimal View)"
@@ -832,7 +852,7 @@ export function PlanViewer() {
               }}
               className={`px-2.5 py-1 rounded-full font-medium transition-all ${
                 currentFovPreset === 104
-                  ? 'bg-emerald-500 text-slate-950 font-bold'
+                  ? 'bg-cyan-300 text-slate-950 font-bold'
                   : 'text-white/80 hover:text-white hover:bg-white/10'
               }`}
               title="104° Ultra-Wide Lens (Full Ceiling & Floor View)"
@@ -881,7 +901,7 @@ export function PlanViewer() {
               onClick={handleSetIsoView}
               className={`px-3 py-1 rounded-full font-medium transition-all ${
                 viewPreset === 'iso'
-                  ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                  ? 'bg-cyan-300 text-slate-950 font-bold shadow-sm'
                   : 'text-white/80 hover:text-white'
               }`}
             >
@@ -892,7 +912,7 @@ export function PlanViewer() {
               onClick={handleSetTopView}
               className={`px-3 py-1 rounded-full font-medium transition-all ${
                 viewPreset === 'top'
-                  ? 'bg-emerald-500 text-slate-950 font-bold shadow-sm'
+                  ? 'bg-cyan-300 text-slate-950 font-bold shadow-sm'
                   : 'text-white/80 hover:text-white'
               }`}
             >
@@ -919,9 +939,11 @@ export function PlanViewer() {
         )}
       </div>
 
+      </div>
+
       {/* Center Prompt when in Drone Tour mode */}
       {navMode === 'drone' && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-5 py-2 bg-black/85 backdrop-blur-md text-white/95 text-xs rounded-full border border-rose-500/50 shadow-2xl pointer-events-auto">
+        <div className="absolute top-16 left-[calc(50%+var(--pv-left,0px)/2)] -translate-x-1/2 z-30 flex items-center gap-3 px-5 py-2 bg-black/85 backdrop-blur-md text-white/95 text-xs rounded-full border border-rose-500/50 shadow-2xl pointer-events-auto">
           <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
           <span>Autonomous Drone Tour in Progress</span>
           <button
@@ -936,19 +958,19 @@ export function PlanViewer() {
 
       {/* Center Prompt when in Walkthrough mode */}
       {navMode === 'walkthrough' && !showEntranceBanner && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-10 px-4 py-1.5 bg-black/70 backdrop-blur-md text-white/95 text-xs rounded-full border border-white/15 pointer-events-none shadow-md flex items-center gap-2">
+        <div className="absolute top-16 left-[calc(50%+var(--pv-left,0px)/2)] -translate-x-1/2 z-10 px-4 py-1.5 bg-black/70 backdrop-blur-md text-white/95 text-xs rounded-full border border-white/15 pointer-events-none shadow-md flex items-center gap-2">
           <span>Panoramic {currentFovPreset}° Lens</span>
           <span className="text-white/30">•</span>
           <span>Drag to Look 360° (Look Up/Down)</span>
           <span className="text-white/30">•</span>
           <span>WASD or Scroll Wheel to Walk</span>
           <span className="text-white/30">•</span>
-          <span className="text-emerald-400 font-medium">Double-click floor to step</span>
+          <span className="text-cyan-300 font-medium">Double-click floor to step</span>
         </div>
       )}
 
       {/* Bottom Area: 4D Construction Scrubber & Room Navigation Chips */}
-      <div className="absolute bottom-4 left-4 right-4 z-20 flex flex-col gap-2 max-w-4xl mx-auto">
+      <div className="absolute bottom-4 right-4 z-20 flex flex-col gap-2 max-w-4xl mx-auto" style={{ left: 'calc(var(--pv-left, 0px) + 1rem)' }}>
         {/* 4D Construction Buildup Slider */}
         <div className="flex items-center gap-3 px-4 py-2 bg-slate-900/85 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl text-white text-xs">
           <button
@@ -957,7 +979,7 @@ export function PlanViewer() {
               if (timelinePhase >= 1.0) handleTimelineChange(0);
               setIsPlayingTimeline(!isPlayingTimeline);
             }}
-            className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-lg transition-all"
+            className="px-2.5 py-1 bg-cyan-300 hover:bg-cyan-200 text-slate-950 font-bold rounded-lg transition-all whitespace-nowrap"
           >
             {isPlayingTimeline ? 'Pause' : 'Play 4D Build'}
           </button>
@@ -979,10 +1001,10 @@ export function PlanViewer() {
             step={0.01}
             value={timelinePhase}
             onChange={(e) => handleTimelineChange(parseFloat(e.target.value))}
-            className="w-full accent-emerald-400 h-1.5 bg-white/20 rounded-lg cursor-pointer"
+            className="w-full accent-cyan-300 h-1.5 bg-white/20 rounded-lg cursor-pointer"
           />
 
-          <span className="font-mono text-emerald-400 w-10 text-right">
+          <span className="font-mono text-cyan-300 w-10 text-right">
             {Math.round(timelinePhase * 100)}%
           </span>
         </div>
@@ -998,7 +1020,7 @@ export function PlanViewer() {
               onClick={handleExitToOrbit}
               className={`px-3 py-1 text-xs rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 ${
                 navMode === 'orbit'
-                  ? 'bg-emerald-500 text-slate-950 shadow-md font-bold'
+                  ? 'bg-cyan-300 text-slate-950 shadow-md font-bold'
                   : 'bg-white/10 text-white/90 hover:bg-white/20'
               }`}
               title="View entire house from aerial dollhouse cutaway"
@@ -1015,7 +1037,7 @@ export function PlanViewer() {
                   onClick={() => handleTeleportRoom(room)}
                   className={`px-3 py-1 text-xs rounded-xl font-medium whitespace-nowrap transition-all flex items-center gap-1.5 ${
                     isActive
-                      ? 'bg-emerald-500 text-slate-950 shadow-md font-bold ring-2 ring-emerald-300'
+                      ? 'bg-cyan-300 text-slate-950 shadow-md font-bold ring-2 ring-cyan-200'
                       : 'bg-white/10 text-white/90 hover:bg-white/20'
                   }`}
                   title={`Enter and inspect ${room.name} in first-person (360° panoramic)`}

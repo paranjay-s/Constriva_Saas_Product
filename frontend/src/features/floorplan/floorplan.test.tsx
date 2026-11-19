@@ -120,9 +120,10 @@ const PROJECT = {
 
 function renderPage(projects: unknown[]) {
   const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
-    const json = (body: unknown) =>
-      new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const json = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
     if (url.includes('/floorplans/brief/parse')) return json(PARSED);
+    if (url.includes('/floorplans/generate')) return json({ job_id: 'job-1' }, 202);
     if (url.endsWith('/api/v1/projects')) return json(projects);
     return json([]);
   });
@@ -140,26 +141,62 @@ function renderPage(projects: unknown[]) {
   return fetchMock;
 }
 
-describe('FloorplanPage', () => {
+describe('FloorplanPage (chat)', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('asks for a project before the brief when there is none', async () => {
+  it('starts with the greeting, the composer and the project picker in the middle', async () => {
     renderPage([]);
-    expect(await screen.findByRole('button', { name: /create a new project/i })).toBeDefined();
-    expect(screen.queryByLabelText(/describe the house/i)).toBeNull();
+    expect(screen.getByLabelText(/describe the house/i)).toBeDefined();
+    expect(screen.getByRole('button', { name: /choose project/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /3 BHK on 30×40 ft/i })).toBeDefined();
   });
 
-  it('after choosing a project, sends the form and shows the confirmation card', async () => {
+  it('reads the brief from a typed prompt and shows the confirmation card in the chat', async () => {
     const fetchMock = renderPage([PROJECT]);
-    fireEvent.click(await screen.findByRole('button', { name: /sharma residence/i }));
-    expect(await screen.findByText(/project:/i)).toBeDefined();
     fireEvent.change(screen.getByLabelText(/describe the house/i), { target: { value: '5 bedrooms on 40x50 ft' } });
-    fireEvent.click(screen.getByRole('button', { name: /check my brief/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^send$/i }));
     await waitFor(() => expect(screen.getByText(/is this right\?/i)).toBeDefined());
+    expect(screen.getByText('5 bedrooms on 40x50 ft')).toBeDefined(); // the user's message
     const call = fetchMock.mock.calls.find(([u]) => String(u).includes('/brief/parse'));
-    expect(call).toBeDefined();
     const body = JSON.parse(String(call?.[1]?.body));
     expect(body.prompt).toBe('5 bedrooms on 40x50 ft');
     expect(body).not.toHaveProperty('plot_width');
+  });
+
+  it('asks for a project before generating, then generates inside it', async () => {
+    const fetchMock = renderPage([PROJECT]);
+    fireEvent.change(screen.getByLabelText(/describe the house/i), { target: { value: '5 bedrooms on 40x50 ft' } });
+    fireEvent.click(screen.getByRole('button', { name: /^send$/i }));
+    await waitFor(() => expect(screen.getByText(/is this right\?/i)).toBeDefined());
+    fireEvent.click(screen.getByRole('button', { name: /generate plan/i }));
+    expect(await screen.findByText(/choose the project to save this plan in/i)).toBeDefined();
+    expect(fetchMock.mock.calls.some(([u]) => String(u).includes('/generate'))).toBe(false);
+
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: /sharma residence/i }));
+    fireEvent.click(screen.getByRole('button', { name: /generate plan/i }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([u]) => String(u).includes('/generate'))).toBe(true));
+    const gen = fetchMock.mock.calls.find(([u]) => String(u).includes('/generate'));
+    expect(JSON.parse(String(gen?.[1]?.body)).project_id).toBe(PROJECT.id);
+    expect(await screen.findByText(/drawing the plan/i)).toBeDefined();
+  });
+
+  it('sends the villa and owner names for the title block', async () => {
+    const fetchMock = renderPage([PROJECT]);
+    fireEvent.change(screen.getByLabelText(/describe the house/i), { target: { value: '5 bedrooms on 40x50 ft' } });
+    fireEvent.click(screen.getByRole('button', { name: /^send$/i }));
+    await waitFor(() => expect(screen.getByText(/is this right\?/i)).toBeDefined());
+    fireEvent.click(screen.getByRole('button', { name: /generate plan/i }));
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: /sharma residence/i }));
+    // the villa name defaults to the chosen project's name
+    expect((screen.getByLabelText(/villa \/ project name/i) as HTMLInputElement).value).toMatch(/sharma residence/i);
+    fireEvent.change(screen.getByLabelText(/villa \/ project name/i), { target: { value: 'Granite Villa' } });
+    fireEvent.change(screen.getByLabelText(/owner name/i), { target: { value: 'Mr. A. Sharma' } });
+    fireEvent.click(screen.getByRole('button', { name: /generate plan/i }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([u]) => String(u).includes('/generate'))).toBe(true));
+    const gen = fetchMock.mock.calls.find(([u]) => String(u).includes('/generate'));
+    const body = JSON.parse(String(gen?.[1]?.body));
+    const brief = body.brief ?? body;
+    expect(brief.project_name).toBe('Granite Villa');
+    expect(brief.owner_name).toBe('Mr. A. Sharma');
   });
 });
