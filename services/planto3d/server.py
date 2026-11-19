@@ -1045,8 +1045,9 @@ class H(BaseHTTPRequestHandler):
                         if not isinstance(plan, dict) or not isinstance(plan.get("floors"), list) or not plan["floors"]:
                             return self.send(400, {"error": "invalid plan"})
                         # the AI's second look (backend plan3d/verify.py) is kept; the rest is worked out again
-                        ai = [c for c in plan.get("checks") or [] if isinstance(c, dict) and c.get("kind") == "ai_review"]
-                        plan["checks"] = checks.all_checks(plan) + ai[:25]
+                        # the AI's items (second look, gap-filler suggestions) are kept; the rest is worked out again
+                        ai = [c for c in plan.get("checks") or [] if isinstance(c, dict) and str(c.get("kind", "")).startswith("ai_")]
+                        plan["checks"] = checks.all_checks(plan) + ai[:60]
                         checks.annotate(plan, "user")     # what the person added is theirs; the rest keeps its source
                         with open(os.path.join(jdir(jid), "plan.json"), "w") as fh:
                             json.dump(plan, fh)

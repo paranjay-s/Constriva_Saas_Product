@@ -41,7 +41,7 @@ from app.core.security import AuthenticatedUser, clean_uuid, get_current_user
 from app.core.signed_token import TokenError
 from app.modules.ai.floorplan import service as floorplan_service
 from app.modules.parsing.service import read_plan_upload
-from app.modules.plan3d import areas, fallback, notify, service, verify
+from app.modules.plan3d import areas, fallback, gapfill, notify, service, verify
 from app.modules.plan3d.client import (
     Plan3dClient,
     Plan3dError,
@@ -274,6 +274,7 @@ async def _status(row: dict[str, Any], planto3d: Plan3dClient, ai: fallback.AiRe
     if (found or {}).get("stage") == "detected":
         areas.start(job_id, planto3d)
         verify.start(job_id, planto3d)
+        gapfill.start(job_id, planto3d)
     if fallback.detector_failed(found):
         name = row.get("name") or str((found or {}).get("name") or "plan.pdf")
         fallback.start(job_id, name, str((found or {}).get("message") or ""), planto3d, ai)

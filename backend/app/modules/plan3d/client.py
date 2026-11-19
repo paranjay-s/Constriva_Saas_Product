@@ -106,6 +106,13 @@ class Plan3dClient:
         """Queue a rendered video tour of the built house (PlanTo3D blender/cinema.py)."""
         await self._json("POST", f"/api/jobs/{job_id}/tour", json={"quality": quality})
 
+    async def support(self, job_id: str, floor: int, segments: list[list[float]]) -> list[float]:
+        """How much of each proposed wall (plan feet) the drawing shows: 0-1 each."""
+        body = await self._json(
+            "POST", f"/api/jobs/{job_id}/support", json={"floor": floor, "segments": segments}
+        )
+        return [float(v) for v in body.get("coverage", [])]
+
     async def page_png(self, job_id: str) -> bytes:
         """The drawing's first page as PlanTo3D rendered it."""
         try:

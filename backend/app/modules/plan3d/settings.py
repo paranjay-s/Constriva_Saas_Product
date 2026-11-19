@@ -40,6 +40,8 @@ class Plan3dSettings(BaseSettings):
     allow_furniture_changes: bool = False
     # an AI second look at every read plan (one call each; differences go to Needs checking)
     ai_verify: bool = False
+    # the AI gap-filler: one call per read plan fills what the readers missed (gapfill.py)
+    ai_gapfill: bool = False
     frame_ancestors: str = ""
 
 
