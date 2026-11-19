@@ -28,3 +28,23 @@ One line per task: stage | task | status | commit | note.
 - 4 | tour tested on 20 generated plans + 8 stored jobs | done | 61fdc38 | 28/28 pass test_tour; first run 11/20 builds failed (stairs without words) and 2 tours stopped at the stairs; both fixed
 - 2 | door needs a passable space on both sides (SF door 9) | done | 6b51090 | re-detected SF: 82/82 openings; OPT 5 and villa unchanged; stored SF job not rewritten (run_all still reads its old plan)
 - 2 | sideways sheets (rotate flag, content turned 90°) | done, no change needed | - | 6 tune-set vector plans: walls and room types the same or better than upright at the best quarter turn (labels read either way). Odd: p000 upright 40% walls vs 89% rotated, not explained
+- 2 | source and confidence per element + review page line | done | ccede96 | fixed rules (not learned); test_confidence + test_review pass
+- 2 | run every reference PDF, list what is wrong | done | a6881b2 | reference_review.md; question: may the AI reader map numbered room legends (prompt change, live calls)?
+- 2 | building type guess | partial | ef4bcbf | tune set: 79% on perfect reads, ~54% on real reads = the majority-class rate; kept as a hint only. Storey count = read rate (92% held-out)
+- 6 | where Low build time goes; cap Low maps at 2048 | done | 6471210 | bake 93% of time; dock Low 206 -> 102 s, visually the same. Render time used so far: ~5 min of 180
+- 2 | held-out rescored (cached AI) | done | - | unchanged: read 92%, walls 42/42%, doors 47%, room type 69%; building type 58%
+- 8 | blueprint minimap, bottom left | done | 5e7f76e | checked by screenshot on the dock house
+- 8 | enhanced browser look (GTAO over baked light, fps fallback, toggle) | skipped, reverted | - | 2 attempts: AO barely visible on baked light (mean diff 1.6 then 3.2 levels of 255) and the floor lost contrast. Question: is another enhancement wanted (bloom on lamps, SMAA, sky)?
+- 6 | Low first, then the chosen quality (preview while High builds) | done | 66c2f5c | villa: preview at 77 s, High swapped at 594 s
+- 5 | per-user furniture models (sets) | done | 66c2f5c | live: set isolation and a set build importing its model; PLAN3D_ALLOW_FURNITURE_CHANGES left false (owner decides)
+- 7 | real potted plant + asset manifest and licence test | done | d8140a6 | the blob plant in docs/reference/issues; downloads so far ~5 MB of 3 GB; render time ~16 min of 180
+- 7 | kitchen island (+ stools, pendants); plant bake fix | done | a5b4608 | 19 islands in 77 kitchens, 0 clashes; the plant from d8140a6 had blacked out level_0 (caught by screenshot), fixed in this commit
+- 7 | wall art | done | 0d6ccd3 | 637 pictures in 689 rooms, 0 clashes; screenshot ok. Render time ~22 min of 180
+- 7 | recessed downlights | done | e4b0081 | screenshot ok; render time ~28 min of 180
+- 7 | style comparison + four-side stills (dock house) | done | - | docs/overnight/style_compare/ (git-ignored); north/east/west facades are long blank walls: open item
+- 2 | AI second look (verification pass) | done | ffe47e2 | live on OPT 5 (1 call, 10 s): 4 findings, the 2 ENT.LOBBY ones confirmed real (labels on the page, not attached to rooms). Off by default (PLAN3D_AI_VERIFY). AI calls: 32 of 60
+- 2 | OPT 5 ENT.LOBBY not read | partial | - | cause found: the lobby partitions are not detected, so both labels fall inside DRG./DIN. (wall-detection miss); not fixed
+- 9 | engine benchmark + scripts/benchmark_tour.sh | done | e74d442 | EEVEE 2.07 s/frame, Cycles 5.82 s/frame at 480p; full tour 4.2 h / 11.9 h; EEVEE paints white walls blue (to fix). Render time ~52 min of 180
+- 9 | chunked tour pipeline + 8 s 480p clip through the server; EEVEE blue cast | done | 91e73ac | 197 frames, 3 chunks, 647 s; EEVEE wall now matches Cycles' grey. Render time ~66 min of 180
+- 7 | stone plinth on outer walls | done | 5c83cf6 | screenshots south/west ok; side facades still mostly blank (open)
+- end | full suites at the end | done | - | backend 1132 passed / 3 skipped; frontend 256 passed; PlanTo3D 66 ok, 1 known failure (stored SF job's old plan)
