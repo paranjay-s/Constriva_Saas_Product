@@ -9,12 +9,14 @@ are, so a wrong scale or a shifted outline counts against the reader, as it woul
 - walls: centre lines, sampled every 0.1 ft. A sample of one plan is matched when a wall of the other plan runs the
   same way (walls are axis-aligned here, so within 5 degrees means parallel) within 0.15 m of it, across and along.
   recall = matched reference length / reference length; precision = matched detected length / detected length.
+  A wall sample inside a door or window opening (of either plan, on the same line) counts on neither side: one plan
+  may stop its walls at an opening and the other run them through it, and both describe the same wall.
 - doors and windows: a reference opening is found when a detected one of the same type has its centre within 0.5 m.
 - rooms: each reference room's largest rectangle centre is looked up in the detected rooms; type accuracy is the
   share of reference rooms whose type matches there; area error is the mean |detected - reference| / reference over
   the rooms found.
 """
-import json, math, sys
+import json, math, os, sys
 
 # types that refine an older one: the generated truth predates them (a majlis was typed "living", a prayer room
 # "puja"), so a reader that gives the finer type is not counted wrong
@@ -24,6 +26,8 @@ M = 0.3048                      # metres per foot
 TOL = 0.15 / M                  # walls: 0.15 m, in feet
 OPEN_TOL = 0.5 / M              # openings: 0.5 m
 STEP = 0.1
+# SCORE_OPENINGS_NEUTRAL=0: the scorer before run 3 (spans across openings counted against precision)
+OPENINGS_NEUTRAL = os.environ.get("SCORE_OPENINGS_NEUTRAL", "1") != "0"
 
 
 def centre_lines(f):
@@ -38,13 +42,26 @@ def centre_lines(f):
     return out
 
 
-def matched_length(a, b):
-    """length of the centre lines a lying within TOL of a parallel centre line of b"""
+def opening_spans(f):
+    """doors and windows as (horizontal, across, a0, a1) spans along their wall, in feet"""
+    out = []
+    for o in f.get("openings", []):
+        x0, x1, y0, y1 = o["rect"][:4]
+        h = o.get("axis") == "x" if o.get("axis") in ("x", "y") else x1 - x0 >= y1 - y0
+        out.append((True, (y0 + y1) / 2, x0, x1) if h else (False, (x0 + x1) / 2, y0, y1))
+    return out
+
+
+def matched_length(a, b, skip=()):
+    """length of the centre lines a lying within TOL of a parallel centre line of b; samples inside a span of
+    `skip` (openings) are left out of both counts"""
     total = hit = 0.0
     for h, c, a0, a1 in a:
         n = max(1, int((a1 - a0) / STEP))
         for i in range(n):
             t = a0 + (i + 0.5) * (a1 - a0) / n
+            if any(h2 == h and abs(c2 - c) <= TOL and s0 <= t <= s1 for h2, c2, s0, s1 in skip):
+                continue
             total += (a1 - a0) / n
             if any(h2 == h and abs(c2 - c) <= TOL and b0 - TOL <= t <= b1 + TOL for h2, c2, b0, b1 in b):
                 hit += (a1 - a0) / n
@@ -87,8 +104,9 @@ def score(det, ref):
     for k, rf in enumerate(ref["floors"]):
         df = det["floors"][k] if k < len(det["floors"]) else {"walls": [], "openings": [], "rooms": []}
         a, b = centre_lines(rf), centre_lines(df)
-        hit_r, len_r = matched_length(a, b)
-        hit_d, len_d = matched_length(b, a)
+        skip = opening_spans(rf) + opening_spans(df) if OPENINGS_NEUTRAL else []
+        hit_r, len_r = matched_length(a, b, skip)
+        hit_d, len_d = matched_length(b, a, skip)
         row = dict(floor=rf.get("name") or f"Floor {k}",
                    wall_recall=round(hit_r / len_r, 3) if len_r else None,
                    wall_precision=round(hit_d / len_d, 3) if len_d else None,

@@ -256,6 +256,14 @@ def fill_columns(fills, walls, T):
     return out
 
 
+def half_wall_share(walls, T):
+    """share of wall length whose thickness is about half the main one (0.4-0.6 T): the 4.5" partitions of a plan
+    whose main walls are 9" (outer walls a full brick, inner ones half a brick)"""
+    tot = sum(w[3] - w[2] for w in walls)
+    half = sum(w[3] - w[2] for w in walls if 0.4 * T <= w[1] - w[0] <= 0.6 * T)
+    return half / tot if tot else 0.0
+
+
 def thickness_mode(walls):
     """length-weighted mode of the pair gaps (the main wall thickness, in points)."""
     h = defaultdict(float)
@@ -622,28 +630,47 @@ def scale_from_labels(walls, phr, T=None):
     return s, est
 
 
+def _around(walls, cx, cy, band=0.0):
+    """the nearest wall left, right, above and below (cx, cy): first on the straight ray (as before), then, where the
+    ray goes through a door or window gap, the nearest wall running the right way within `band` either side of it (a
+    gap is narrower than the band, so the room's own wall beside the gap is found, not one in the next room)"""
+    tall = lambda w: w[3] - w[2] > w[1] - w[0]
+    sides = (
+        (lambda w, b: w[2] - b <= cy <= w[3] + b and w[1] <= cx, lambda w: w[1], max, True),    # left
+        (lambda w, b: w[2] - b <= cy <= w[3] + b and w[0] >= cx, lambda w: w[0], min, True),    # right
+        (lambda w, b: w[0] - b <= cx <= w[1] + b and w[3] <= cy, lambda w: w[3], max, False),   # above
+        (lambda w, b: w[0] - b <= cx <= w[1] + b and w[2] >= cy, lambda w: w[2], min, False),   # below
+    )
+    out = []
+    for hit, edge, pick, vertical in sides:
+        c = [w for w in walls if hit(w, 0.0)]
+        if not c and band:
+            c = [w for w in walls if hit(w, band) and tall(w) == vertical]
+        out.append(pick(c, key=edge) if c else None)
+    return tuple(out)
+
+
+def _band(walls):
+    """how far beside a label ray to look for a wall: 8 main wall thicknesses (wider than a door or window gap)"""
+    t = sorted(min(w[1] - w[0], w[3] - w[2]) for w in walls)
+    return 8 * t[len(t) // 2] if t else 0.0
+
+
 def _room_box(walls, p):
     """the clear box between the nearest walls left, right, above and below a label, or None"""
-    cx, cy = p["cx"], p["cy"]
-    L = max((w[1] for w in walls if w[2] <= cy <= w[3] and w[1] <= cx), default=None)
-    R = min((w[0] for w in walls if w[2] <= cy <= w[3] and w[0] >= cx), default=None)
-    U = max((w[3] for w in walls if w[0] <= cx <= w[1] and w[3] <= cy), default=None)
-    D = min((w[2] for w in walls if w[0] <= cx <= w[1] and w[2] >= cy), default=None)
-    return None if None in (L, R, U, D) else (L, R, U, D)
+    L, R, U, D = _around(walls, p["cx"], p["cy"], _band(walls))
+    return None if None in (L, R, U, D) else (L[1], R[0], U[3], D[2])
 
 
 def _scale_from_sizes(walls, phr):
     reads = []
+    band = _band(walls)
     for centre in (False, True):
         est = []
         for p in phr:
             if not p["dims"]:
                 continue
-            cx, cy = p["cx"], p["cy"]
-            L = max((w for w in walls if w[2] <= cy <= w[3] and w[1] <= cx), key=lambda w: w[1], default=None)
-            R = min((w for w in walls if w[2] <= cy <= w[3] and w[0] >= cx), key=lambda w: w[0], default=None)
-            U = max((w for w in walls if w[0] <= cx <= w[1] and w[3] <= cy), key=lambda w: w[3], default=None)
-            D = min((w for w in walls if w[0] <= cx <= w[1] and w[2] >= cy), key=lambda w: w[2], default=None)
+            L, R, U, D = _around(walls, p["cx"], p["cy"], band)
             if None in (L, R, U, D):
                 continue
             if centre:
@@ -1050,7 +1077,10 @@ def detect_page(page):
                                                            for f in floors)], phr, T)
     scale_src = "labels"
     if not s:
-        s, scale_src = T / 0.375, "assumed"     # assume the main wall is 4.5" thick
+        # no size label could be measured: assume the main wall is 4.5" thick, or 9" when a good share of the walls
+        # is half as thick (9" outer walls with 4.5" partitions)
+        nine = half_wall_share(walls["h"] + walls["v"], T) >= 0.15
+        s, scale_src = T / (0.75 if nine else 0.375), "assumed"
     BL = boundary_lines(page["segs"], s)
     out = []
     for f in floors:

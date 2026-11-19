@@ -506,3 +506,14 @@ only in developer mode. Builds (gen.py) use AI-made assets once approved, or wit
 make_library.py to `browser_bake.py`, shared by both (it also zeroes metalness during the colour bake).
 Measured: a scripted (no model) helipad session ran in 4.6 s (1476 triangles, preview checked by eye); an oversized
 asset was refused with "6.00 x 6.00 x 0.20 m does not fit the area (4.00 x 4.00 x 1.00 m)".
+
+## 45. Scale: label rays across openings, and 9" outer walls (detect.py); scorer: openings neutral (tools/score_plan.py)
+
+What: a ray from a room-size label that finds no wall (it went through a door or window gap) now looks for the
+nearest wall running the right way within 8 wall thicknesses either side. With no measurable label, the main wall is
+taken as 9" (not 4.5") when 15 % or more of the wall length is about half as thick. The scorer now leaves wall
+samples inside a door or window opening (either plan's) out of both counts.
+Measured (held-out generated plans, readers only, openings neutral): wall recall fills 56 -> 98 %, lines 63 -> 100 %,
+solid 50 -> 84 %, hatched 34 -> 64 %; precision fills 62 -> 97 %, lines 66 -> 99 %, solid 63 -> 83 %, hatched 45 ->
+74 %. Before, 10 of 24 vector plans were read at twice the true scale. Reference plans: the two vector ones read the
+same walls and rooms as before (scale moved 0.03 %).
