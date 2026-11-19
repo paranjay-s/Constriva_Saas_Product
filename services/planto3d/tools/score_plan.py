@@ -16,6 +16,10 @@ are, so a wrong scale or a shifted outline counts against the reader, as it woul
 """
 import json, math, sys
 
+# types that refine an older one: the generated truth predates them (a majlis was typed "living", a prayer room
+# "puja"), so a reader that gives the finer type is not counted wrong
+SAME_TYPE = {"majlis": "living", "prayer": "puja"}
+
 M = 0.3048                      # metres per foot
 TOL = 0.15 / M                  # walls: 0.15 m, in feet
 OPEN_TOL = 0.5 / M              # openings: 0.5 m
