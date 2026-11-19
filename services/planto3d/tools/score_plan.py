@@ -102,7 +102,7 @@ def score(det, ref):
             if d is None:
                 continue
             found += 1
-            types += d.get("type") == r.get("type")
+            types += SAME_TYPE.get(d.get("type"), d.get("type")) == SAME_TYPE.get(r.get("type"), r.get("type"))
             errors += abs(area(d) - area(r)) / max(area(r), 1e-6)
         row.update(room_type_accuracy=round(types / len(rooms), 3) if rooms else None,
                    room_area_error=round(errors / found, 3) if found else None, rooms=f"{found}/{len(rooms)} found")

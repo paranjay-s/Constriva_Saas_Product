@@ -543,6 +543,8 @@ def living(R):
             q = R.spot(OPP[side], 5.0, 1.4)
             if q:
                 R.add("tv_unit", q[3], q[0], q[1], q[2])
+            extras(R, [("armchair", 2.7, 2.7, False), ("side_table", 1.7, 1.7, False), ("floor_lamp", 1.5, 1.5, False),
+                       ("plant", 2.0, 2.0, False)])
             return
 
 
@@ -574,6 +576,7 @@ def dining_table(R):
             if R.fits(box):
                 R.add("dining_set", (cx - a / 2 - 1.6, cx + a / 2 + 1.6, cy - b / 2 - 1.6, cy + b / 2 + 1.6),
                       cx, cy, 0 if long_x else 90, w=tw, d=tl, seats=n)
+                extras(R, [("sideboard", 5.6, 1.5, False)])
                 return True
     return False
 
@@ -603,6 +606,7 @@ def wash(R):
         p = R.spot(side, 2.1, 2.0, align="end", gap=0.2)
         if p:
             R.add("washer2", p[3], p[0], p[1], p[2])
+            extras(R, [("dryer", 2.1, 2.0, False)])
             return
 
 
@@ -650,10 +654,11 @@ def bar(R):
 def foyer(R):
     """a console against a wall and a plant: an entrance, never a bed"""
     for side in R.sides_by("long"):
-        p = R.spot(side, 4.0, 1.4)
+        p = R.spot(side, 4.6, 1.3)
         if p:
-            R.add("tv_unit", p[3], p[0], p[1], p[2])
+            R.add("console", p[3], p[0], p[1], p[2])
             break
+    extras(R, [("shoe_cabinet", 4.0, 1.3, False)])
     plants(R, 1)
 
 
@@ -699,9 +704,106 @@ def plants(R, n):
             R.add("plant", box, x, y, k * 70)
 
 
+
+# ------------------------------------------------------------------ run 3: library pieces in the rooms
+import math as _math
+import os as _os
+
+# the direction of prayer: compass bearing of the qibla (Dubai is about 258 degrees; set PLAN3D_QIBLA_BEARING for
+# another place) and the plan's north (floor["north_deg"]: how far the drawing's north arrow is turned from +y,
+# clockwise; 0 when the plan has no arrow)
+QIBLA_BEARING = float(_os.environ.get("PLAN3D_QIBLA_BEARING", 258.0))
+
+
+def qibla_vector(R):
+    """unit vector in plan coordinates (x right, y up the page) pointing toward the qibla"""
+    b = _math.radians(QIBLA_BEARING + float(R.floor.get("north_deg") or 0.0))
+    return _math.sin(b), _math.cos(b)
+
+
+def extras(R, names):
+    """optional pieces, each placed only where it fits (dropped otherwise): [(fn, w, d, tall)] against free walls"""
+    for fn, w, d, tall in names:
+        for side in R.sides_by("long", tall=tall):
+            p = R.spot(side, w, d, tall=tall)
+            if p:
+                R.add(fn, p[3], p[0], p[1], p[2])
+                break
+
+
+def prayer(R):
+    """a musalla: a niche on the wall facing the qibla, prayer rugs in rows turned to the qibla, a Quran stand.
+    Nothing decorative"""
+    qx, qy = qibla_vector(R)
+    rot = _math.degrees(_math.atan2(-qx, qy))          # a rug's head (+y at rot 0) turned toward the qibla
+    # the wall whose outward direction is closest to the qibla carries the niche
+    outward = {"N": (0, 1), "S": (0, -1), "E": (1, 0), "W": (-1, 0)}
+    side = max(outward, key=lambda s: outward[s][0] * qx + outward[s][1] * qy)
+    p = R.spot(side, 3.0, 0.5, tall=True)
+    if p:
+        R.add("prayer_niche", p[3], p[0], p[1], p[2])
+    # rugs (2.3 x 4 ft) on a grid along the qibla, starting near the niche wall, as many as fit (up to 12)
+    x0, x1, y0, y1 = R.rect
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    ux, uy = -qy, qx                                   # across the rows
+    n = 0
+    for row in range(4):
+        for col in range(-3, 4):
+            px = cx + qx * (max(R.w, R.d) / 2 - 3.2 - row * 4.6) + ux * col * 2.9
+            py = cy + qy * (max(R.w, R.d) / 2 - 3.2 - row * 4.6) + uy * col * 2.9
+            box = (px - 1.5, px + 1.5, py - 1.5, py + 1.5)
+            if n < 12 and R.fits(box):
+                R.add("prayer_rug", box, px, py, rot, solid=False)
+                n += 1
+    extras(R, [("quran_stand", 1.6, 1.2, False)])
+
+
+def majlis(R):
+    """low seating along every wall that has room for it, a carpet in the middle, side tables with an incense
+    burner, and a chandelier"""
+    for side in R.sides_by("long"):
+        for w in (16.0, 12.0, 9.0, 6.0):
+            p = R.spot(side, w, 2.6)
+            if p:
+                R.add("majlis_seat", p[3], p[0], p[1], p[2], w=w)
+                break
+    cx, cy = (R.rect[0] + R.rect[1]) / 2, (R.rect[2] + R.rect[3]) / 2
+    a, b = max(4.0, R.w - 7.0), max(4.0, R.d - 7.0)
+    R.add("rug", (cx - a / 2, cx + a / 2, cy - b / 2, cy + b / 2), cx - a / 2, cx + a / 2, cy - b / 2, cy + b / 2, solid=False)
+    box = (cx - 0.5, cx + 0.5, cy - 0.5, cy + 0.5)
+    if R.fits(box):
+        R.add("incense_burner", box, cx, cy, 0)
+    R.add("chandelier", (0, 0, 0, 0), cx, cy, 0, solid=False)
+
+
+def gym_room(R):
+    gym(R)
+    extras(R, [("treadmill", 3.0, 6.4, True), ("weight_bench", 1.8, 4.4, False)])
+
+
+def cinema_room(R):
+    """tiered seats facing a screen wall (the TV unit), or a sofa when the room is small"""
+    ds = R.door_side()
+    for side in [s for s in "NSEW" if s != ds]:
+        q = R.spot(side, 6.0, 1.4)
+        if not q:
+            continue
+        seat = R.spot(OPP[side], min(12.0, max(R.w, R.d) - 2), 8.0)
+        if seat:
+            R.add("tv_unit", q[3], q[0], q[1], q[2], w=6.0)
+            R.add("cinema_seats", seat[3], seat[0], seat[1], seat[2])
+            return
+    living(R)
+
+
+def study_room(R):
+    bedroom_study(R)
+    extras(R, [("bookshelf", 5.2, 1.2, True), ("armchair", 2.7, 2.7, False)])
+
+
 RULES = dict(dress=dress, bedroom=bedroom, toilet=toilet, kitchen=kitchen, living=living, dining=dining, puja=puja, wash=wash,
-             parking=parking, balcony=balcony, garden=garden, study=lambda R: bedroom_study(R), breakfast=breakfast,
-             bar=bar, foyer=foyer, store=store, gym=gym, cinema=living)
+             parking=parking, balcony=balcony, garden=garden, study=study_room, breakfast=breakfast,
+             bar=bar, foyer=foyer, store=store, gym=gym_room, cinema=cinema_room, majlis=majlis, prayer=prayer)
 # every furnish rule named in web/rooms.json must exist here
 assert {v["furnish"] for v in rooms.TYPES.values() if v["furnish"]} <= set(RULES), "rooms.json names a missing rule"
 

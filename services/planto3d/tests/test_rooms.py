@@ -29,8 +29,8 @@ CASES = [
     ("KITCHENETTE", "kitchen"), ("مطبخ", "kitchen"), ("DINING", "dining"), ("DINING AREA", "dining"), ("DIN.", "dining"),
     ("DINNING", "dining"), ("DRG./DIN.", "dining"), ("صالة طعام", "dining"), ("LIVING", "living"), ("LIVING ROOM", "living"),
     ("FAMILY ROOM", "living"), ("FAMILY HALL", "living"), ("LOUNGE", "living"), ("DRAWING ROOM", "living"), ("DRG.", "living"),
-    ("SITTING", "living"), ("HALL", "living"), ("MAJLIS", "living"), ("MEN MAJLIS", "living"), ("LADIES MAJLIS", "living"),
-    ("RECEPTION", "living"), ("مجلس", "living"), ("مجلس رجال", "living"), ("صالة", "living"), ("LIVNG", "living"),
+    ("SITTING", "living"), ("HALL", "living"), ("MAJLIS", "majlis"), ("MEN MAJLIS", "majlis"), ("LADIES MAJLIS", "majlis"),
+    ("RECEPTION", "living"), ("مجلس", "majlis"), ("مجلس رجال", "majlis"), ("صالة", "living"), ("LIVNG", "living"),
     ("BREAKFAST", "breakfast"), ("BREAKFAST NOOK", "breakfast"), ("BAR", "bar"), ("WET BAR", "bar"), ("COFFEE BAR", "bar"),
     # entrance, circulation
     ("FOYER", "foyer"), ("ENTRANCE", "foyer"), ("ENTRANCE HALL", "foyer"), ("ENTRY", "foyer"), ("VESTIBULE", "foyer"),
@@ -38,7 +38,7 @@ CASES = [
     ("GALLERY", "passage"), ("LANDING", "passage"), ("STAIR", "stair"), ("STAIRCASE", "stair"), ("UP", "stair"),
     ("STAIR HALL", "stair"), ("درج", "stair"), ("ELEVATOR", "lift"), ("PASSENGER LIFT", "lift"), ("مصعد", "lift"),
     # other rooms
-    ("PRAYER ROOM", "puja"), ("PUJA", "puja"), ("MUSALLA", "puja"), ("مصلى", "puja"), ("GYM", "gym"), ("FITNESS ROOM", "gym"),
+    ("PRAYER ROOM", "prayer"), ("PUJA", "puja"), ("MUSALLA", "prayer"), ("مصلى", "prayer"), ("GYM", "gym"), ("FITNESS ROOM", "gym"),
     ("GYMNASIUM", "gym"), ("HOME CINEMA", "cinema"), ("HOME THEATRE", "cinema"), ("MEDIA ROOM", "cinema"), ("CINEMA", "cinema"),
     ("STUDY", "study"), ("OFFICE", "study"), ("HOME OFFICE", "study"), ("LIBRARY", "study"), ("مكتب", "study"),
     ("LAUNDRY", "wash"), ("LAUNDRY ROOM", "wash"), ("UTILITY", "wash"), ("UTILITY ROOM", "wash"), ("WASH", "wash"),

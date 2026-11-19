@@ -58,7 +58,7 @@
    "furnish": "foyer"
   },
   "puja": {
-   "label": "Prayer room",
+   "label": "Puja room",
    "kind": "indoor",
    "floor": "marble",
    "colour": "#f0a0a0",
@@ -217,6 +217,20 @@
    "floor": "concrete",
    "colour": "#f59e42",
    "furnish": null
+  },
+  "majlis": {
+   "label": "Majlis",
+   "kind": "indoor",
+   "floor": "marble",
+   "colour": "#e2c477",
+   "furnish": "majlis"
+  },
+  "prayer": {
+   "label": "Prayer room (musalla)",
+   "kind": "indoor",
+   "floor": "marble",
+   "colour": "#b8d8c8",
+   "furnish": "prayer"
   }
  },
  "phrases": {
@@ -334,17 +348,8 @@
    "SITTING",
    "SITTING ROOM",
    "SITTING AREA",
-   "MAJLIS",
-   "MAJLES",
-   "MAJLIS MEN",
-   "MAJLIS LADIES",
-   "LADIES MAJLIS",
-   "MEN MAJLIS",
    "RECEPTION",
    "SALON",
-   "مجلس",
-   "مجلس رجال",
-   "مجلس نساء",
    "صالة",
    "صالة معيشة",
    "غرفة معيشة",
@@ -386,14 +391,7 @@
    "PUJA",
    "POOJA",
    "MANDIR",
-   "PRAYER",
-   "PRAYER ROOM",
-   "TEMPLE",
-   "MUSALLA",
-   "MUSALAH",
-   "MASJID",
-   "مصلى",
-   "غرفة صلاة"
+   "TEMPLE"
   ],
   "study": [
    "STUDY",
@@ -628,6 +626,33 @@
    "ملعب تنس",
    "ملعب كرة سلة",
    "ملعب بادل"
+  ],
+  "majlis": [
+   "MAJLIS",
+   "MAJLES",
+   "MAJLIS MEN",
+   "MAJLIS LADIES",
+   "LADIES MAJLIS",
+   "MEN MAJLIS",
+   "مجلس",
+   "مجلس رجال",
+   "مجلس نساء",
+   "DIWANIYA",
+   "DEWANIYA",
+   "ديوانية"
+  ],
+  "prayer": [
+   "PRAYER",
+   "PRAYER ROOM",
+   "MUSALLA",
+   "MUSALAH",
+   "MASJID",
+   "مصلى",
+   "غرفة صلاة",
+   "NAMAZ",
+   "NAMAZ ROOM",
+   "SALAH ROOM",
+   "PRAYER HALL"
   ]
  },
  "abbreviations": {
@@ -679,6 +704,8 @@
   ]
  },
  "priority": [
+  "prayer",
+  "majlis",
   "lift",
   "toilet",
   "bedroom",
