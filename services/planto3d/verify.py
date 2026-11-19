@@ -14,6 +14,8 @@ kind / what it finds:
   stair_direction   a stair whose UP mark is at its top end (the climb runs the wrong way)
   floor_overhang    an upper storey's room that lies outside the storey below (nothing holds it up)
   area_total        the rooms' total differs from a total stated on the drawing by more than 10 %
+  size_mismatch     a room more than 10 % off the size written in it (fit.py leaves those alone)
+  scale_unknown     no size on the drawing: everything is estimated until one known length is set
 Standard library only (server.py runs it whenever plan.json is written, beside checks.py)."""
 
 SLIVER = 4.0          # sq ft: overlaps smaller than this are drawing noise
@@ -167,6 +169,15 @@ def verify(plan):
         if abs(total - stated) / stated > 0.10:
             _issue(out, 0, "area_total", "warning", ["plan", 0],
                    f"the rooms add up to {total:.0f} sq ft but the drawing states {stated:.0f} sq ft", (0, 0))
+    # sizes: rooms the size fit left alone because their drawing is more than 10 % off their label (fit.py), and a
+    # plan whose scale nothing on the drawing gave
+    for r in (plan.get("size_fit") or {}).get("reported", []):
+        _issue(out, 0, "size_mismatch", "warning", ["plan", 0],
+               f'"{r.get("label")}" is drawn {r["drawn"][0]:.1f} x {r["drawn"][1]:.1f} ft but labelled '
+               f'{r["label_size"][0]:.1f} x {r["label_size"][1]:.1f} ft ({100 * r["off"]:.0f} % off): check the walls or the label', (0, 0))
+    if plan.get("scale_source") == "assumed":
+        _issue(out, 0, "scale_unknown", "critical", ["plan", 0],
+               "the drawing gives no sizes, so every size is estimated: set one length you know (Scale tool)", (0, 0))
     order = {"critical": 0, "warning": 1, "info": 2}
     out.sort(key=lambda i: (order[i["severity"]], i["floor"]))
     return out

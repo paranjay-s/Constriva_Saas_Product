@@ -436,3 +436,16 @@ puja and got a Hindu mandir; now they get a niche on the wall facing the qibla (
 default 258° for Dubai, turned by the floor's `north_deg`), rugs in rows turned to the qibla, and a Quran stand.
 Living, dining, foyer, laundry, gym, cinema and study rooms get the extra pieces where they fit.
 Browser models keep metal parts as flat metallic glTF materials, because a colour bake turns metals black.
+
+## 39. Rooms sized to their labels (fit.py, server.py, verify.py)
+
+What: after reading (detector and AI reads; traced and stored plans are taken as drawn), each storey is fitted to its
+room labels. First comes the scale: when the labelled rooms agree on one ratio of label to drawing (the median, with
+half of them within 3 %), the whole storey is rescaled. Then each room within 10 % of its label is fitted by least
+squares. Wall lines are the unknowns, a wall's two faces keep its thickness, a weak pull keeps unlabelled lines where
+they were drawn, and everything is remapped piecewise-linearly between lines, so shared walls move together. Rooms
+further off are left alone and reported (`size_mismatch`), and a plan with an assumed scale gets a critical
+`scale_unknown` item asking for one known length. On the 24 held-out vector plans, labelled rooms within 2 % of their
+label went from 172/316 to 217/316 (54 % to 69 %). The room area error against the truth went from 43.4 % to 42.4 %;
+it is dominated by rooms the reader merged or split, which no size fit can mend. On stored plans: OPT 5 went from 9 to
+11 of 14, the villa from 1 to 8 of 9, SF stayed at 6 of 8 (mean 2.1 % to 1.6 %).
