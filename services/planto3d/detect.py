@@ -1034,6 +1034,79 @@ def stair_flights(hatch, T, s, phr):
 
 
 # ------------------------------------------------------------------ main
+def arrow_strokes(page):
+    """everything a north arrow is drawn with, as straight strokes: lines, the chords of curves (its circle), and the
+    edges of small filled shapes (a solid arrowhead); a fill larger than 60 points across (a background) is left out"""
+    out = [tuple(g[:4]) for g in page.get("segs", [])]
+    for c in page.get("curves", []):
+        out.append((c[0][0], c[0][1], c[3][0], c[3][1]))
+    for poly, _ in page.get("fills", []):
+        xs, ys = [q[0] for q in poly], [q[1] for q in poly]
+        if 2 < len(poly) <= 64 and max(xs) - min(xs) <= 60 and max(ys) - min(ys) <= 60:
+            out += [(poly[k][0], poly[k][1], poly[(k + 1) % len(poly)][0], poly[(k + 1) % len(poly)][1])
+                    for k in range(len(poly))]
+    return out
+
+
+def north_arrow(words, segs):
+    """the drawing's north, from a north arrow: a lone "N" (or "NORTH") with strokes drawn around it (an arrow, a dart,
+    a compass rose, a circle). Such a symbol is symmetric about its north axis and the letter sits on that axis, so
+    within a disk around the letter the strokes mirror each other across it: the axis is the line through the letter
+    that mirrors them best (stray strokes, such as a dimension tick, spoil every angle alike). The symbol's body lies
+    behind the letter, which tells north from south.
+    -> degrees clockwise from up the page (+y in plan feet), or None when there is no such symbol. Within 3 degrees of
+    straight up counts as straight up (an arrow drawn by hand is rarely exact)."""
+    best = None
+    for x0, y0, x1, y1, t in words:
+        if t.strip().upper().strip(".") not in ("N", "NORTH"):
+            continue
+        h = max(y1 - y0, 1e-6)
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        reach = 5 * h
+        # strokes as points along them (every ~h/4), in plan axes (x right, y up) about the letter
+        pts = []
+        for g in segs:
+            ln = math.hypot(g[2] - g[0], g[3] - g[1])
+            if not 0 < ln <= 8 * h:
+                continue
+            n = max(1, int(ln / (h / 4)))
+            for k in range(n + 1):
+                px, py = g[0] + (g[2] - g[0]) * k / n - cx, -(g[1] + (g[3] - g[1]) * k / n - cy)
+                if math.hypot(px, py) <= reach:
+                    pts.append((px, py))
+        if len(pts) < 12:
+            continue
+        if len(pts) > 300:                        # (a dense symbol: an even subset keeps it quick)
+            pts = pts[:: len(pts) // 300 + 1]
+        mx, my = sum(q[0] for q in pts) / len(pts), sum(q[1] for q in pts) / len(pts)
+        if math.hypot(mx, my) < 0.8 * h:          # the letter sits in the middle of the strokes: no direction
+            continue
+        tol = h / 3
+
+        def mismatch(theta):
+            ux, uy = math.sin(theta), math.cos(theta)          # the axis
+            bad = 0.0
+            for px, py in pts:
+                d = px * ux + py * uy
+                rx, ry = 2 * d * ux - px, 2 * d * uy - py        # mirrored across the axis
+                bad += min(min(math.hypot(rx - qx, ry - qy) for qx, qy in pts), tol * 3)
+            return bad / len(pts)
+
+        coarse = min((mismatch(math.radians(a)), a) for a in range(0, 180, 2))
+        fine = min((mismatch(math.radians(coarse[1] + a / 4)), coarse[1] + a / 4) for a in range(-8, 9))
+        if fine[0] > tol:                         # nothing near the letter is symmetric: not an arrow
+            continue
+        a = math.radians(fine[1])
+        if mx * math.sin(a) + my * math.cos(a) > 0:   # the body lies behind the letter, so north points away from it
+            a += math.pi
+        if best is None or len(pts) > best[0]:
+            best = (len(pts), a)
+    if best is None:
+        return None
+    deg = math.degrees(best[1]) % 360
+    return 0.0 if min(deg, 360 - deg) <= 3 else round(deg, 1)
+
+
 def detect_page(page):
     pens = wall_pens(page["segs"])
     L = axis_lines([s for s in page["segs"] if (s[4], round(s[5], 2)) in pens])
@@ -1118,6 +1191,10 @@ def detect_page(page):
         f["walls"] = close_corners(f["walls"], T)
         out.append(detect_floor(f, T, s, phr, PEN, hatch_all, A, BL, CUTS, page["fills"]))
     out.sort(key=lambda f: f["_x"])
+    north = north_arrow(page["words"], arrow_strokes(page))
+    if north is not None:
+        for f in out:
+            f["north_deg"] = north
     return dict(T=T, scale=s, scale_source=scale_src, scale_estimates=est, floors=out)
 
 

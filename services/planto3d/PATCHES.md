@@ -568,3 +568,19 @@ evening (preview.png) and day (preview_day.png); the agent sees both, and its pr
 both. Checked by re-rendering the koi pond: its water was black in both presets and is now clearly water in both
 (docs/run3/creator/, git-ignored); the library's koi pond asset was updated (new water, both previews, rebaked .glb).
 Note: the day preset still looks overcast (soft sun shadows); the house builder's day lighting is Stage 9 work.
+
+## 51. North arrow, sun from it, day and evening light maps, exterior lighting (detect.py, blender/, web/view.js)
+
+What: detect.py reads a north arrow (a lone N or NORTH with strokes, fills and curves around it): the symbol is
+symmetric about its north axis with the letter on it, so the axis is the line through the letter that mirrors the
+nearby strokes best; the body lies behind the letter. Each storey gets `north_deg` (clockwise from up the page),
+which imported plans keep too. gen.py aims the day sun from PLAN3D_SUN_BEARING (225) turned by north_deg, and bakes a
+second set of light maps for the evening (bake.py variants): the sky darkened to deep blue, a low warm sun from the
+west, lamps up 40 %, and warm wall-washers on the ground around the house about every 4 m (exterior lighting, off by
+day). meta: lightmaps_evening, lightmap_max_evening, north_deg, sun_bearing. The walkthrough has a Day / Evening
+button that loads the evening maps on first use and dims the live light on unbaked trees.
+Measured: tests/test_north.py (arrows at 0-315 degrees, a dart with a stray tick, no arrow) passes; on the two vector
+reference plans the reader gives 90.5 (a compass rose pointing right) and 0 (an arrow straight up), checked by eye
+(the first version gave 14.9 on the second: it averaged stray strokes). The dock house's Low build took 199 s
+against 111 s without the evening maps. Not done: the evening interior differs little from the day one (the lamps
+dominate both); a darker interior would need the lamps' day level lowered, which changes the day look.

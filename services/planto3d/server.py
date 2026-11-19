@@ -858,6 +858,8 @@ def clean_floor(f, i, types, pages):
         out["size"] = [_num(c, f"{w}.size[{k}]", 0.01, 2 * COORD) for k, c in enumerate(_list(f["size"], w + ".size", 2, 2))]
     if f.get("bg") is not None:
         out["bg"] = clean_bg(f["bg"], w + ".bg", pages)
+    if f.get("north_deg") is not None:      # the drawing's north arrow: degrees clockwise from up the page
+        out["north_deg"] = _num(f["north_deg"], w + ".north_deg", -360, 360)
     out["walls"] = []
     for k, v in enumerate(_list(f.get("walls"), w + ".walls", MOST["walls"])):
         q = f"{w}.walls[{k}]"

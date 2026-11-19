@@ -44,18 +44,21 @@ await Promise.all(Object.entries(meta.lightmaps || {}).map(async ([name, file]) 
 
 // ---- materials: unlit * baked light; real-time light only for objects without a light map (trees)
 const baked = !!meta.baked;
+let liveHemi = null, liveSun = null;   // light for what is not baked (trees): dimmed in the evening
 if (!baked) {
   scene.add(new THREE.HemisphereLight(0xffffff, 0x8a7a66, 1.6));
   const sun = new THREE.DirectionalLight(0xfff1d6, 2.2);
   sun.position.set(-8, 14, 6);
   scene.add(sun);
 } else {
-  scene.add(new THREE.HemisphereLight(0xdfefff, 0x6d6450, 1.2));
-  const sun = new THREE.DirectionalLight(0xfff1d6, 1.6);
-  sun.position.set(-8, 14, 6);
-  scene.add(sun);
+  liveHemi = new THREE.HemisphereLight(0xdfefff, 0x6d6450, 1.2);
+  scene.add(liveHemi);
+  liveSun = new THREE.DirectionalLight(0xfff1d6, 1.6);
+  liveSun.position.set(-8, 14, 6);
+  scene.add(liveSun);
 }
 const levels = [];   // level index -> objects (hidden above the current level in top view)
+const lit = [];      // materials with a light map: the Day / Evening switch swaps their maps
 gltf.scene.traverse((o) => {
   if (!o.isMesh) return;
   let root = o;
@@ -72,8 +75,10 @@ gltf.scene.traverse((o) => {
     if (m.metalness > 0.9 && m.roughness < 0.1) return new THREE.MeshBasicMaterial({ color: 0xe8ecef, envMap: env, reflectivity: 0.9, combine: THREE.MixOperation });
     if (lm) {
       const shiny = m.metalness > 0.5 ? 0.55 : m.roughness < 0.25 ? 0.12 : 0;
-      return new THREE.MeshBasicMaterial({ ...opts, lightMap: lm, lightMapIntensity: Math.PI * lmax,
-                                           envMap: shiny ? env : null, reflectivity: shiny, combine: THREE.MixOperation });
+      const mat = new THREE.MeshBasicMaterial({ ...opts, lightMap: lm, lightMapIntensity: Math.PI * lmax,
+                                                envMap: shiny ? env : null, reflectivity: shiny, combine: THREE.MixOperation });
+      lit.push({ mat, names: [root.name, o.name] });
+      return mat;
     }
     return new THREE.MeshLambertMaterial(opts);
   };
@@ -82,6 +87,40 @@ gltf.scene.traverse((o) => {
   if (m && /^(bake_level|glass)/.test(root.name)) (levels[+m[1]] ||= []).push(o);
 });
 scene.add(gltf.scene);
+
+// ---- Day / Evening: a second set of light maps baked with dusk light (meta.lightmaps_evening), loaded on first use
+const dayBtn = $('daybtn');
+let evening = false, eveningMaps = null;
+if (!meta.lightmaps_evening) dayBtn.remove();
+else dayBtn.onclick = async () => {
+  if (!eveningMaps) {
+    dayBtn.disabled = true;
+    dayBtn.textContent = 'Loading…';
+    eveningMaps = {};
+    await Promise.all(Object.entries(meta.lightmaps_evening).map(async ([name, file]) => {
+      const t = await texLoader.loadAsync(base + file);
+      t.channel = 1; t.colorSpace = THREE.SRGBColorSpace; t.flipY = false;
+      eveningMaps[name] = t;
+    }));
+    dayBtn.disabled = false;
+  }
+  evening = !evening;
+  const maps = evening ? eveningMaps : lightmaps;
+  const most = (evening ? meta.lightmap_max_evening : meta.lightmap_max) || {};
+  for (const { mat, names } of lit) {
+    const n = names.find((k) => maps[k]);
+    if (!n) continue;
+    mat.lightMap = maps[n];
+    mat.lightMapIntensity = Math.PI * (most[n] ?? 1);
+  }
+  if (liveHemi) liveHemi.intensity = evening ? 0.25 : 1.2;
+  if (liveSun) { liveSun.intensity = evening ? 0.15 : 1.6; liveSun.color.setHex(evening ? 0xffa060 : 0xfff1d6); }
+  const sky = evening ? 0x1b2338 : 0xbfd6ea;
+  scene.background.setHex(sky);
+  scene.fog.color.setHex(sky);
+  dayBtn.textContent = evening ? 'Day' : 'Evening';
+  dayBtn.title = evening ? 'Daylight' : 'Evening light (lamps on, dusk outside)';
+};
 
 // ---- plan (x, y metres, z up) -> three (x, z, -y)
 const W = (x, y, z) => new THREE.Vector3(x, z, -y);

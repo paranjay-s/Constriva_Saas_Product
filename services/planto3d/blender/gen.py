@@ -1068,11 +1068,32 @@ env = wn.nodes.new("ShaderNodeTexEnvironment")
 env.image = bpy.data.images.load(os.path.join(ASSETS, "hdri", "sky.hdr"))
 wn.links.new(env.outputs["Color"], wn.nodes["Background"].inputs["Color"])
 wn.nodes["Background"].inputs["Strength"].default_value = 1.0
+# evening: the same sky darkened toward deep blue (a multiply node, factor 0 by day)
+dusk = wn.nodes.new("ShaderNodeMixRGB")
+dusk.blend_type = "MULTIPLY"
+dusk.inputs["Fac"].default_value = 0.0
+dusk.inputs["Color2"].default_value = (0.32, 0.42, 0.78, 1)
+wn.links.new(env.outputs["Color"], dusk.inputs["Color1"])
+wn.links.new(dusk.outputs["Color"], wn.nodes["Background"].inputs["Color"])
+
+# the sun from a compass bearing (PLAN3D_SUN_BEARING: 225 = mid-afternoon from the south-west, north of the tropics)
+# turned by the drawing's north arrow (floor north_deg, degrees clockwise from up the page; 0 without an arrow)
+NORTH = float((floors[0].get("north_deg") if floors else 0) or 0)
+SUN_BEARING = float(os.environ.get("PLAN3D_SUN_BEARING", "225") or 225)
+
+
+def aim_sun(ob, bearing, elevation):
+    b, e = math.radians(bearing + NORTH), math.radians(elevation)
+    toward = Vector((math.sin(b) * math.cos(e), math.cos(b) * math.cos(e), math.sin(e)))
+    ob.rotation_euler = (-toward).to_track_quat("-Z", "Y").to_euler()
+
+
 sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN"))
 sun.data.energy = 4.0
 sun.data.angle = math.radians(1.5)
-sun.rotation_euler = (math.radians(52), 0, math.radians(-28))
+aim_sun(sun, SUN_BEARING, 52)
 collection("lights").objects.link(sun)
+lamps = []
 for cx, cy, zz, a, typ in LAMPS:
     L = bpy.data.lights.new("lamp", "AREA")
     L.energy = (14 if typ in INDOOR else 8) * a * lib.F * lib.F
@@ -1081,6 +1102,43 @@ for cx, cy, zz, a, typ in LAMPS:
     o = bpy.data.objects.new("lamp", L)
     o.location = (cx * lib.F, cy * lib.F, zz * lib.F)
     collection("lights").objects.link(o)
+    lamps.append(L)
+# exterior lighting for the evening: warm wall-washers on the ground around the house, about every 4 m, off by day
+washers = []
+for (ax, ay, bx, by, nx, ny) in ((X0, Y0, X1, Y0, 0, -1), (X0, Y1, X1, Y1, 0, 1), (X0, Y0, X0, Y1, -1, 0), (X1, Y0, X1, Y1, 1, 0)):
+    length = math.hypot(bx - ax, by - ay) * lib.F
+    for k in range(max(1, int(length / 4.0))):
+        t = (k + 0.5) / max(1, int(length / 4.0))
+        L = bpy.data.lights.new("washer", "SPOT")
+        L.energy, L.spot_size, L.spot_blend, L.color = 0.0, math.radians(70), 0.6, (1.0, 0.72, 0.45)
+        o = bpy.data.objects.new("washer", L)
+        o.location = ((ax + (bx - ax) * t) * lib.F + nx * 0.6, (ay + (by - ay) * t) * lib.F + ny * 0.6, 0.15)
+        o.rotation_euler = (Vector((-nx * 0.35, -ny * 0.35, 1.0))).to_track_quat("-Z", "Y").to_euler()
+        collection("lights").objects.link(o)
+        washers.append(L)
+
+
+def evening():
+    """dusk: a dark blue sky, a low warm sun from the west, lamps up, the wall-washers on"""
+    dusk.inputs["Fac"].default_value = 1.0
+    wn.nodes["Background"].inputs["Strength"].default_value = 0.18
+    sun.data.energy, sun.data.color = 1.2, (1.0, 0.62, 0.38)
+    aim_sun(sun, 270, 6)
+    for L in lamps:
+        L.energy *= 1.4
+    for L in washers:
+        L.energy = 60.0
+
+
+def day():
+    dusk.inputs["Fac"].default_value = 0.0
+    wn.nodes["Background"].inputs["Strength"].default_value = 1.0
+    sun.data.energy, sun.data.color = 4.0, (1.0, 1.0, 1.0)
+    aim_sun(sun, SUN_BEARING, 52)
+    for L in lamps:
+        L.energy /= 1.4
+    for L in washers:
+        L.energy = 0.0
 
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(JOB, "house.blend"))
 progress(35, "model built")
@@ -1090,8 +1148,12 @@ import bake  # noqa: E402
 
 groups = {f"level_{k}": objs for k, objs in by_floor.items()}
 groups["site"] = site
-res = bake.bake_and_export(groups, unbaked=trees, out=JOB, quality=QUALITY, do_bake=BAKE, progress=progress)
+# a second set of light maps for the evening (the walkthrough's Day / Evening switch); PLAN3D_EVENING=0 skips it
+EVENING = os.environ.get("PLAN3D_EVENING", "1") != "0"
+res = bake.bake_and_export(groups, unbaked=trees, out=JOB, quality=QUALITY, do_bake=BAKE, progress=progress,
+                           variants=[("evening", evening, day)] if EVENING else [])
 meta = dict(version=1, floors=META_FLOORS, roof_z=round(top * lib.F, 3), eye=1.6, kits=USED_KITS, scheme=SCHEME,
+            north_deg=NORTH, sun_bearing=SUN_BEARING,
             bounds=[round(v * lib.F, 3) for v in (X0, X1, Y0, Y1)], **res)
 with open(os.path.join(JOB, "meta.json"), "w") as fh:
     json.dump(meta, fh)

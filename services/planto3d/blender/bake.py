@@ -234,7 +234,10 @@ def _encode(img, path):
     return mx
 
 
-def bake_and_export(groups, unbaked, out, quality="high", do_bake=True, progress=print):
+def bake_and_export(groups, unbaked, out, quality="high", do_bake=True, progress=print, variants=()):
+    """variants: [(name, enter, leave)]: after each group's light map, the scene is switched to each variant's lighting
+    (enter), baked again into lm_<group>_<name>.webp, and switched back (leave). The model is exported once; the
+    walkthrough swaps the maps (meta lightmaps_<name>)."""
     scene = bpy.context.scene
     dev = _gpu(scene)
     print("bake device", dev, flush=True)
@@ -245,6 +248,7 @@ def bake_and_export(groups, unbaked, out, quality="high", do_bake=True, progress
     # Low maps stop at 2048 px: a 4096 map took 3/4 of a large house's Low build (PATCHES §26)
     cap = 4096 if quality == "high" else 2048
     baked, keep, lightmaps, lmax = [], [], {}, {}
+    more = {v[0]: ({}, {}) for v in variants}       # name -> (lightmaps, lightmap_max)
     n = len(groups)
     if do_bake:      # every light map's size before the first bake: the server's time-left estimate (server.py)
         sizes = []
@@ -278,6 +282,17 @@ def bake_and_export(groups, unbaked, out, quality="high", do_bake=True, progress
         lmax[ob.name] = round(_encode(img, os.path.join(out, fn)), 4)
         lightmaps[ob.name] = fn
         bpy.data.images.remove(img)
+        for vname, enter, leave in variants:
+            progress(35 + 55 * (gi + 0.5) / n, f"baking {vname} light for {name} ({size}px)")
+            enter()
+            try:
+                img = _bake(ob, size, samples)
+            finally:
+                leave()
+            fn = f"lm_{name}_{vname}.webp"
+            more[vname][1][ob.name] = round(_encode(img, os.path.join(out, fn)), 4)
+            more[vname][0][ob.name] = fn
+            bpy.data.images.remove(img)
     progress(92, "exporting model")
     vl = bpy.context.view_layer
     for o in vl.objects:
@@ -303,4 +318,8 @@ def bake_and_export(groups, unbaked, out, quality="high", do_bake=True, progress
                 raise
             kw.pop(bad)
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(out, "house_baked.blend"))
-    return dict(lightmaps=lightmaps, lightmap_max=lmax, baked=bool(lightmaps))
+    res = dict(lightmaps=lightmaps, lightmap_max=lmax, baked=bool(lightmaps))
+    for vname, (maps, mx) in more.items():
+        if maps:
+            res[f"lightmaps_{vname}"], res[f"lightmap_max_{vname}"] = maps, mx
+    return res

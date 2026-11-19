@@ -35,6 +35,8 @@ build's `jobs/<id>/build.log` says `bake device OPTIX` (or `CUDA`); `CPU` means 
 | `BLENDER` | `/opt/blender/blender` | The Blender binary |
 | `PLAN3D_TOUR_CHUNK_S` | 480 | Seconds of rendering per tour chunk (a stopped tour resumes from its last chunk) |
 | `PLAN3D_TOUR_COOL_S` | 0 in the image (30 on a laptop) | Pause between tour chunks |
+| `PLAN3D_SUN_BEARING` | 225 | Compass bearing of the day sun (225: afternoon from the south-west); turned by the drawing's north arrow |
+| `PLAN3D_EVENING` | 1 | 0 skips the evening light maps (about 90 s more on a Low build) |
 | `PLAN3D_BLENDER_SLOTS` | 1 | Blender processes at once (one per GPU) |
 | `PLAN3D_LIBRARY` | 1 | 0 builds with the built-in furniture instead of the library |
 | `PLAN3D_QIBLA_BEARING` | 258 | Compass bearing of the qibla for prayer rooms (Dubai); set it for the server's region |
