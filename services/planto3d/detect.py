@@ -599,14 +599,14 @@ def inside(p, b, m=0.0):
 
 
 # ------------------------------------------------------------------ scale
-def scale_from_labels(walls, phr, T=None):
+def scale_from_labels(walls, phr, T=None, prior=None):
     """points per foot: distance between the walls around a room label vs the size written in it.
     CAD drawings write the clear size (between the wall faces); generated plans write the size between the wall
     centre lines. Both are measured; the reading more labels agree on wins (the clear size on a tie).
     Labels in metres, centimetres or millimetres count as their feet (parse_size). When most labels do not say their
     unit, T (the main wall thickness in points) settles it: the reading that gives a believable wall wins. Without any
     size label, room areas (15.1 m², 163 sq.ft) give the scale, if at least two rooms agree."""
-    s, est = _scale_from_sizes(walls, phr)
+    s, est = _scale_from_sizes(walls, phr, prior)
     units = [p.get("unit") for p in phr if p["dims"]]
     guessed = [u for u in units if u and u.endswith("?")]
     if s and T and len(guessed) > len(units) / 2:
@@ -662,11 +662,18 @@ def _room_box(walls, p):
     return None if None in (L, R, U, D) else (L[1], R[0], U[3], D[2])
 
 
-def _scale_from_sizes(walls, phr):
+def _scale_from_sizes(walls, phr, prior=None):
+    """points per foot from the room-size labels. Each label measures the clear (or centre-line) box around it. A label
+    whose width and depth give the same scale is two votes; a single axis whose value is backed by others is one (a
+    ray that crosses a partition the reader missed spoils one axis, not the other). The scale with the most support
+    within 2 % wins, if it has at least 4 votes (as two agreeing labels did before). Between the clear and the
+    centre-line readings, when both qualify: the one with more labels whose width and depth agree at its scale; then
+    the one with 1.5x the other's support; then the one nearer `prior` (the scale from the wall thickness, good to a
+    few percent)."""
     reads = []
     band = _band(walls)
     for centre in (False, True):
-        est = []
+        est, votes = [], []
         for p in phr:
             if not p["dims"]:
                 continue
@@ -678,17 +685,33 @@ def _scale_from_sizes(walls, phr):
             else:
                 w, h = R[0] - L[1], D[2] - U[3]
             a, b = p["dims"]
+            pair = False
             for r1, r2 in ((w / a, h / b), (w / b, h / a)):
                 if abs(r1 - r2) < 0.03 * max(r1, r2):
                     est.append((r1 + r2) / 2)
-        good = []
-        if len(est) >= 2:
-            # mode: the estimate with the most others within 2% (rays leaking through openings give scattered values)
-            best = max(est, key=lambda e: (sum(abs(f - e) < 0.02 * e for f in est), -e))
-            good = [e for e in est if abs(e - best) < 0.02 * best]
-        reads.append((len(good) if len(good) >= 2 else 0, good, est))
-    n, good, est = max(reads, key=lambda r: r[0])       # (max keeps the first, the clear size, on a tie)
-    return (sum(good) / n, est) if n else (None, reads[0][2])
+                    votes.append(((r1 + r2) / 2, 2.0))
+                    pair = True
+            if not pair:
+                votes += [(w / a, 0.5), (h / b, 0.5), (w / b, 0.5), (h / a, 0.5)]   # orientation unknown: half each
+        good, n, pairs = [], 0.0, 0.0
+        if votes:
+            support = lambda e: sum(wt for f, wt in votes if abs(f - e) < 0.02 * e)
+            best = max((v for v, _ in votes), key=lambda e: (support(e), -e))
+            n = support(best)
+            good = [(v, wt) for v, wt in votes if abs(v - best) < 0.02 * best]
+            # labels whose width and depth agree, and agree with each other (a pair is one label's full measurement)
+            pv = [v for v, wt in votes if wt == 2.0]
+            pairs = max((sum(1 for f in pv if abs(f - e) < 0.02 * e) for e in pv), default=0)
+        reads.append((n if n >= 4 else 0, good, est, pairs))
+    n, good, est, _ = max(reads, key=lambda r: r[0])    # (max keeps the first, the clear size, on a tie)
+    if all(r[0] for r in reads):
+        a, b = reads
+        if a[3] != b[3]:
+            n, good, est, _ = max(reads, key=lambda r: r[3])
+        elif max(a[0], b[0]) < 1.5 * min(a[0], b[0]) and prior:
+            mean = lambda g: sum(v * wt for v, wt in g) / sum(wt for _, wt in g)
+            n, good, est, _ = min(reads, key=lambda r: abs(mean(r[1]) - prior))
+    return (sum(v * wt for v, wt in good) / sum(wt for _, wt in good), est) if n else (None, reads[0][2])
 
 
 # ------------------------------------------------------------------ openings
@@ -1073,14 +1096,16 @@ def detect_page(page):
             floors.append(dict(walls=cl, bbox=b))
     if not floors:
         raise PlanError("no floor plan found (need double-line walls and room names)")
+    # the scale the wall thickness gives: the main wall is 4.5" thick, or 9" when a good share of the walls is half as
+    # thick (9" outer walls with 4.5" partitions). Used when no size label can be measured, and to choose between
+    # the clear and the centre-line reading of the labels when their support is close.
+    nine = half_wall_share(walls["h"] + walls["v"], T) >= 0.15
+    s_wall = T / (0.75 if nine else 0.375)
     s, est = scale_from_labels([w for w in W_solid if any(inside(((w[0] + w[1]) / 2, (w[2] + w[3]) / 2), f["bbox"])
-                                                           for f in floors)], phr, T)
+                                                           for f in floors)], phr, T, s_wall)
     scale_src = "labels"
     if not s:
-        # no size label could be measured: assume the main wall is 4.5" thick, or 9" when a good share of the walls
-        # is half as thick (9" outer walls with 4.5" partitions)
-        nine = half_wall_share(walls["h"] + walls["v"], T) >= 0.15
-        s, scale_src = T / (0.75 if nine else 0.375), "assumed"
+        s, scale_src = s_wall, "assumed"
     BL = boundary_lines(page["segs"], s)
     out = []
     for f in floors:

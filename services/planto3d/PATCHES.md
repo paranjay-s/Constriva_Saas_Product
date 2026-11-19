@@ -517,3 +517,14 @@ Measured (held-out generated plans, readers only, openings neutral): wall recall
 solid 50 -> 84 %, hatched 34 -> 64 %; precision fills 62 -> 97 %, lines 66 -> 99 %, solid 63 -> 83 %, hatched 45 ->
 74 %. Before, 10 of 24 vector plans were read at twice the true scale. Reference plans: the two vector ones read the
 same walls and rooms as before (scale moved 0.03 %).
+
+## 46. Scale: each label axis votes; agreeing labels choose between clear and centre-line sizes (detect.py)
+
+What: a label whose width and depth agree is two votes, a single axis half a vote per orientation (a missed
+partition spoils the width ray, not the depth). Between the clear and the centre-line readings: more labels that agree
+with each other, then 1.5x the support, then the reading nearer the scale from the wall thickness.
+tests/test_scale.py (synthetic walls; fails on the detector before §45).
+Measured on the 150 tuning plans, which were not looked at for §45-46 (vector, readers only, openings neutral): wall
+recall fills 35 -> 93 %, hatched 49 -> 99 %, lines 47 -> 92 %, solid 34 -> 91 %; precision 44 -> 92, 56 -> 98,
+62 -> 95, 42 -> 96 %. Held-out vector plans: 100 % recall, 99 % precision in every style (but §45-46 were found on
+held-out plans, so the tuning set is the clean measure). Reference plans: same walls and rooms as before.
