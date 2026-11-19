@@ -35,6 +35,8 @@ class Plan3dSettings(BaseSettings):
     service_url: str = "http://127.0.0.1:8080"
     embed_secret: SecretStr = SecretStr("")
     embed_token_ttl_s: int = 3600
+    # how long a share link of a walkthrough works (the owner can revoke it sooner)
+    share_ttl_s: int = 30 * 24 * 3600
     store: str = "supabase"
     timeout_s: float = 30.0
     allow_furniture_changes: bool = False

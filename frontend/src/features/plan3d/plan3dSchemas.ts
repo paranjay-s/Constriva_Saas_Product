@@ -78,6 +78,9 @@ export const plan3dJobListSchema = z.array(plan3dJobSchema);
 /** POST /jobs/{id}/export: the name of the packed file under the job's `files_url`. */
 export const plan3dExportSchema = z.looseObject({ file: z.string() });
 
+/** A share link to the walkthrough: an embed path anyone with it can open, read-only, until it is turned off. */
+export const plan3dShareSchema = z.looseObject({ url: z.string().startsWith('/api/v1/3d/embed/'), expires_in: z.number() });
+
 /** Every embed URL is a path of this API under this prefix; it carries a signed token. */
 export const EMBED_PATH_PREFIX = '/api/v1/3d/embed/';
 const embedPath = z.string().startsWith(EMBED_PATH_PREFIX);

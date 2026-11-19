@@ -358,6 +358,27 @@ async def embed_furniture(user: User) -> EmbedAccess:
     return service.embed_access(user.id, None)
 
 
+@router.post(
+    "/jobs/{job_id}/share", summary="A share link to the walkthrough (replaces any older link)"
+)
+async def share_job(job_id: str, user: User, store: Store) -> dict[str, Any]:
+    await _own_job(store, job_id, user)
+    share_id = service.new_share_id()
+    await run_in_threadpool(store.set_share, job_id, share_id)
+    return service.share_access(str(user.id), job_id, share_id)
+
+
+@router.delete(
+    "/jobs/{job_id}/share",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Revoke the walkthrough's share link",
+)
+async def unshare_job(job_id: str, user: User, store: Store) -> Response:
+    await _own_job(store, job_id, user)
+    await run_in_threadpool(store.set_share, job_id, None)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/creator", summary="Have the creator agent make a library asset (admins)")
 async def run_creator(body: dict[str, Any], user: User) -> dict[str, Any]:
     """Off unless PLAN3D_CREATOR_AGENT, and only for the ids in PLAN3D_CREATOR_ADMINS. The asset is
@@ -414,15 +435,24 @@ async def _limited(body: AsyncIterator[bytes], limit: int) -> AsyncIterator[byte
     # Not an API for clients: it serves pages. Its rules are pinned in tests/unit/test_plan3d.py.
     include_in_schema=False,
 )
-async def embedded(token: str, path: str, request: Request, planto3d: Service) -> Response:
+async def embedded(
+    token: str, path: str, request: Request, planto3d: Service, store: Store
+) -> Response:
     try:
         claims = service.embed_claims(token)
-    except TokenError as refused:
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED, "This link has expired. Please reload the page."
-        ) from refused
-
-    limit = service.embed_request_limit(request.method, path, claims.get("job"))
+        limit = service.embed_request_limit(request.method, path, claims.get("job"))
+    except TokenError:
+        # a share link: read-only walkthrough files, while the job still holds this share id
+        try:
+            claims = service.share_claims(token)
+        except TokenError as refused:
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED, "This link has expired. Please reload the page."
+            ) from refused
+        row = await run_in_threadpool(store.get, claims["job"])
+        if not row or row.get("share_id") != claims["share"]:
+            raise HTTPException(status.HTTP_410_GONE, "This share link was turned off.") from None
+        limit = service.share_request_limit(request.method, path, claims["job"])
     if limit is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
 

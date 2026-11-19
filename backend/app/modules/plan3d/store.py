@@ -33,6 +33,8 @@ class JobStore(Protocol):
 
     def set_quality(self, job_id: str, quality: str) -> None: ...
 
+    def set_share(self, job_id: str, share_id: str | None) -> None: ...
+
     def delete(self, job_id: str) -> None: ...
 
 
@@ -51,6 +53,7 @@ class MemoryJobStore:
             "name": name,
             "source": source,
             "quality": None,
+            "share_id": None,
             "created_at": _now(),
             "updated_at": _now(),
         }
@@ -76,6 +79,11 @@ class MemoryJobStore:
         with self._lock:
             if job_id in self._rows:
                 self._rows[job_id].update(quality=quality, updated_at=_now())
+
+    def set_share(self, job_id, share_id):
+        with self._lock:
+            if job_id in self._rows:
+                self._rows[job_id].update(share_id=share_id, updated_at=_now())
 
     def delete(self, job_id):
         with self._lock:
@@ -113,6 +121,11 @@ class SupabaseJobStore:
 
     def set_quality(self, job_id, quality):
         self._table().update({"quality": quality, "updated_at": _now()}).eq("id", job_id).execute()
+
+    def set_share(self, job_id, share_id):
+        self._table().update({"share_id": share_id, "updated_at": _now()}).eq(
+            "id", job_id
+        ).execute()
 
     def delete(self, job_id):
         self._table().delete().eq("id", job_id).execute()

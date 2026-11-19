@@ -631,7 +631,7 @@ def test_the_page_proxy_is_the_only_gateway_route_without_bearer_auth():
         if not any(d.call is get_current_user for d in route.dependant.dependencies)
     )
     assert open_routes == ["/embed/{token}/{path:path}"]
-    assert len(router.routes) == 16  # + POST /creator (admins only)
+    assert len(router.routes) == 18  # + POST /creator (admins), POST and DELETE /jobs/{id}/share
 
 
 def test_embed_tokens_are_redacted_from_logs_and_responses_are_private(client, planto3d):
@@ -693,3 +693,57 @@ def test_a_video_tour_of_a_built_house(client, planto3d):
     )
     body = client.get(f"{API}/jobs/{job_id}").json()
     assert body["tours"] == {"ultra": {"file": "tour_ultra.mp4", "seconds": 600}}
+
+
+# ------------------------------------------------------------------ share links
+
+
+def test_share_link_reads_the_walkthrough_only_and_can_be_revoked(client, planto3d):
+    job_id = upload(client)
+    link = client.post(f"{API}/jobs/{job_id}/share")
+    assert link.status_code == 200, link.text
+    url = link.json()["url"]
+    assert url.endswith(f"/web/view.html?job={job_id}&shared")
+    base = url.split("/web/view.html")[0]
+    # what the walkthrough loads
+    for path in (
+        "web/view.html",
+        "web/walk.js",
+        f"jobs/{job_id}/meta.json",
+        f"jobs/{job_id}/house.glb",
+        f"jobs/{job_id}/lm_level_0.webp",
+        "three/build/three.module.js",
+    ):
+        assert client.get(f"{base}/{path}").status_code == 200, path
+    # nothing else: the review page, the plan, the drawing, the build log, a Blender file, any write
+    for path in (
+        "web/edit.html",
+        f"jobs/{job_id}/plan.json",
+        f"jobs/{job_id}/source.pdf",
+        f"jobs/{job_id}/build.log",
+        f"jobs/{job_id}/house.blend",
+        f"api/jobs/{job_id}",
+        "api/furniture",
+    ):
+        assert client.get(f"{base}/{path}").status_code == 404, path
+    assert client.post(f"{base}/api/jobs/{job_id}/plan", content=b"{}").status_code == 404
+    # a new link replaces the old one; revoking ends it
+    newer = client.post(f"{API}/jobs/{job_id}/share").json()["url"].split("/web/view.html")[0]
+    assert client.get(f"{base}/web/view.html").status_code == 410
+    assert client.get(f"{newer}/web/view.html").status_code == 200
+    assert client.delete(f"{API}/jobs/{job_id}/share").status_code == 204
+    assert client.get(f"{newer}/web/view.html").status_code == 410
+
+
+def test_only_the_owner_shares_or_revokes(client, planto3d):
+    job_id = upload(client)
+    as_stranger()
+    assert client.post(f"{API}/jobs/{job_id}/share").status_code == 404
+    assert client.delete(f"{API}/jobs/{job_id}/share").status_code == 404
+
+
+def test_a_share_token_is_not_an_embed_token():
+    access = service.share_access("u1", "abcdef012345", "f" * 24)
+    token = access["url"].split("/embed/")[1].split("/")[0]
+    with pytest.raises(TokenError):
+        service.embed_claims(token)

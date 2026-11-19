@@ -542,3 +542,10 @@ Measured, tuning set (not looked at), vector wall recall / precision: fills 100/
 solid 100/99 %. Labelled rooms within 2 % of their label: about 20 % -> 89 %. Before this, with the scale right, the
 size fit lowered held-out recall to 70-86 %; now it changes nothing on correct readings. Reference plans: same walls
 and rooms; OPT 5's scale moved 0.24 % (no ground truth to say which is closer).
+
+## 48. Shared walkthroughs view only (web/view.js)
+
+What: a walkthrough opened from a share link (`&shared`, made by the gateway's POST /api/v1/3d/jobs/{id}/share) has no
+Record, Blender file or Home button and ignores the R key: the share token reaches only the files the walkthrough
+loads (meta.json, house.glb, lm_*.webp, tour_*.mp4, the page's scripts), so those would fail. The gateway checks the
+job's current share id on every request; revoking or making a new link ends older links at once (410).

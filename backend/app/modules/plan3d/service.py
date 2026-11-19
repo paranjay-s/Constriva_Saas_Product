@@ -211,6 +211,62 @@ def embed_request_limit(method: str, path: str, job_id: str | None) -> int | Non
     return None
 
 
+# ------------------------------------------------------------------ share links
+# A share link opens the walkthrough of one job for anyone who has it, read-only, until the
+# owner revokes it. The token names the job and a share id; the job row keeps the current
+# share id, so revoking (or making a new link) ends every older link at once. It reaches only
+# what the walkthrough page loads: no review page, plan, drawing, build log or Blender file,
+# and no writes.
+SHARE_AUDIENCE = "plan3d-share"
+SHARE_WEB_FILES = frozenset(
+    {"view.html", "view.js", "walk.js", "tour.js", "style.css", "rooms.json"}
+)
+SHARE_JOB_FILE = re.compile(r"^(meta\.json|house\.glb|lm_[a-z0-9_]+\.webp|tour_(high|ultra)\.mp4)$")
+
+
+def new_share_id() -> str:
+    import secrets
+
+    return secrets.token_hex(12)
+
+
+def share_access(user_id: str, job_id: str, share_id: str) -> dict[str, Any]:
+    ttl = max(3600, int(get_settings().share_ttl_s))
+    token = sign(
+        {"sub": user_id, "job": job_id, "share": share_id},
+        audience=SHARE_AUDIENCE,
+        secret=embed_secret(),
+        ttl_s=ttl,
+    )
+    return {"url": f"{EMBED_PREFIX}/{token}/web/view.html?job={job_id}&shared", "expires_in": ttl}
+
+
+def share_claims(token: str) -> dict[str, Any]:
+    """Raises TokenError unless it is a share token for a job (the caller checks its share id)."""
+    claims = verify(token, audience=SHARE_AUDIENCE, secret=embed_secret())
+    if not isinstance(claims.get("sub"), str) or not is_job_id(claims.get("job", "")):
+        raise TokenError("token names no job")
+    if not isinstance(claims.get("share"), str) or not claims["share"]:
+        raise TokenError("token names no share")
+    return claims
+
+
+def share_request_limit(method: str, path: str, job_id: str) -> int | None:
+    """0 when a share link may GET this path (relative to the service root), else None."""
+    if method != "GET" or not SAFE_PATH.match(path):
+        return None
+    parts = path.split("/")
+    if any(part in ("", ".", "..") for part in parts):
+        return None
+    if parts[0] == "web":
+        return 0 if len(parts) == 2 and parts[1] in SHARE_WEB_FILES else None
+    if parts[0] == "three":
+        return 0 if len(parts) >= 2 else None
+    if parts[:2] == ["jobs", job_id] and len(parts) == 3 and SHARE_JOB_FILE.match(parts[2]):
+        return 0
+    return None
+
+
 def frame_ancestors() -> str:
     """Value of the frame-ancestors directive: only our own frontend may frame the pages."""
     origins = [app_settings.frontend_origin, *get_settings().frame_ancestors.split(",")]

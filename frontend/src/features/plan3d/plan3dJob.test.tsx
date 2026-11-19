@@ -810,6 +810,31 @@ describe('3D job page', () => {
       expect(isDisabled(screen.getByRole('button', { name: 'Download Blender file' }))).toBe(false);
     });
 
+    it('makes a share link, copies it, and turns it off', async () => {
+      const link = `${BASE}/embed/a-share-token/web/view.html?job=${JOB_ID}&shared`;
+      const writeText = vi.fn(() => Promise.resolve());
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+      const fetchMock = done({
+        [`POST ${JOB}/share`]: () => json({ url: link, expires_in: 2592000 }),
+        [`DELETE ${JOB}/share`]: () => noContent(),
+      });
+      renderJob();
+      await screen.findByTitle(WALK);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Share walkthrough' }));
+      const field = (await screen.findByRole('textbox', { name: 'Share link to the walkthrough' })) as HTMLInputElement;
+      expect(field.value).toBe(`${API}${link}`);
+      expect(writeText).toHaveBeenCalledWith(`${API}${link}`);
+      expect(await screen.findByText(/Copied\. Anyone with this link can walk through the house/)).toBeDefined();
+      expect(authorizationOf(callsTo(fetchMock, 'POST', `${JOB}/share`)[0])).toBe('Bearer test-jwt-token');
+      expect(screen.getByRole('button', { name: 'New share link' })).toBeDefined();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Turn link off' }));
+      await waitFor(() => expect(callsTo(fetchMock, 'DELETE', `${JOB}/share`)).toHaveLength(1));
+      await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Share link to the walkthrough' })).toBeNull());
+      expect(screen.getByRole('button', { name: 'Share walkthrough' })).toBeDefined();
+    });
+
     it('deletes the plan after a confirm, then goes back to all plans', async () => {
       const fetchMock = done({ [`DELETE ${JOB}`]: () => noContent() });
       const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);

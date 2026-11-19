@@ -20,6 +20,7 @@ import {
   type Plan3dNotifications,
   plan3dNotificationsSchema,
   plan3dExportSchema,
+  plan3dShareSchema,
   plan3dJobCreatedSchema,
   plan3dJobListSchema,
   plan3dJobSchema,
@@ -127,6 +128,15 @@ export const plan3dApi = {
   /** Pack the Blender file (up to a few minutes the first time). The answer is its file name. */
   exportBlender: async (jobId: string): Promise<{ file: string }> =>
     plan3dExportSchema.parse(await apiRequest(`${jobPath(jobId)}/export`, { method: 'POST' })),
+
+  /** A share link to the walkthrough (read-only, anyone with it); any older link stops working. */
+  share: async (jobId: string): Promise<{ url: string; expires_in: number }> =>
+    plan3dShareSchema.parse(await apiRequest(`${jobPath(jobId)}/share`, { method: 'POST' })),
+
+  /** Turn the walkthrough's share link off. */
+  unshare: async (jobId: string): Promise<void> => {
+    await apiRequest(`${jobPath(jobId)}/share`, { method: 'DELETE' });
+  },
 
   /** URLs of the job's review page, walkthrough and files, good for `expires_in` seconds. */
   embed: async (jobId: string, signal?: AbortSignal): Promise<Plan3dEmbed> =>

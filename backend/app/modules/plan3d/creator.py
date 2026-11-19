@@ -114,7 +114,12 @@ TOOLS = [
         ["location"],
     ),
     _tool("scene", "List the objects with their bounds, and the triangle count.", {}, []),
-    _tool("render_preview", "Render a preview and see it.", {"samples": {"type": "integer"}}, []),
+    _tool(
+        "render_preview",
+        "Render previews (evening, then day) and see them.",
+        {"samples": {"type": "integer"}},
+        [],
+    ),
     _tool("export", "Export the finished asset (the last step).", {}, []),
 ]
 
@@ -235,13 +240,13 @@ def create(
                 out = service.creator_op(sid, b.name, dict(b.input or {}))
             except Exception as e:  # noqa: BLE001 - a failed call is the agent's to handle
                 out = {"ok": False, "error": str(e)[:300]}
-            png = out.pop("png_b64", None)
+            png = out.pop("png_b64", None) or []
             content: list[dict[str, Any]] = [{"type": "text", "text": json.dumps(out)[:4000]}]
-            if png:
+            for data in [png] if isinstance(png, str) else png:  # evening, then day
                 content.append(
                     {
                         "type": "image",
-                        "source": {"type": "base64", "media_type": "image/png", "data": png},
+                        "source": {"type": "base64", "media_type": "image/png", "data": data},
                     }
                 )
             results.append(

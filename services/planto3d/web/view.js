@@ -6,6 +6,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import * as walk from './walk.js';
 import { plan as tourPlan } from './tour.js';
+// opened from a share link: view only (the link reaches no writes, and no Blender file)
+const SHARED = new URLSearchParams(location.search).has('shared');
 
 const $ = (id) => document.getElementById(id);
 const job = new URLSearchParams(location.search).get('job');
@@ -365,7 +367,7 @@ function screenshot() {
 const REC_TYPE = window.MediaRecorder && ['video/mp4;codecs=avc1.42E01E', 'video/webm;codecs=vp9', 'video/webm']
   .find((t) => MediaRecorder.isTypeSupported(t));
 function toggleRec() {
-  if (!REC_TYPE) return;
+  if (!REC_TYPE || SHARED) return;
   if (rec) return rec.stop();
   const chunks = [], t0 = performance.now();
   const label = () => {
@@ -521,7 +523,8 @@ if (q.get('pose')) {
   $('overlay').style.display = 'none';
 }
 if (q.get('top') !== null) { toggleTop(); showLevels(+q.get('top') || 0); }
-if (q.get('embed') !== null) $('newplan').remove();        // inside another site's page there is no "new plan" to go to
+if (q.get('embed') !== null || SHARED) $('newplan').remove();   // inside another site's page, or shared: no "new plan"
+if (SHARED) { $('rec').remove(); $('blend').remove(); }     // a share link only views: recording and the Blender file need the owner
 // recording hook: draw one frame at a pose (metres, radians) and return it as a JPEG data URL
 window.__frame = (x, y, z, yaw, pitch) => {
   renderer.setAnimationLoop(null);

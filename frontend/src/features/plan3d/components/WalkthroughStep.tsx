@@ -47,7 +47,9 @@ export function WalkthroughStep({
   const embed = useEmbedAccess(jobId, frame);
   const box = useRef<HTMLDivElement>(null);
   const onPage = useRef(true);
-  const [busy, setBusy] = useState<"export" | "delete" | "tour" | null>(null);
+  const [busy, setBusy] = useState<"export" | "delete" | "tour" | "share" | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const walkthroughUrl = embed.access?.walkthrough_url ?? null;
 
@@ -81,6 +83,41 @@ export function WalkthroughStep({
       if (onPage.current) startDownload(jobFileUrl(filesUrl, file));
     } catch (e) {
       setError(`The Blender file could not be prepared. ${plan3dErrorText(e)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const makeShareLink = async () => {
+    setBusy("share");
+    setError(null);
+    setCopied(false);
+    try {
+      const { url } = await plan3dApi.share(jobId);
+      const absolute = embedUrl(url);
+      setShareUrl(absolute);
+      try {
+        await navigator.clipboard.writeText(absolute);
+        setCopied(true);
+      } catch {
+        // no clipboard access: the link is shown to copy by hand
+      }
+    } catch (e) {
+      setError(`The share link could not be made. ${plan3dErrorText(e)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const turnOffShareLink = async () => {
+    setBusy("share");
+    setError(null);
+    try {
+      await plan3dApi.unshare(jobId);
+      setShareUrl(null);
+      setCopied(false);
+    } catch (e) {
+      setError(`The share link could not be turned off. ${plan3dErrorText(e)}`);
     } finally {
       setBusy(null);
     }
@@ -202,6 +239,15 @@ export function WalkthroughStep({
         >
           Download Blender file
         </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void makeShareLink()}
+          isLoading={busy === "share" && !shareUrl}
+          disabled={busy !== null}
+        >
+          {shareUrl ? "New share link" : "Share walkthrough"}
+        </Button>
         <LinkButton to="/3d/furniture">Furniture models</LinkButton>
         <Button
           variant="ghost"
@@ -215,6 +261,32 @@ export function WalkthroughStep({
           Delete
         </Button>
       </div>
+      {shareUrl && (
+        <div
+          className="flex flex-wrap items-center gap-2 text-sm"
+          aria-label="Share link"
+        >
+          <input
+            readOnly
+            value={shareUrl}
+            onFocus={(e) => e.currentTarget.select()}
+            aria-label="Share link to the walkthrough"
+            className="min-w-0 flex-1 rounded border border-[#303030] bg-[#181818] px-2 py-1 text-xs text-white"
+          />
+          <StatusNote>
+            {copied ? "Copied. " : ""}Anyone with this link can walk through the
+            house (not edit it). A new link turns the old one off.
+          </StatusNote>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void turnOffShareLink()}
+            disabled={busy !== null}
+          >
+            Turn link off
+          </Button>
+        </div>
+      )}
       <div
         className="flex flex-wrap items-center gap-2"
         aria-label="Video tour"
