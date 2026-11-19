@@ -584,3 +584,11 @@ reference plans the reader gives 90.5 (a compass rose pointing right) and 0 (an 
 (the first version gave 14.9 on the second: it averaged stray strokes). The dock house's Low build took 199 s
 against 111 s without the evening maps. Not done: the evening interior differs little from the day one (the lamps
 dominate both); a darker interior would need the lamps' day level lowered, which changes the day look.
+
+## 52. The verifier finds a wall close behind a door (verify.py)
+
+What: door_no_way tried only a point 1.5 ft beyond each side of a door; a wall closer than that was missed. It now
+tries every quarter foot from 0.25 to 1.5 ft. Found by the full suite: on job 0bdaca14d7bf (a reading from before this
+run) a door opens onto a parallel wall 0.84 ft behind it, which test_openings reports (the walker cannot pass) and the
+verifier did not; it is now a critical item, so Build stays off on the review page until it is fixed or dismissed.
+tests/test_verify.py: still no warning on the 200 true plans.

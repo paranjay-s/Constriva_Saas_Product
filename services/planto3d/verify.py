@@ -9,7 +9,7 @@ kind / what it finds:
   room_overlap      two rooms that share more than a sliver of floor
   untyped_room      a room without a type
   window_inside     a window with a room on both sides (windows belong in outer walls)
-  door_no_way       a door with no walkable space 1.5 ft beyond it on one side
+  door_no_way       a door with a wall across its whole width within 1.5 ft on one side
   stair_no_landing  a stair going up with no stair or open space above it on the next storey
   stair_direction   a stair whose UP mark is at its top end (the climb runs the wrong way)
   floor_overhang    an upper storey's room that lies outside the storey below (nothing holds it up)
@@ -115,12 +115,20 @@ def verify(plan):
                     _issue(out, fi, "window_inside", "warning", ["opening", k],
                            f"{name}: a window between two rooms (windows belong in outer walls)", (cx, cy))
             if o.get("type") == "door":
-                # a side is shut when a wall stands 1.5 ft out across the whole width of the door
-                def shut(e):
-                    pts = [(x0 + (x1 - x0) * t, e[1]) for t in (0.2, 0.5, 0.8)] if o.get("axis") == "x" else \
-                          [(e[0], y0 + (y1 - y0) * t) for t in (0.2, 0.5, 0.8)]
-                    return all(any(_near(w, px, py, 0.1) for w in full) for px, py in pts)
-                if any(shut(e) for e in ends):
+                # a side is shut when a wall stands across the whole width of the door anywhere from 0.25 to 1.5 ft out
+                # (nearer than a person can stand: a wall 0.8 ft behind a door was missed when only 1.5 ft was tried)
+                def shut(side):
+                    for d in (0.25, 0.5, 0.75, 1.0, 1.25, 1.5):
+                        if o.get("axis") == "x":
+                            yy = y0 - d if side < 0 else y1 + d
+                            pts = [(x0 + (x1 - x0) * t, yy) for t in (0.2, 0.5, 0.8)]
+                        else:
+                            xx = x0 - d if side < 0 else x1 + d
+                            pts = [(xx, y0 + (y1 - y0) * t) for t in (0.2, 0.5, 0.8)]
+                        if all(any(_near(w, px, py, 0.1) for w in full) for px, py in pts):
+                            return True
+                    return False
+                if shut(-1) or shut(1):
                     _issue(out, fi, "door_no_way", "critical", ["opening", k],
                            f"{name}: a door opens straight onto a wall", (cx, cy))
         # stairs: the UP mark at the bottom end; something above the stair on the next storey
