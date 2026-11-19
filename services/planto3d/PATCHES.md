@@ -287,3 +287,10 @@ What: "court" (outdoor) covers tennis, padel, basketball, badminton and volleyba
 "COURT" alone and "LANDSCAPE COURT" stay a garden (a courtyard). "custom" (outdoor, orange on the maps) is given only
 by the backend's AI classifier, for areas built from an area spec. The review page and the import accept both. The
 room label test still passes 209/209.
+
+## 23. The tour climbs from any part; stair records without words build (web/tour.js, blender/gen.py)
+
+What: when the stairs cannot be walked to from where the tour is, it jumps to their foot instead of ending on the
+ground floor. `stair_parts` reads a flight's `words` with `.get`, as the line before it did; plans imported through
+the server always have them, but plans written by other tools may not. Checked on 20 generated plans of 1 to 3
+storeys (model-only builds, 9-14 s each) and 8 stored jobs: 28 of 28 pass tests/test_tour.mjs.

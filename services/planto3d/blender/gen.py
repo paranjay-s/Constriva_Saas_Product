@@ -385,7 +385,7 @@ def stair_parts(f, rise):
         lo, hi = (x0, x1) if ax == 0 else (y0, y1)
         if k == 0:
             # start at the end nearest to the UP word
-            w = next((p for p in s["words"] if p[0].startswith("UP")), None)
+            w = next((p for p in s.get("words") or [] if p[0].startswith("UP")), None)
             pos = (w[1], w[2]) if w else ((x0 + x1) / 2, (y0 + y1) / 2)
             start = lo if abs(pos[ax] - lo) < abs(pos[ax] - hi) else hi
         else:

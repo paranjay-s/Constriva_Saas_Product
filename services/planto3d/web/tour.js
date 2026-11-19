@@ -168,8 +168,8 @@ export function plan(meta) {
     const fc = nearestFree(G, ...foot, 1.5);
     if (!fc) break;
     const dist = bfs(G, at);
-    if (dist[fc[1] * G.nx + fc[0]] < 0) break;
-    push(G, shortcut(G, pathTo(G, dist, fc)).slice(1));
+    if (dist[fc[1] * G.nx + fc[0]] < 0) push(G, [fc], { jump: true });     // the stairs are in another part
+    else push(G, shortcut(G, pathTo(G, dist, fc)).slice(1));
     const p = { x: foot[0], y: foot[1], z: f.z };
     for (const s of flights) {
       const len = s.axis === 'x' ? s.rect[1] - s.rect[0] : s.rect[3] - s.rect[2];
