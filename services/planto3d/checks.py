@@ -128,3 +128,17 @@ def building_kind(plan):
         return None
     w = min(max(x[1] for x in ws) - min(x[0] for x in ws), max(x[3] for x in ws) - min(x[2] for x in ws))
     return "townhouse" if w <= NARROW_FT else "villa"
+
+
+SEVERITY = {"unknown_label": "warning", "multi_label": "info", "door_blocked": "warning", "area_mismatch": "warning",
+            "unlabelled": "info"}
+
+
+def all_checks(plan):
+    """the review page's whole checklist: these checks plus the verifier's (verify.py), each with a severity,
+    most severe first"""
+    import verify
+    out = [dict(c, severity=c.get("severity") or SEVERITY.get(c["kind"], "info")) for c in plan_checks(plan)]
+    out += verify.verify(plan)
+    order = {"critical": 0, "warning": 1, "info": 2}
+    return sorted(out, key=lambda c: (order.get(c["severity"], 2), c["floor"]))

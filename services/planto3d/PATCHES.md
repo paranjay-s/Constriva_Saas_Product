@@ -413,3 +413,14 @@ What: the ground storey's full-height walls get a stone base (granite tile) 2.5 
 face. A face counts as outer when there is no indoor room 1 ft beyond it at three points along it. The base is cut
 away where a door or a floor-level opening is. It breaks up the long plain sides that the four-side stills showed
 (style_compare/), but it does not replace real facade design: the side walls are still mostly blank.
+
+## 37. The plan verifier (verify.py, checks.py, server.py)
+
+What: pure-code checks with a severity (critical, warning or info) and a location. Rooms that overlap (stairs, lifts
+and voids drawn inside another room are allowed) and rooms without a type are critical. Doors that open onto a wall
+across their whole width are also critical. Warnings cover windows between two rooms, a stair with nothing above it
+on the next storey, upper-storey rooms outside the storey below, and a room total more than 10 % off a stated total.
+Wall ends with nothing within 6 ft and rooms closed on fewer than 2 sides are info. The checks from §17 get a severity
+too. `checks.all_checks` merges both lists, most severe first, wherever a plan is written. On all 200 generated (true)
+plans it raises nothing critical and no warning. On the stored, read plans it finds 9 windows between rooms and 2
+overlaps.

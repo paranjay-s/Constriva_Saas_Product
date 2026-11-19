@@ -246,7 +246,7 @@ def run_detect(jid):
                                    "Please export the plan from AutoCAD / your CAD tool as a PDF.")
         importlib.reload(detect)          # pick up detector fixes without restarting the server
         plan = detect.detect(pdf)
-        plan["checks"] = checks.plan_checks(plan)        # what the review page asks the person to check
+        plan["checks"] = checks.all_checks(plan)        # what the review page asks the person to check
         checks.annotate(plan, "detector")                 # source and confidence of every room and opening
         with open(os.path.join(d, "plan.json"), "w") as fh:
             json.dump(plan, fh)
@@ -973,7 +973,7 @@ class H(BaseHTTPRequestHandler):
                             return self.send(400, {"error": "invalid plan"})
                         # the AI's second look (backend plan3d/verify.py) is kept; the rest is worked out again
                         ai = [c for c in plan.get("checks") or [] if isinstance(c, dict) and c.get("kind") == "ai_review"]
-                        plan["checks"] = checks.plan_checks(plan) + ai[:25]
+                        plan["checks"] = checks.all_checks(plan) + ai[:25]
                         checks.annotate(plan, "user")     # what the person added is theirs; the rest keeps its source
                         with open(os.path.join(jdir(jid), "plan.json"), "w") as fh:
                             json.dump(plan, fh)
@@ -1032,7 +1032,7 @@ class H(BaseHTTPRequestHandler):
                 pg = render_page(jid, k, PAGES_SECONDS)       # a storey on a page after the first six
                 if pg:
                     st = status(jid, pages=st["pages"] + [pg])
-            plan["checks"] = checks.plan_checks(plan)
+            plan["checks"] = checks.all_checks(plan)
             checks.annotate(plan, {"ai": "ai", "detector": "detector"}.get(req["reader"], "user"))
             with open(os.path.join(jdir(jid), "plan.json.part"), "w") as fh:
                 json.dump(plan, fh)
