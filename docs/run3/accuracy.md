@@ -193,7 +193,7 @@ The fit had become harmful once the scale was right: with it, held-out vector wa
 uses one); the centre-line size used one wall thickness for 9" outer walls and 4.5" partitions alike; the storey was
 rescaled for differences of 0.5 % (labels rounded to the inch are that noisy; now 1.5 %); and rooms were measured from
 the reader's room rectangle, which can span two rooms or stop at a wall centre. Rooms are now measured between the
-walls, from where the name is written (detect.py writes  for each room).
+walls, from where the name is written (detect.py writes `label_at` for each room).
 
 Labelled rooms within 2 % of their label (measured between the walls, with the storey's convention) and wall recall,
 without and with the fit:
