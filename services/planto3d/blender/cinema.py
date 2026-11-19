@@ -269,6 +269,29 @@ try:
     ee.ray_tracing_options.use_denoise = True
 except Exception:
     pass
+# EEVEE lights walls with the whole sky, unoccluded: a blue dusk sky turned white plaster blue (Cycles occludes it
+# and stays right). For EEVEE the camera still sees the sky at full strength, but the light it casts on surfaces is
+# scaled by sky_diffuse (TOUR key, default 0.8) and mostly greyed (sky_sat 0.25)
+def soften_sky(k):
+    bg = wn.nodes["Background"]
+    out = next(n for n in wn.nodes if n.type == "OUTPUT_WORLD")
+    lp, dim, mix = wn.nodes.new("ShaderNodeLightPath"), wn.nodes.new("ShaderNodeBackground"), wn.nodes.new("ShaderNodeMixShader")
+    src = next((l.from_socket for l in wn.links if l.to_socket == bg.inputs["Color"]), None)
+    if src is not None:              # the light it casts: much less blue (saturation sky_sat, default 0.25)
+        hs = wn.nodes.new("ShaderNodeHueSaturation")
+        hs.inputs["Saturation"].default_value = TOUR.get("sky_sat", 0.25)
+        wn.links.new(src, hs.inputs["Color"])
+        wn.links.new(hs.outputs["Color"], dim.inputs["Color"])
+    dim.inputs["Strength"].default_value = bg.inputs["Strength"].default_value * k
+    wn.links.new(lp.outputs["Is Camera Ray"], mix.inputs["Fac"])
+    wn.links.new(dim.outputs["Background"], mix.inputs[1])
+    wn.links.new(bg.outputs["Background"], mix.inputs[2])
+    wn.links.new(mix.outputs["Shader"], out.inputs["Surface"])
+
+
+if not ("--engine" in argv and argv[argv.index("--engine") + 1] == "cycles"):
+    soften_sky(TOUR.get("sky_diffuse", 0.8))
+
 # --engine cycles: path tracing on the GPU (Metal / CUDA / OptiX when there is one), --samples per pixel, denoised
 if "--engine" in argv and argv[argv.index("--engine") + 1] == "cycles":
     sc.render.engine = "CYCLES"

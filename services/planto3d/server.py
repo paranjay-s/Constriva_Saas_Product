@@ -347,6 +347,70 @@ def run_blender(jid, quality, out, t0, base=0, share=100):
     return maps
 
 
+# ------------------------------------------------------------------ rendered tours (blender/cinema.py)
+# High: EEVEE at 1280x720; Ultra: Cycles at 1920x1080, 64 samples. Rendered in chunks of about CHUNK_S seconds each
+# (frames already on disk are skipped, so a stopped tour resumes), with TOUR_COOL_S seconds between chunks, then joined
+# by ffmpeg into tour_<quality>.mp4
+TOURS = {"high": dict(engine="eevee", res="1280x720"), "ultra": dict(engine="cycles", res="1920x1080", samples=64)}
+CHUNK_S = float(os.environ.get("PLAN3D_TOUR_CHUNK_S", 480))
+TOUR_COOL_S = float(os.environ.get("PLAN3D_TOUR_COOL_S", 30))
+NODE = os.environ.get("NODE") or shutil.which("node") or "node"
+
+
+def chunk_frames(sec_per_frame, chunk_s=CHUNK_S, least=10, most=900):
+    """frames per chunk so a chunk takes about chunk_s seconds"""
+    return max(least, min(most, int(chunk_s / max(sec_per_frame, 0.01))))
+
+
+def run_tour(jid, quality, seconds=None, res=None):
+    d = jdir(jid)
+    q = TOURS[quality]
+    res = res or q["res"]
+    out = os.path.join(d, f"tour_{quality}")
+    os.makedirs(os.path.join(out, "frames"), exist_ok=True)
+    tour = os.path.join(out, "tour.json")
+    cmd = [NODE, os.path.join(HERE, "tools", "tour_cinema.mjs"), os.path.join(d, "meta.json"), tour]
+    if seconds:
+        cmd += ["--seconds", str(seconds)]
+    subprocess.run(cmd, check=True, capture_output=True, timeout=120)
+    with open(tour) as fh:
+        t = json.load(fh)
+    keys = t["keys"]
+    # the film's length as cinema.py times it is printed by its first run; until then, a fair guess
+    n, start, per = None, 0, 3.0
+    blend = os.path.join(d, "house_baked.blend") if os.path.exists(os.path.join(d, "house_baked.blend")) else os.path.join(d, "house.blend")
+    with open(os.path.join(d, "build.log"), "a") as log:
+        while n is None or start < n:
+            end = start + chunk_frames(per) - 1
+            c = [BLENDER, "-b", blend, "-P", os.path.join(HERE, "blender", "cinema.py"), "--", tour, out, "--frames",
+                 "--start", str(start), "--end", str(end), "--res", res, "--engine", q["engine"]]
+            if q.get("samples"):
+                c += ["--samples", str(q["samples"])]
+            t0, done0 = time.time(), len([f for f in os.listdir(os.path.join(out, "frames")) if f.endswith(".jpg")])
+            pr = subprocess.run(c, capture_output=True, text=True, timeout=max(600, CHUNK_S * 3))
+            log.write(pr.stdout[-4000:])
+            mm = re.search(r"TOUR [\d.]+ s = (\d+) frames", pr.stdout)
+            if mm:
+                n = int(mm.group(1)) + 1
+            if n is None:
+                raise RuntimeError("the tour could not be planned - see build.log")
+            done = len([f for f in os.listdir(os.path.join(out, "frames")) if f.endswith(".jpg")])
+            if pr.returncode or done <= done0 and n is not None and done < n:
+                raise RuntimeError("the tour could not be rendered - see build.log")
+            per = (time.time() - t0) / max(1, done - done0)
+            start = end + 1
+            status(jid, progress=min(99, int(100 * done / max(1, n or done))),
+                   message=f"Rendering the tour: {done} of {n} frames")
+            if n is not None and start < n and TOUR_COOL_S:
+                time.sleep(TOUR_COOL_S)            # let the machine cool between chunks
+    mp4 = os.path.join(d, f"tour_{quality}.mp4")
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-framerate", str(t.get("fps", 30)), "-pattern_type", "glob",
+                    "-i", os.path.join(out, "frames", "f_*.jpg"), "-c:v", "libx264", "-pix_fmt", "yuv420p", mp4],
+                   check=True, timeout=1800)
+    shutil.rmtree(os.path.join(out, "frames"), ignore_errors=True)
+    return os.path.basename(mp4), len(keys)
+
+
 def builder():
     """High is built after a Low preview: the house can be walked through in about a minute while High bakes into
     .next/, whose files then replace the preview's (a failed High leaves the Low house in place)"""
@@ -356,6 +420,21 @@ def builder():
         with lock:
             if jid in waiting:
                 waiting.remove(jid)
+        if isinstance(quality, tuple):         # ("tour", quality, seconds, res): a rendered tour of a built house
+            _, tq, secs, res = quality
+            try:
+                t0 = time.time()
+                status(jid, stage="building", progress=1, message="Rendering the tour", started=t0)
+                f, _ = run_tour(jid, tq, secs, res)
+                st = read_status(jid) or {}
+                tours = dict(st.get("tours") or {}, **{tq: dict(file=f, seconds=round(time.time() - t0))})
+                status(jid, stage="done", progress=100, message="Ready", tours=tours)
+            except Exception as e:
+                traceback.print_exc()
+                status(jid, stage="done", progress=100, message=f"The tour could not be rendered: {str(e)[:200]}")
+            finally:
+                builds.task_done()
+            continue
         try:
             t0 = time.time()
             status(jid, stage="building", progress=1, message="Starting Blender", started=t0, preview=False,
@@ -860,11 +939,29 @@ class H(BaseHTTPRequestHandler):
             m = re.match(r"^/api/jobs/([a-f0-9]{12})/import$", p)
             if m and os.path.isdir(jdir(m.group(1))):
                 return self.import_plan(m.group(1))
-            m = re.match(r"^/api/jobs/([a-f0-9]{12})/(plan|build|export)$", p)
+            m = re.match(r"^/api/jobs/([a-f0-9]{12})/(plan|build|export|tour)$", p)
             if m and os.path.isdir(jdir(m.group(1))):
                 jid, what = m.groups()
                 if what == "export":
                     return self.send(200, {"url": export_blend(jid)})
+                if what == "tour":                 # a rendered video tour of the built house: {quality, seconds?, res?}
+                    req_t = json.loads(self.body() or b"{}")
+                    tq = req_t.get("quality")
+                    if tq not in TOURS:
+                        return self.send(400, {"error": f"quality must be one of {', '.join(TOURS)}"})
+                    secs = req_t.get("seconds")
+                    secs = float(secs) if isinstance(secs, (int, float)) and 1 <= secs <= 600 else None
+                    res = req_t.get("res")
+                    res = res if isinstance(res, str) and re.match(r"^\d{3,4}x\d{3,4}$", res) else None
+                    with plan_lock:
+                        st = read_status(jid) or {}
+                        if st.get("stage") != "done":
+                            return self.send(409, {"error": "build the house first"})
+                        status(jid, stage="queued", progress=0, message=f"Waiting for the 3D builder ({builds.qsize()} ahead)")
+                        with lock:
+                            waiting.append(jid)
+                    builds.put((jid, ("tour", tq, secs, res)))
+                    return self.send(200, {"ok": True})
                 body = self.body()
                 with plan_lock:
                     st = read_status(jid) or {}

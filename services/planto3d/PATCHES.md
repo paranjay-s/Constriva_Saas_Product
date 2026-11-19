@@ -393,3 +393,16 @@ What: a save keeps the checks of kind `ai_review` (at most 25) that the 3D gatew
 plan3d/verify.py), and works out the rest again as before. These items name a whole plan rather than one room or
 opening (`item: ["plan", 0]`). The review page lists them without outlining anything, and clicking one only switches to
 its storey.
+
+## 35. Rendered tours: the chunked pipeline, and EEVEE without the blue cast (server.py, blender/cinema.py, tools/tour_cinema.mjs)
+
+What: `POST /api/jobs/{id}/tour {quality: high|ultra, seconds?, res?}` queues a video tour of a built house on the
+build queue, so only one Blender job runs at a time. High is EEVEE at 1280x720; Ultra is Cycles at 1920x1080 with 64
+samples. `run_tour` turns the guided tour's route into cinema keys (tools/tour_cinema.mjs, which needs Node on the
+server), then renders in chunks of about `PLAN3D_TOUR_CHUNK_S` seconds (default 480), sized from the measured time per
+frame. Done frames are skipped, so a stopped tour resumes. Chunks are `PLAN3D_TOUR_COOL_S` apart (default 30), ffmpeg
+joins the frames into `tour_<quality>.mp4`, and the job lists it under `tours`. Checked live with an 8 s, 480p High
+tour: 3 chunks (80, 104 and 13 frames, 2 minutes apart), 197 frames, 6.6 s of video, done in 647 s.
+EEVEE lit walls with the whole dusk sky, unoccluded, and turned white plaster blue. The sky's light on surfaces is now
+greyed (saturation 0.25) and scaled (0.8), while the camera still sees the sky as it is. A still at the same time now
+matches Cycles' light grey wall. Cycles is unchanged.
