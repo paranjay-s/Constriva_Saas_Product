@@ -150,7 +150,9 @@ for i, m in enumerate(ob.data.materials):
         g.use_nodes = True
         b = g.node_tree.nodes["Principled BSDF"]
         b.inputs["Base Color"].default_value = style.rgba(METALS[m.name][0])
-        b.inputs["Metallic"].default_value = 1.0
+        # 0.55, not 1: the house's light bake is diffuse, so a fully metallic surface bakes black; the walkthrough
+        # adds its reflection above 0.5
+        b.inputs["Metallic"].default_value = 0.55
         b.inputs["Roughness"].default_value = METALS[m.name][1]
         swap[i] = g
     elif m.name in CLEAR:
