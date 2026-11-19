@@ -314,3 +314,11 @@ blocked door at 0.3, an area mismatch at 0.5. The rules are fixed and stated her
 detection, on import and on every save. On a save, elements without a source become the person's (1.0); the rest keep
 their source. The review page shows "Read from the drawing · 72 % sure", and changing an element's type, label or
 width makes it the person's. The plan also carries average confidences (`plan.confidence`).
+
+## 26. Low light maps stop at 2048 px (blender/bake.py, server.py)
+
+Where the time goes (dock house, Low, M1 Pro, with nice): model 2.5 s, light-map baking 192 s (93%), glTF export
+10 s, 206 s in all. The 4096 px storey map alone took 97 s. With Low maps capped at 2048 px the same build takes 102 s
+(-50%). The walkthrough looks the same from inside and outside at the same camera poses (compared side by side). High
+keeps 4096. The server's default Low bake rates are now the measured ones (6.5 s per megapixel per storey map, 4 s for
+the site).

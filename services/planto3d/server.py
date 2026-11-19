@@ -237,7 +237,7 @@ def run_detect(jid):
 
 # seconds per million light-map pixels, by quality, for storey maps and the site map, plus model and export time:
 # measured on an M1 Pro (Metal); CALIBRATION scales them to this machine after every build
-RATES = {"draft": (12.0, 4.0), "high": (18.0, 8.0)}
+RATES = {"draft": (6.5, 4.0), "high": (18.0, 8.0)}      # draft measured on the dock house (PATCHES §26)
 FIXED = {"draft": 14.0, "high": 18.0}
 CALIBRATION = os.path.join(JOBS, ".eta_calibration.json")
 

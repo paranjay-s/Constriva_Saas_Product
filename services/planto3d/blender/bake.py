@@ -143,10 +143,10 @@ def _cool_down(progress, limit=78, resume=65):
             time.sleep(5)
 
 
-def _texture_size(area_m2, texel_m):
+def _texture_size(area_m2, texel_m, cap=4096):
     px = math.sqrt(area_m2 / 0.55) / texel_m     # ~55% of the atlas is covered by islands
     for s in (512, 1024, 2048, 4096):
-        if px <= s:
+        if px <= s or s >= cap:
             return s
     return 4096
 
@@ -230,6 +230,8 @@ def bake_and_export(groups, unbaked, out, quality="high", do_bake=True, progress
     scene.cycles.diffuse_bounces = 4
     texel = 0.02 if quality == "high" else 0.045
     samples = 256 if quality == "high" else 64
+    # Low maps stop at 2048 px: a 4096 map took 3/4 of a large house's Low build (PATCHES §26)
+    cap = 4096 if quality == "high" else 2048
     baked, keep, lightmaps, lmax = [], [], {}, {}
     n = len(groups)
     if do_bake:      # every light map's size before the first bake: the server's time-left estimate (server.py)
@@ -237,7 +239,7 @@ def bake_and_export(groups, unbaked, out, quality="high", do_bake=True, progress
         for name, objs in groups.items():
             ms = [o for o in _flatten([o for o in objs if o.name in bpy.data.objects]) if not _transparent(o) and len(o.data.polygons)]
             if ms:
-                sizes.append(f"{name}={_texture_size(sum(_surface_area(o) for o in ms), texel)}")
+                sizes.append(f"{name}={_texture_size(sum(_surface_area(o) for o in ms), texel, cap)}")
         print("MAPS " + " ".join(sizes), flush=True)
     for gi, (name, objs) in enumerate(groups.items()):
         objs = [o for o in objs if o.name in bpy.data.objects]
@@ -256,7 +258,7 @@ def bake_and_export(groups, unbaked, out, quality="high", do_bake=True, progress
         if not do_bake:
             continue
         _unwrap(ob)
-        size = _texture_size(_surface_area(ob), texel)
+        size = _texture_size(_surface_area(ob), texel, cap)
         _cool_down(lambda p, m: progress(35 + 55 * gi / n, m))
         progress(35 + 55 * gi / n, f"baking light for {name} ({size}px)")
         img = _bake(ob, size, samples)
