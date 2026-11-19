@@ -238,6 +238,14 @@ function offsetOf(j) {
   if (!a || !b || a.page !== b.page || a.rot !== b.rot || Math.abs(a.s - b.s) > 1e-3 * a.s) return null;
   return [(b.o[0] - a.o[0]) / a.s, (a.o[1] - b.o[1]) / a.s];
 }
+// who made an element and how sure it is (checks.annotate on the server); a person's change makes it theirs
+const SRC_TEXT = { detector: 'Read from the drawing', ai: 'Read by the AI', user: 'Yours' };
+function sourceLine(x) {
+  if (!x?.src) return null;
+  const sure = x.src === 'user' || typeof x.conf !== 'number' ? '' : ` · ${Math.round(x.conf * 100)} % sure`;
+  return el('p', { className: 'muted', style: 'font-size:12px', textContent: (SRC_TEXT[x.src] || x.src) + sure });
+}
+const mine = (x) => { x.src = 'user'; x.conf = 1; };
 function drawFloor(f, dx, dy, active) {
   const fade = active ? 1 : 0.4, mv = (r) => [r[0] + dx, r[1] + dx, r[2] + dy, r[3] + dy];
   const isSel = (kind, i) => active && sel?.kind === kind && sel.i === i;
@@ -454,7 +462,9 @@ function ui() {
     const ot = el('select', { id: 'ot' }, ...['door', 'window', 'opening'].map((t) => new Option(t, t)));
     P.append(el('h3', { textContent: 'Opening' }), row(el('span', { textContent: 'Type' }), ot),
       row(el('span', { textContent: 'Width (ft)' }), num('ow', +(o.rect[along + 1] - o.rect[along]).toFixed(2), 0.25)));
-    ot.value = o.type; ot.onchange = (e) => { snapshot(); o.type = e.target.value; edited(f); ui(); };
+    const ol = sourceLine(o);
+    if (ol) P.append(ol);
+    ot.value = o.type; ot.onchange = (e) => { snapshot(); o.type = e.target.value; mine(o); edited(f); ui(); };
     $('ow').onchange = (e) => {
       const v = +e.target.value;
       if (!(v >= 1 && v <= 30)) return;
@@ -462,7 +472,7 @@ function ui() {
       const c = (o.rect[along] + o.rect[along + 1]) / 2;
       o.rect[along] = r3(c - v / 2); o.rect[along + 1] = r3(c + v / 2);
       if (o.hinge) delete o.hinge;
-      edited(f); ui();
+      mine(o); edited(f); ui();
     };
   } else if (sel.kind === 'room') {
     const z = f.rooms[sel.i];
@@ -471,8 +481,10 @@ function ui() {
     P.append(el('h3', { textContent: 'Room' }), row(el('span', { textContent: 'Type' }), rt),
       el('div', { className: 'row', style: 'margin-top:6px' }, el('span', { textContent: 'Label' }), rl),
       el('p', { className: 'muted', style: 'font-size:12px', textContent: `${+z.area} sq ft. Furniture follows the type.` }));
-    rt.value = z.type; rt.onchange = (e) => { snapshot(); z.type = e.target.value; draw(); };
-    rl.oninput = (e) => { z.label = e.target.value.slice(0, 80); };
+    const zl = sourceLine(z);
+    if (zl) P.append(zl);
+    rt.value = z.type; rt.onchange = (e) => { snapshot(); z.type = e.target.value; mine(z); draw(); };
+    rl.oninput = (e) => { z.label = e.target.value.slice(0, 80); mine(z); };
   } else if (sel.kind === 'stair') {
     const s = f.stairs[sel.i];
     P.append(el('h3', { textContent: 'Stair flight' }),

@@ -222,6 +222,7 @@ def run_detect(jid):
         importlib.reload(detect)          # pick up detector fixes without restarting the server
         plan = detect.detect(pdf)
         plan["checks"] = checks.plan_checks(plan)        # what the review page asks the person to check
+        checks.annotate(plan, "detector")                 # source and confidence of every room and opening
         with open(os.path.join(d, "plan.json"), "w") as fh:
             json.dump(plan, fh)
         status(jid, stage="detected", progress=100, message="Plan detected - please review",
@@ -800,6 +801,7 @@ class H(BaseHTTPRequestHandler):
                         if not isinstance(plan, dict) or not isinstance(plan.get("floors"), list) or not plan["floors"]:
                             return self.send(400, {"error": "invalid plan"})
                         plan["checks"] = checks.plan_checks(plan)
+                        checks.annotate(plan, "user")     # what the person added is theirs; the rest keeps its source
                         with open(os.path.join(jdir(jid), "plan.json"), "w") as fh:
                             json.dump(plan, fh)
                         return self.send(200, {"ok": True})
@@ -856,6 +858,7 @@ class H(BaseHTTPRequestHandler):
                 if pg:
                     st = status(jid, pages=st["pages"] + [pg])
             plan["checks"] = checks.plan_checks(plan)
+            checks.annotate(plan, {"ai": "ai", "detector": "detector"}.get(req["reader"], "user"))
             with open(os.path.join(jdir(jid), "plan.json.part"), "w") as fh:
                 json.dump(plan, fh)
             os.replace(os.path.join(jdir(jid), "plan.json.part"), os.path.join(jdir(jid), "plan.json"))

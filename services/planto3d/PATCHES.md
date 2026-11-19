@@ -303,3 +303,14 @@ extended through that wall, so there is passable space on both sides. A gap wide
 alone. The SF plan's door 9 was the case: a wall 0.84 ft below it covered 92% of its width. Re-detected and rebuilt,
 its openings test passes 82/82 (81/82 before). OPT 5 and paranjay-villa are unchanged (0 of 44 and 0 of 23 openings),
 and no other SF opening changes. The stored SF job keeps its old plan until it is read again.
+
+## 25. Source and confidence of every room and opening (checks.py, server.py, web/edit.js, tests/test_confidence.py)
+
+What: `checks.annotate` sets `src` (detector, ai or user) and `conf` (0-1) on each room and opening, and
+`wall_src` / `wall_conf` on each floor. Rooms score by how their label matched: exact 0.95, abbreviation 0.8, fuzzy
+0.6, unknown 0.3, no label 0.5. An AI-typed room keeps the AI's confidence. Doors score 0.9 with a drawn leaf and 0.65
+without; windows 0.8. An AI read is scaled by 0.85. A check about an element caps its score: an unknown label or a
+blocked door at 0.3, an area mismatch at 0.5. The rules are fixed and stated here, not learned. Annotation runs on
+detection, on import and on every save. On a save, elements without a source become the person's (1.0); the rest keep
+their source. The review page shows "Read from the drawing · 72 % sure", and changing an element's type, label or
+width makes it the person's. The plan also carries average confidences (`plan.confidence`).

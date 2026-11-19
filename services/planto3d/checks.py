@@ -62,3 +62,46 @@ def plan_checks(plan):
                 out.append(dict(floor=fi, kind="door_blocked", item=["opening", k],
                                 message=f"{name}: a door has no room on either side"))
     return out
+
+
+# ---- source and confidence of every room and opening (shown on the review page; the checks above cap them)
+READER_FACTOR = {"detector": 1.0, "ai": 0.85}
+LABEL_CONF = {"exact": 0.95, "abbreviation": 0.8, "fuzzy": 0.6}
+CAPS = {"unknown_label": 0.3, "door_blocked": 0.3, "area_mismatch": 0.5, "multi_label": 0.7, "unlabelled": 0.5}
+
+
+def annotate(plan, reader="user"):
+    """set src (who made it: detector, ai or user) and conf (0-1, how likely it is right) on every room and opening.
+    An element that has a src keeps it (a person's save keeps what the reader made); one without is the `reader`'s.
+    Walls are lists: their source and confidence are per floor (wall_src, wall_conf). Sets plan["confidence"] too."""
+    caps = {}
+    for c in plan.get("checks") or plan_checks(plan):
+        key = (c["floor"], *c["item"])
+        caps[key] = min(caps.get(key, 1.0), CAPS.get(c["kind"], 1.0))
+    seen = {"rooms": [], "openings": []}
+    for fi, f in enumerate(plan.get("floors", [])):
+        f.setdefault("wall_src", reader)
+        f["wall_conf"] = 1.0 if f["wall_src"] == "user" else round(0.8 * READER_FACTOR.get(f["wall_src"], 1.0), 2)
+        for k, r in enumerate(f.get("rooms", [])):
+            src = r.setdefault("src", reader)
+            if src == "user":
+                conf = 1.0
+            elif src == "ai" and isinstance(r.get("confidence"), (int, float)):
+                conf = float(r["confidence"])         # typed by the AI classifier (backend plan3d/areas.py)
+            else:
+                label = (r.get("label") or "").strip()
+                how = rooms.classify(label)[1] if label else None
+                conf = LABEL_CONF.get(how, 0.5 if not label else 0.3) * READER_FACTOR.get(src, 1.0)
+            r["conf"] = round(min(conf, caps.get((fi, "room", k), 1.0)), 2)
+            seen["rooms"].append(r["conf"])
+        for k, o in enumerate(f.get("openings", [])):
+            src = o.setdefault("src", reader)
+            if src == "user":
+                conf = 1.0
+            else:
+                conf = (0.9 if o.get("hinge") else 0.65) if o.get("type") == "door" else 0.8
+                conf *= READER_FACTOR.get(src, 1.0)
+            o["conf"] = round(min(conf, caps.get((fi, "opening", k), 1.0)), 2)
+            seen["openings"].append(o["conf"])
+    plan["confidence"] = {k: round(sum(v) / len(v), 2) if v else None for k, v in seen.items()}
+    return plan

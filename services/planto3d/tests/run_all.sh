@@ -7,6 +7,7 @@ set -e
 python3 tests/test_sample.py
 python3 tests/test_detect.py
 python3 tests/test_doorway.py
+python3 tests/test_confidence.py
 python3 tests/test_reader.py
 python3 tests/test_rooms.py
 python3 tests/test_openplan.py
