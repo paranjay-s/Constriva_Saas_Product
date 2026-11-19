@@ -48,6 +48,7 @@ mat("pebbles", tex="dry_river_pebbles", tile=0.8)
 mat("terrace", tex="concrete_tiles", tile=1.5)
 mat("turf", tex="leafy_grass", tile=1.0, tint=(0.5, 0.75, 0.35))
 mat("exterior", (0.93, 0.91, 0.87), 0.9, tex="white_plaster_02", tile=2.5, albedo=False)
+mat("plinth_stone", (0.56, 0.53, 0.49), 0.8, tex="granite_tile", tile=1.5)      # the stone base of outer walls
 mat("cushion", rough=0.95, tex="caban", tile=0.5, tint=(0.55, 0.45, 0.35))
 
 import rooms  # noqa: E402
@@ -629,6 +630,35 @@ DOWNLIGHT_ROOMS = {"living", "dining", "kitchen", "bedroom", "study", "foyer", "
 UNBAKED = []           # objects lit in real time in the walkthrough instead of baked (see plant)
 
 
+PLINTH_H, PLINTH_T = 2.5, 0.08      # feet: height of the stone base on outer walls, and how far it stands out
+
+
+def plinth_boxes(f, cuts):
+    """boxes of stone cladding on every outer face of the storey's full-height walls (a face with no indoor room 1 ft
+    beyond it at three points along it), cut away where a door or an opening reaches the floor"""
+    rooms_in = [q for zn in f["rooms"] if zn["type"] in INDOOR for q in zn["rects"]]
+    inside = lambda x, y: any(q[0] <= x <= q[1] and q[2] <= y <= q[3] for q in rooms_in)
+    out = []
+    for w in f["walls"]:
+        if w[4]:
+            continue
+        x0, x1, y0, y1 = w[:4]
+        if x1 - x0 >= y1 - y0:
+            xs = [x0 + (x1 - x0) * t for t in (0.15, 0.5, 0.85)]
+            if not any(inside(x, y0 - 1.0) for x in xs):
+                out.append((x0, x1, y0 - PLINTH_T, y0, 0.0, PLINTH_H))
+            if not any(inside(x, y1 + 1.0) for x in xs):
+                out.append((x0, x1, y1, y1 + PLINTH_T, 0.0, PLINTH_H))
+        else:
+            ys = [y0 + (y1 - y0) * t for t in (0.15, 0.5, 0.85)]
+            if not any(inside(x0 - 1.0, y) for y in ys):
+                out.append((x0 - PLINTH_T, x0, y0, y1, 0.0, PLINTH_H))
+            if not any(inside(x1 + 1.0, y) for y in ys):
+                out.append((x1, x1 + PLINTH_T, y0, y1, 0.0, PLINTH_H))
+    doors = [(c[0] - 0.1, c[1] + 0.1, c[2] - 0.4, c[3] + 0.4, -1.0, PLINTH_H + 1) for c in cuts if c[4] < 0.5]
+    return disjoint(subtract_all(out, doors))
+
+
 def new_objects(before):
     return [o for o in bpy.data.objects if o not in before]
 
@@ -698,6 +728,10 @@ for k, f in enumerate(floors):
             wb.append((*r, c[5], top))
     wb = disjoint(subtract_all(wb, cuts))
     mesh_from_boxes(f"walls_{k}", [(*b, "wall") for b in wb])
+    if k == 0:          # a stone plinth along the outside faces of the ground storey's outer walls (not at doors)
+        clad = plinth_boxes(f, cuts)
+        if clad:
+            mesh_from_boxes(f"plinth_clad_{k}", [(*b, "plinth_stone") for b in clad])
     parts = window_parts(wins)
     mesh_from_boxes(f"window_frames_{k}", [b for b in parts if b[6] == "frame"], bevel=0.005)
     mesh_from_boxes(f"glass_{k}", [b for b in parts if b[6] == "glass"])

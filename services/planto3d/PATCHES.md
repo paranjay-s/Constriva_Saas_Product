@@ -406,3 +406,10 @@ tour: 3 chunks (80, 104 and 13 frames, 2 minutes apart), 197 frames, 6.6 s of vi
 EEVEE lit walls with the whole dusk sky, unoccluded, and turned white plaster blue. The sky's light on surfaces is now
 greyed (saturation 0.25) and scaled (0.8), while the camera still sees the sky as it is. A still at the same time now
 matches Cycles' light grey wall. Cycles is unchanged.
+
+## 36. A stone plinth on the outer walls (blender/gen.py)
+
+What: the ground storey's full-height walls get a stone base (granite tile) 2.5 ft high and 0.08 ft proud on every outer
+face. A face counts as outer when there is no indoor room 1 ft beyond it at three points along it. The base is cut
+away where a door or a floor-level opening is. It breaks up the long plain sides that the four-side stills showed
+(style_compare/), but it does not replace real facade design: the side walls are still mostly blank.
