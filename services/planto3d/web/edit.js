@@ -258,7 +258,7 @@ function drawFloor(f, dx, dy, active) {
   if (active) {
     g.strokeStyle = '#e8892f'; g.lineWidth = 3; g.setLineDash([6, 4]);
     for (const c of (plan.checks || []).filter((c) => plan.floors[c.floor] === f)) {
-      const it = c.item[0] === 'room' ? f.rooms[c.item[1]] : f.openings[c.item[1]];
+      const it = c.item[0] === 'room' ? f.rooms[c.item[1]] : c.item[0] === 'opening' ? f.openings[c.item[1]] : null;
       if (it) (it.rects || [it.rect]).forEach((r) => g.strokeRect(...rectC(mv(r))));
     }
     g.setLineDash([]);
@@ -412,7 +412,7 @@ function showChecks() {
   $('nchecks').textContent = `(${list.length})`;
   $('checklist').replaceChildren(...list.map((c) => {
     const li = el('li', { textContent: c.message });
-    li.onclick = () => { fi = c.floor; sel = { kind: c.item[0], i: c.item[1] }; tabs(); fit(); ui(); };
+    li.onclick = () => { fi = c.floor; sel = c.item[0] === 'plan' ? null : { kind: c.item[0], i: c.item[1] }; tabs(); fit(); ui(); };
     return li;
   }));
 }

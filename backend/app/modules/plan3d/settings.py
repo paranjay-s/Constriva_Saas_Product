@@ -38,6 +38,8 @@ class Plan3dSettings(BaseSettings):
     store: str = "supabase"
     timeout_s: float = 30.0
     allow_furniture_changes: bool = False
+    # an AI second look at every read plan (one call each; differences go to Needs checking)
+    ai_verify: bool = False
     frame_ancestors: str = ""
 
 

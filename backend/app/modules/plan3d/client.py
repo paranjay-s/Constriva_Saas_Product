@@ -102,6 +102,16 @@ class Plan3dClient:
         )
         return str(body["type"])
 
+    async def page_png(self, job_id: str) -> bytes:
+        """The drawing's first page as PlanTo3D rendered it."""
+        try:
+            response = await self.http.get(f"/jobs/{job_id}/page-1.png")
+        except httpx.HTTPError as e:
+            raise Plan3dUnavailable(type(e).__name__) from e
+        if response.status_code != 200:
+            raise Plan3dUnavailable(f"page image: HTTP {response.status_code}")
+        return response.content
+
     async def source_pdf(self, job_id: str) -> bytes:
         """The PDF the job was made from."""
         try:

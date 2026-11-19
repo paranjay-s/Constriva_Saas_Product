@@ -386,3 +386,10 @@ What: living, dining, kitchen, bedroom, study, foyer, breakfast, bar and cinema 
 central panel. Smaller rooms keep the panel. The bake still uses one area lamp per room, so how bright a room is does
 not change. Checked by screenshot in the dock house's living room. The first version's steel trims baked nearly black,
 so they are white now.
+
+## 34. The AI's second look stays in Needs checking (server.py, web/edit.js)
+
+What: a save keeps the checks of kind `ai_review` (at most 25) that the 3D gateway's AI second look added (backend
+plan3d/verify.py), and works out the rest again as before. These items name a whole plan rather than one room or
+opening (`item: ["plan", 0]`). The review page lists them without outlining anything, and clicking one only switches to
+its storey.
