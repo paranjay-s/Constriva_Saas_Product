@@ -11,6 +11,7 @@ python3 tests/test_confidence.py
 python3 tests/test_verify.py
 python3 tests/test_fit.py
 python3 tests/test_scale.py
+python3 tests/test_lanes.py
 python3 tests/test_assets.py
 python3 tests/test_reader.py
 python3 tests/test_rooms.py

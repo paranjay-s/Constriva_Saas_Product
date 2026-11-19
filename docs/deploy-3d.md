@@ -35,6 +35,7 @@ build's `jobs/<id>/build.log` says `bake device OPTIX` (or `CUDA`); `CPU` means 
 | `BLENDER` | `/opt/blender/blender` | The Blender binary |
 | `PLAN3D_TOUR_CHUNK_S` | 480 | Seconds of rendering per tour chunk (a stopped tour resumes from its last chunk) |
 | `PLAN3D_TOUR_COOL_S` | 0 in the image (30 on a laptop) | Pause between tour chunks |
+| `PLAN3D_BLENDER_SLOTS` | 1 | Blender processes at once (one per GPU) |
 | `PLAN3D_LIBRARY` | 1 | 0 builds with the built-in furniture instead of the library |
 | `PLAN3D_QIBLA_BEARING` | 258 | Compass bearing of the qibla for prayer rooms (Dubai); set it for the server's region |
 
@@ -43,10 +44,16 @@ The gateway side (`.env`): `PLAN3D_SERVICE_URL` (for example `http://10.0.0.5:80
 
 ## Queue and lanes
 
-Builds and tours share one queue, so one Blender job uses the GPU at a time. A High build first builds Low (you can
-walk the house within a minute or two), then replaces it. On a server with more than one GPU, run one container per
-GPU (`--gpus device=N`) behind the gateway and give each its own jobs volume. The gateway keeps each job on the
-service that made it.
+The Blender queue has two lanes. **Fast:** Low builds and the Low step of a High build, so a house can be walked
+through within a minute or two. **Heavy:** High bakes and rendered tours. Queued fast work always goes before queued
+heavy work (a long tour never holds up someone's Low preview); within a lane it is first come, first served.
+`PLAN3D_BLENDER_SLOTS` (default 1) is how many Blender processes run at once. Keep 1 per GPU. On a server with more
+than one GPU, you can also run one container per GPU (`--gpus device=N`) behind the gateway, each with its own jobs
+volume; the gateway keeps each job on the service that made it.
+
+Each job starts a fresh Blender process (about 3-5 s of start-up, small next to a Low build of about a minute). A warm
+Blender kept between jobs was not built: gen.py builds into one scene per process and would need reworking to reset it
+safely between jobs.
 
 ## Times to expect
 

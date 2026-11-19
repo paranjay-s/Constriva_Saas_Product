@@ -549,3 +549,11 @@ What: a walkthrough opened from a share link (`&shared`, made by the gateway's P
 Record, Blender file or Home button and ignores the R key: the share token reaches only the files the walkthrough
 loads (meta.json, house.glb, lm_*.webp, tour_*.mp4, the page's scripts), so those would fail. The gateway checks the
 job's current share id on every request; revoking or making a new link ends older links at once (410).
+
+## 49. The Blender queue has lanes (server.py)
+
+What: a priority queue with a fast lane (Low builds, the Low step of a High build) and a heavy lane (High bakes,
+tours); fast work never waits behind queued heavy work. A High build now runs its Low step, then queues the High bake
+in the heavy lane, so another person's Low build can run between them. PLAN3D_BLENDER_SLOTS builder threads (default
+1). tests/test_lanes.py (Blender stubbed) checks the order. Not done: a warm Blender between jobs (gen.py builds into
+one scene per process).

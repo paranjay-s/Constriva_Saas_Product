@@ -22,7 +22,35 @@ sys.path.insert(0, HERE)
 import areaspec, catalog, checks, detect, fetch_assets, fit, vector  # noqa: E402
 
 os.makedirs(JOBS, exist_ok=True)
-builds = queue.Queue()
+class Lanes:
+    """The Blender queue. Fast lane: Low builds and the Low step of a High build (a house to walk through in about a
+    minute). Heavy lane: High bakes and rendered tours. Fast work never waits behind queued heavy work; within a lane
+    it is first come, first served. PLAN3D_BLENDER_SLOTS Blender processes run at once (1 by default: a laptop never
+    renders two at a time; a server with the cores can raise it)."""
+    RANK = {"fast": 0, "heavy": 1}
+
+    def __init__(self):
+        self.q = queue.PriorityQueue()
+        self.seq = 0
+        self.seq_lock = threading.Lock()
+
+    def put(self, item, lane="fast"):
+        with self.seq_lock:
+            self.seq += 1
+            self.q.put((self.RANK[lane], self.seq, item))
+
+    def get(self):
+        return self.q.get()[2]
+
+    def task_done(self):
+        self.q.task_done()
+
+    def qsize(self):
+        return self.q.qsize()
+
+
+builds = Lanes()
+SLOTS = max(1, int(os.environ.get("PLAN3D_BLENDER_SLOTS", "1") or 1))
 waiting = []                    # ids of queued jobs, first to be built first: a job's place in it is its queue position
 reading = set()                 # ids of jobs whose detector was started and has not finished: no plan is imported meanwhile
 lock = threading.Lock()
@@ -521,10 +549,13 @@ def creator_op(sid, op, args):
                 out = json.loads(line[7:])
                 if out.get("final"):
                     c["exported"] = out
-                if op == "render_preview" and out.get("ok"):      # the agent looks at its preview
+                if op == "render_preview" and out.get("ok"):      # the agent looks at its previews (evening, day)
                     import base64
-                    with open(os.path.join(c["folder"], "preview.png"), "rb") as fh:
-                        out["png_b64"] = base64.b64encode(fh.read()).decode()
+                    out["png_b64"] = []
+                    for f in ("preview.png", "preview_day.png"):
+                        if os.path.exists(os.path.join(c["folder"], f)):
+                            with open(os.path.join(c["folder"], f), "rb") as fh:
+                                out["png_b64"].append(base64.b64encode(fh.read()).decode())
                 return out
     raise ValueError("the worker stopped")
 
@@ -590,6 +621,32 @@ def library_review(kind, ident, review):
     return e
 
 
+def bake_high(jid, d, t0):
+    """the High bake into .next/, whose files then replace the Low preview's (a failed High leaves Low in place)"""
+    status(jid, message="Low quality ready to walk through; building High")
+    nxt = os.path.join(d, ".next")
+    shutil.rmtree(nxt, ignore_errors=True)
+    os.makedirs(nxt)
+    t1 = time.time()
+    try:
+        maps = run_blender(jid, "high", nxt, t0, 25, 75)
+    except Exception:
+        shutil.rmtree(nxt, ignore_errors=True)
+        status(jid, stage="done", progress=100, preview=False, quality="draft",
+               message="High could not be built - the Low quality house is ready", build_seconds=round(time.time() - t0))
+        raise
+    for f in os.listdir(nxt):
+        if f in OUTPUTS or (f.startswith("lm_") and f.endswith(".webp")):
+            os.replace(os.path.join(nxt, f), os.path.join(d, f))
+    shutil.rmtree(nxt, ignore_errors=True)
+    status(jid, stage="done", progress=100, message="Ready", quality="high", preview=False,
+           build_seconds=round(time.time() - t0))
+    try:
+        calibrate("high", maps, time.time() - t1)
+    except OSError:
+        pass
+
+
 def builder():
     """High is built after a Low preview: the house can be walked through in about a minute while High bakes into
     .next/, whose files then replace the preview's (a failed High leaves the Low house in place)"""
@@ -599,6 +656,17 @@ def builder():
         with lock:
             if jid in waiting:
                 waiting.remove(jid)
+        if isinstance(quality, tuple) and quality[0] == "high_bake":     # the High step, after its Low preview
+            _, t0 = quality
+            try:
+                bake_high(jid, d, t0)
+            except Exception as e:
+                traceback.print_exc()
+                if (read_status(jid) or {}).get("stage") != "done":
+                    status(jid, stage="failed", message=str(e))
+            finally:
+                builds.task_done()
+            continue
         if isinstance(quality, tuple):         # ("tour", quality, seconds, res): a rendered tour of a built house
             _, tq, secs, res = quality
             try:
@@ -620,23 +688,10 @@ def builder():
                    eta_total=round(estimate(jid, quality) + (estimate(jid, "draft") if quality == "high" else 0)))
             if quality == "high":
                 run_blender(jid, "draft", d, t0, 0, 25)
-                status(jid, preview=True, preview_quality="draft", message="Low quality ready to walk through; building High")
-                nxt = os.path.join(d, ".next")
-                shutil.rmtree(nxt, ignore_errors=True)
-                os.makedirs(nxt)
-                t1 = time.time()
-                try:
-                    maps = run_blender(jid, "high", nxt, t0, 25, 75)
-                except Exception:
-                    shutil.rmtree(nxt, ignore_errors=True)
-                    status(jid, stage="done", progress=100, preview=False, quality="draft",
-                           message="High could not be built - the Low quality house is ready", build_seconds=round(time.time() - t0))
-                    raise
-                for f in os.listdir(nxt):
-                    if f in OUTPUTS or (f.startswith("lm_") and f.endswith(".webp")):
-                        os.replace(os.path.join(nxt, f), os.path.join(d, f))
-                shutil.rmtree(nxt, ignore_errors=True)
-                seconds = time.time() - t1
+                status(jid, preview=True, preview_quality="draft", progress=25,
+                       message="Low quality ready to walk through; High is waiting for the builder")
+                builds.put((jid, ("high_bake", t0)), "heavy")
+                continue
             else:
                 maps = run_blender(jid, quality, d, t0)
                 seconds = time.time() - t0
@@ -1170,7 +1225,7 @@ class H(BaseHTTPRequestHandler):
                         status(jid, stage="queued", progress=0, message=f"Waiting for the 3D builder ({builds.qsize()} ahead)")
                         with lock:
                             waiting.append(jid)
-                    builds.put((jid, ("tour", tq, secs, res)))
+                    builds.put((jid, ("tour", tq, secs, res)), "heavy")
                     return self.send(200, {"ok": True})
                 body = self.body()
                 with plan_lock:
@@ -1263,6 +1318,7 @@ if __name__ == "__main__":
         st = read_status(jid) if ID.match(jid) else None
         if st and st.get("stage") in ("building", "queued", "detecting"):
             status(jid, stage="failed", message="interrupted by a server restart - press Build again")
-    threading.Thread(target=builder, daemon=True).start()
+    for _ in range(SLOTS):
+        threading.Thread(target=builder, daemon=True).start()
     print(f"PlanTo3D on http://{host}:{port}", flush=True)
     ThreadingHTTPServer((host, port), H).serve_forever()
