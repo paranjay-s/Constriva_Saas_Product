@@ -215,3 +215,25 @@ Before fixes 1-4 about 20 % of labelled rooms were within 2 %. The fit now leave
 still removes a planted 3 % scale error, tests/test_fit.py); the rooms still more than 2 % off are where a room is not
 a rectangle between four walls (L-shapes, open plan) or its label is rounded. The Stage 5 target (every room within
 2 %) is not met: 88-89 %.
+
+## Reference plans through the full pipeline (tools/testplans/reference_report.py, 0 fresh AI calls)
+
+No ground truth: nothing is scored and nothing was tuned to these.
+
+| plan | reader | storeys | rooms | labelled rooms within 2 % | checks critical / warning / info |
+|---|---|---|---|---|---|
+| 1000205346 | ai | 1 | 15 | - | 0 / 0 / 0 |
+| 1000205542 | ai | 1 | 15 | - | 0 / 0 / 0 |
+| 1000206523 | ai | 1 | 13 | - | 1 / 0 / 1 |
+| OPT 5 - GEETA JI GAUD | detector | 2 | 36 | 7/16 | 0 / 16 / 5 |
+| antonovich-design (1) | ai | 1 | 30 | - | 1 / 0 / 3 |
+| antonovich-design (2) | ai | 1 | 17 | - | 1 / 1 / 7 |
+| paranjay-villa | detector | 1 | 12 | 5/9 | 0 / 3 / 0 |
+
+- AI-read plans show "-": the converter does not carry the label sizes into the plan, so the size fit and this measure
+  cannot act on them (a gap to close; it needs the plan JSON's room labels parsed for sizes).
+- The criticals are real: the two undimensioned drawings ask for one known length (scale_unknown), and one scanned
+  plan has an aquarium overlapping a passage. The villa's warnings are rooms the detector segmented wrongly (LOBBY drawn
+  3.5 x 7 ft against a 3'11" x 26'2" label, BATH 4 x 1.6 ft against 4'5" x 9'5"): segmentation, not walls or scale.
+- Real CAD drawings reach 44-56 % of labelled rooms within 2 %, against 89 % on generated plans: their rooms are less
+  often a rectangle between four walls, and their labels are clear sizes rounded to the inch.
