@@ -30,3 +30,4 @@ stage | task | status | commit | note
 - 11 | reference PDFs, full pipeline (step 3) | done | 182d5b9 | 7 plans, 0 fresh calls: 2 detector (labelled rooms within 2 %: 7/16, 5/9), 5 AI (no label sizes carried: fit cannot act). Criticals real (2x scale_unknown on undimensioned drawings, 1 overlap); villa warnings are room segmentation
 - 7/8 | palette Low build + water renders (steps 4-5) | waiting | - | battery discharging (82 %): no renders until charging; doing render-free tasks meanwhile
 - 10 | revocable share link (gateway, migration not applied, frontend, view-only page) | done | 6693218 | 3 gateway + 1 frontend tests; share token reaches only meta.json, house.glb, lm_*.webp, tour_*.mp4 and page scripts; new link or revoke -> old links 410
+- 9 | Blender queue lanes + slots | done | 23f6a1c | test_lanes (stubbed Blender) passes. Warm Blender process: skipped (gen.py builds one scene per process; start-up 3-5 s vs ~1 min Low build)
