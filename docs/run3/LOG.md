@@ -4,3 +4,11 @@ stage | task | status | commit | note
 - 0 | power at start: on battery, 35%, discharging | note | - | no renders until charging (rule); non-render work first
 - 0 | read handover README, CHECKS, ASSET_INVENTORY, build.py, after_batch.sh | done | - | no notes.md exists in any docs/reference folder (images only); room targets taken from images and the prompt's descriptions
 - 0 | after_batch.sh | skipped | - | it calls a Windows .venv python and writes to scripts/final (inside the reference folder); not needed: build.py + lantern_scene.py cover it. Any batch output goes under docs/run3/ or scratch
+- 0 | style inventory (docs/run3/style_inventory.md) | done | 1d818a4 | 50 lights, 15 emitters, 68 materials, all generators; 9 materials' builder not matched by name (made in loops)
+- 4 | verifier (verify.py) merged into the checklist with severities | done | 2e1eda4 | 200 true plans: 0 critical, 0 warnings; stored jobs: 9 window_inside, 2 overlaps
+- 0 | reproduction check (build.py bedroom, fresh process) | done | 72b7801 | 56 s; PSNR 49.4 dB, mean diff 0.37/255, 0.17% px > 8/255: noise only. Render time 1 min
+- 1 | library/build/style.py: handover recipes as builders (55 materials, room light, washer, cove, downlight grid, AgX, Cycles, helpers) | done | db892c9 | all build in Blender 5.3 without error
+- 1 | library pieces: 44 built (339 s, one batch), contact sheet docs/run3/library/contact_sheet.png | done | 6d0d08e | weak: quran_stand, prayer_niche (crude), prayer_rug (low contrast), plant leaves pale. Render time ~7 min total
+- 1 | asset_library migration (written, not applied) | done | 01cec50 | index.json works before it exists
+- 1/7 | prayer and majlis room types + rules; extra pieces in living/dining/foyer/laundry/gym/cinema/study | done | 508d96b | before: PRAYER/MUSALLA/مصلى were typed puja and got a mandir. Scorer counts majlis=living, prayer=puja vs the older truth
+- 7 | assembly: library pieces placed by the furnish rules; kits per house in meta.json | done | cf17637 | dock house: 22 kinds of library piece; fridge was black (metal colour bake) -> fixed, all 44 rebuilt (329 s)
