@@ -2,8 +2,9 @@
 
 Every room edge lies on a wall line. Per axis, the distinct lines (within TOL) are the unknowns. Each room whose label
 gives its size and whose drawn size is within LIMIT of it adds one equation per axis: its far line minus its near line
-equals the labelled size (clear size between wall faces, or the centre-line size, whichever the drawing is closer
-to). A weak pull keeps every line near where it was drawn, so unlabelled parts stay put. The least-squares solution
+equals the labelled size: the clear size between wall faces, or the centre-line size (the clear size plus half of
+each bounding wall's own thickness). One drawing uses one convention, so it is chosen once per storey: the one more
+rooms agree with. A weak pull keeps every line near where it was drawn, so unlabelled parts stay put. The least-squares solution
 moves the lines; walls, openings, stairs, rooms and labels are remapped piecewise-linearly between the lines, so shared
 walls move together and nothing crosses. Rooms further off than LIMIT are reported, not forced.
 Standard library only."""
@@ -78,21 +79,94 @@ def _scale_all(f, k):
         st["rect"] = s(st["rect"])
     for r in f.get("rooms", []):
         r["rects"] = [s(q) for q in r.get("rects", [])]
+        if r.get("label_at"):
+            r["label_at"] = [round(v * k, 3) for v in r["label_at"][:2]]
 
 
-def scale_ratio(rooms, wall):
-    """label / drawn for every labelled room and axis (the orientation and size convention that fit best) -> the
-    median when the rooms agree on it (half of them within 3 % of it), else None"""
+RESCALE = 0.015     # the whole storey is rescaled only beyond this (labels rounded to the inch are ~0.8 % noisy)
+
+
+def _thick_at(walls, v, lo, hi, axis, side, wall):
+    """thickness of the wall whose face is at v (axis 0: an x face, 1: a y face) beside the span lo..hi, on `side`
+    (-1: the wall lies below v, +1: above); `wall` when none is found"""
+    for w in walls:
+        a0, a1, b0, b1 = (w[0], w[1], w[2], w[3]) if axis == 0 else (w[2], w[3], w[0], w[1])
+        face = a1 if side < 0 else a0
+        if abs(face - v) <= 2 * TOL and b0 < hi and b1 > lo:
+            return a1 - a0
+    return wall
+
+
+def wall_box(r, walls):
+    """the room measured between the walls themselves: the nearest wall faces left, right, below and above the room's
+    centre (on the straight line, or, through a door or window gap, within 8 wall thicknesses beside it). A reader's
+    room rectangle may stop at a wall face on one side and a wall centre on another; the walls are what is built.
+    -> a room dict whose rect is that box (or the room itself when a side has no wall)"""
+    q = r["rects"][0]
+    # from where the name is written when the reader says (a reader's room rectangle can span two rooms)
+    cx, cy = r["label_at"][:2] if r.get("label_at") else ((q[0] + q[1]) / 2, (q[2] + q[3]) / 2)
+    t = sorted(min(w[1] - w[0], w[3] - w[2]) for w in walls)
+    band = 8 * t[len(t) // 2] if t else 0.0
+    tall = lambda w: w[3] - w[2] > w[1] - w[0]
+    found = []
+    for hit, edge, pick, vertical in (
+        (lambda w, b: w[2] - b <= cy <= w[3] + b and w[1] <= cx, lambda w: w[1], max, True),
+        (lambda w, b: w[2] - b <= cy <= w[3] + b and w[0] >= cx, lambda w: w[0], min, True),
+        (lambda w, b: w[0] - b <= cx <= w[1] + b and w[3] <= cy, lambda w: w[3], max, False),
+        (lambda w, b: w[0] - b <= cx <= w[1] + b and w[2] >= cy, lambda w: w[2], min, False),
+    ):
+        # the nearest of: walls on the straight line, and walls running the right way within the band (a straight
+        # line through a door gap reaches a wall of the next room; the room's own wall beside the gap is nearer)
+        c = [w for w in walls if hit(w, 0.0) or (band and hit(w, band) and tall(w) == vertical)]
+        found.append(edge(pick(c, key=edge)) if c else None)
+    if None in found or found[1] - found[0] <= 0 or found[3] - found[2] <= 0:
+        return r
+    return dict(r, rects=[[found[0], found[1], found[2], found[3]]])
+
+
+def centre_extra(r, walls, wall):
+    """(width, depth) to add to a room's clear size for its centre-line size: half of each bounding wall"""
+    q = r["rects"][0]
+    cw = (_thick_at(walls, q[0], q[2], q[3], 0, -1, wall) + _thick_at(walls, q[1], q[2], q[3], 0, 1, wall)) / 2
+    ch = (_thick_at(walls, q[2], q[0], q[1], 1, -1, wall) + _thick_at(walls, q[3], q[0], q[1], 1, 1, wall)) / 2
+    return cw, ch
+
+
+def targets(r, walls, wall, centre):
+    """the clear size the label asks for, in the orientation that fits best -> (width, depth, worst error)"""
+    q = r["rects"][0]
+    w_, h_ = q[1] - q[0], q[3] - q[2]
+    a, b = r["dims"]
+    cw, ch = centre_extra(r, walls, wall) if centre else (0.0, 0.0)
+    best = None
+    for la, lb in ((a, b), (b, a)):
+        tw, th = la - cw, lb - ch
+        if tw <= 0 or th <= 0:
+            continue
+        ex, ey = abs(w_ - tw) / tw, abs(h_ - th) / th
+        if best is None or ex + ey < best[0]:
+            best = (ex + ey, tw, th, max(ex, ey))
+    return best[1:] if best else (w_, h_, 1.0)
+
+
+def convention(rooms, walls, wall):
+    """True (centre-line sizes) or False (clear sizes): the one more labelled rooms agree with within 2 %"""
+    n = {c: sum(1 for r in rooms if targets(r, walls, wall, c)[2] <= 0.02) for c in (False, True)}
+    return n[True] > n[False]
+
+
+def scale_ratio(rooms, wall, walls=(), centre=None):
+    """label / drawn for every labelled room and axis (one size convention for the storey) -> the median when the
+    rooms agree on it (half of them within 3 % of it), else None"""
+    if centre is None:
+        centre = convention(rooms, walls, wall)
     ratios = []
     for r in rooms:
         q = r["rects"][0]
         w_, h_ = q[1] - q[0], q[3] - q[2]
-        a, b = r["dims"]
-        best = min(((la, lb, c) for la, lb in ((a, b), (b, a)) for c in (0.0, wall)),
-                   key=lambda t: abs(w_ + t[2] - t[0]) / t[0] + abs(h_ + t[2] - t[1]) / t[1])
-        la, lb, c = best
-        if max(abs(w_ + c - la) / la, abs(h_ + c - lb) / lb) <= LIMIT:
-            ratios += [(la - c) / w_, (lb - c) / h_]
+        tw, th, worst = targets(r, walls, wall, centre)
+        if worst <= LIMIT:
+            ratios += [tw / w_, th / h_]
     if len(ratios) < 4:
         return None
     ratios.sort()
@@ -107,25 +181,23 @@ def fit_floor(f, wall=0.5):
     if not rooms:
         return rep
     rep["before"] = [_off(r, wall) for r in rooms]
-    # the plan's scale against all the labels together: a consistent small error is the scale, not the rooms
-    k = scale_ratio(rooms, wall)
-    if k and 0.005 < abs(k - 1) < 0.08:
+    walls = [w for w in f.get("walls", []) if len(w) >= 4]
+    rooms = [wall_box(r, walls) for r in rooms]           # measured between the walls
+    centre = convention(rooms, walls, wall)
+    rep["convention"] = "centre-line" if centre else "clear"
+    # the plan's scale against all the labels together: a consistent error is the scale, not the rooms
+    k = scale_ratio(rooms, wall, walls, centre)
+    if k and RESCALE < abs(k - 1) < 0.08:
         _scale_all(f, k)
         rep["scale"] = round(k, 4)
-    walls = [w for w in f.get("walls", []) if len(w) >= 4]
+        walls = [w for w in f.get("walls", []) if len(w) >= 4]
+        rooms = [wall_box(r, walls) for r in f["rooms"] if len(r.get("rects") or []) == 1 and r.get("dims")]
     ok = []
     for r in rooms:
         q = r["rects"][0]
         w_, h_ = q[1] - q[0], q[3] - q[2]
         a, b = r["dims"]
-        # the label's two sizes in the orientation that fits best, as clear or as centre-line sizes
-        best = None
-        for (la, lb) in ((a, b), (b, a)):
-            for centre in (0.0, wall):
-                ex, ey = abs(w_ + centre - la) / la, abs(h_ + centre - lb) / lb
-                if best is None or ex + ey < best[0]:
-                    best = (ex + ey, la - centre, lb - centre, max(ex, ey))
-        err, tw, th, worst = best
+        tw, th, worst = targets(r, walls, wall, centre)
         if worst > LIMIT:
             rep["reported"].append(dict(label=r.get("label"), drawn=[round(w_, 2), round(h_, 2)], label_size=[a, b], off=round(worst, 3)))
         elif worst > 0.002:
@@ -182,12 +254,13 @@ def fit_floor(f, wall=0.5):
         s["rect"] = rect(s["rect"])
     for r in f.get("rooms", []):
         r["rects"] = [rect(q) for q in r.get("rects", [])]
+        if r.get("label_at"):
+            r["label_at"] = [round(fx(r["label_at"][0]), 3), round(fy(r["label_at"][1]), 3)]
         if r.get("rects"):
             r["area"] = round(sum((q[1] - q[0]) * (q[3] - q[2]) for q in r["rects"]), 1)
-    for r, tw, th in ok:
-        q = r["rects"][0]
-        rep["fitted"].append(r.get("label"))
-    rep["after"] = [_off(r, wall) for r in rooms]
+    rep["fitted"] = [r.get("label") for r, _, _ in ok]
+    rep["after"] = [_off(wall_box(r, f["walls"]), wall) for r in f["rooms"]
+                    if len(r.get("rects") or []) == 1 and r.get("dims")]
     return rep
 
 

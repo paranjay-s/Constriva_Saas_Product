@@ -631,7 +631,7 @@ def scale_from_labels(walls, phr, T=None, prior=None):
 
 
 def _around(walls, cx, cy, band=0.0):
-    """the nearest wall left, right, above and below (cx, cy): first on the straight ray (as before), then, where the
+    """the nearest wall left, right, above and below (cx, cy): on the straight ray or, where the
     ray goes through a door or window gap, the nearest wall running the right way within `band` either side of it (a
     gap is narrower than the band, so the room's own wall beside the gap is found, not one in the next room)"""
     tall = lambda w: w[3] - w[2] > w[1] - w[0]
@@ -643,9 +643,9 @@ def _around(walls, cx, cy, band=0.0):
     )
     out = []
     for hit, edge, pick, vertical in sides:
-        c = [w for w in walls if hit(w, 0.0)]
-        if not c and band:
-            c = [w for w in walls if hit(w, band) and tall(w) == vertical]
+        # the nearest of: walls on the straight ray, and walls running the right way within the band (a ray through
+        # a door gap reaches a wall of the next room; the room's own wall beside the gap is nearer)
+        c = [w for w in walls if hit(w, 0.0) or (band and hit(w, band) and tall(w) == vertical)]
         out.append(pick(c, key=edge) if c else None)
     return tuple(out)
 
@@ -667,9 +667,10 @@ def _scale_from_sizes(walls, phr, prior=None):
     whose width and depth give the same scale is two votes; a single axis whose value is backed by others is one (a
     ray that crosses a partition the reader missed spoils one axis, not the other). The scale with the most support
     within 2 % wins, if it has at least 4 votes (as two agreeing labels did before). Between the clear and the
-    centre-line readings, when both qualify: the one with more labels whose width and depth agree at its scale; then
-    the one with 1.5x the other's support; then the one nearer `prior` (the scale from the wall thickness, good to a
-    few percent)."""
+    centre-line readings, when both qualify: the one with more labels whose width and depth agree with each other; on a
+    tie, the one whose agreeing labels agree more tightly (the right convention gives the same scale on every label,
+    the wrong one spreads by each room's size); without such labels, the one nearer `prior` (the scale from the wall
+    thickness) if it is within 3 % of it; else the one with more support."""
     reads = []
     band = _band(walls)
     for centre in (False, True):
@@ -700,17 +701,22 @@ def _scale_from_sizes(walls, phr, prior=None):
             n = support(best)
             good = [(v, wt) for v, wt in votes if abs(v - best) < 0.02 * best]
             # labels whose width and depth agree, and agree with each other (a pair is one label's full measurement)
-            pv = [v for v, wt in votes if wt == 2.0]
-            pairs = max((sum(1 for f in pv if abs(f - e) < 0.02 * e) for e in pv), default=0)
-        reads.append((n if n >= 4 else 0, good, est, pairs))
-    n, good, est, _ = max(reads, key=lambda r: r[0])    # (max keeps the first, the clear size, on a tie)
+            # labels whose width and depth agree, at this reading's scale (within 2 % of it), and how tightly
+            agree = [v for v, wt in votes if wt == 2.0 and abs(v - best) < 0.02 * best]
+            pairs = len(agree)
+            spread = (max(agree) - min(agree)) / best if len(agree) >= 2 else 1.0
+        reads.append((n if n >= 4 else 0, good, est, pairs, spread if votes else 1.0))
+    pick = max(reads, key=lambda r: r[0])               # (max keeps the first, the clear size, on a tie)
     if all(r[0] for r in reads):
         a, b = reads
+        mean = lambda g: sum(v * wt for v, wt in g) / sum(wt for _, wt in g)
         if a[3] != b[3]:
-            n, good, est, _ = max(reads, key=lambda r: r[3])
-        elif max(a[0], b[0]) < 1.5 * min(a[0], b[0]) and prior:
-            mean = lambda g: sum(v * wt for v, wt in g) / sum(wt for _, wt in g)
-            n, good, est, _ = min(reads, key=lambda r: abs(mean(r[1]) - prior))
+            pick = max(reads, key=lambda r: r[3])
+        elif a[3] >= 2:
+            pick = min(reads, key=lambda r: r[4])
+        elif prior and min(abs(mean(r[1]) / prior - 1) for r in reads) <= 0.03:
+            pick = min(reads, key=lambda r: abs(mean(r[1]) - prior))
+    n, good, est = pick[0], pick[1], pick[2]
     return (sum(v * wt for v, wt in good) / sum(wt for _, wt in good), est) if n else (None, reads[0][2])
 
 
@@ -1234,7 +1240,8 @@ def detect_floor(f, T, s, phr, lines, hatch, A, zone_lines, cuts=(), fills=()):
                 zone_of[c] = len(rooms)
             rooms.append(dict(region=rid, type=seeds[k][2], area=round(len(zc) * (C / s) ** 2, 1),
                               label=" ".join(t["text"] for t in (p, dims) if t) if p else "",
-                              dims=dims["dims"] if dims else None, rects=region_rects(zc, F)))
+                              dims=dims["dims"] if dims else None, rects=region_rects(zc, F),
+                              _at=(p["cx"], p["cy"]) if p else None))
     # walls with outdoor space (or nothing) on both sides are boundary / parapet walls -> low
     def type_at(x, y):
         k = zone_of.get(cell_of(x, y))
@@ -1286,7 +1293,9 @@ def detect_floor(f, T, s, phr, lines, hatch, A, zone_lines, cuts=(), fills=()):
         _x=b[0], title=title, origin_pt=[X0, Y1], size=[round((b[1] - b[0]) / s, 2), round((b[3] - b[2]) / s, 2)],
         walls=[R(w) + [1 if low else 0] for w, low in out_walls],
         openings=ops_out,
-        rooms=[dict(r, rects=[R(q) for q in r["rects"]]) for r in rooms],
+        # label_at: where the room's name is written (plan feet): the size fit measures the room from there
+        rooms=[dict({k: v for k, v in r.items() if k != "_at"}, rects=[R(q) for q in r["rects"]],
+                    **({"label_at": list(P(*r["_at"]))} if r.get("_at") else {})) for r in rooms],
         stairs=[dict(rect=R(fl["rect"]), axis=fl["axis"], steps=fl["n"], up=fl["up"],
                      words=[(t, *P(x, y)) for t, x, y in fl["words"]]) for fl in flights],
         labels=[dict(text=p["text"], at=P(p["cx"], p["cy"])) for p in names],

@@ -528,3 +528,17 @@ Measured on the 150 tuning plans, which were not looked at for §45-46 (vector, 
 recall fills 35 -> 93 %, hatched 49 -> 99 %, lines 47 -> 92 %, solid 34 -> 91 %; precision 44 -> 92, 56 -> 98,
 62 -> 95, 42 -> 96 %. Held-out vector plans: 100 % recall, 99 % precision in every style (but §45-46 were found on
 held-out plans, so the tuning set is the clean measure). Reference plans: same walls and rooms as before.
+
+## 47. Scale convention by agreeing labels; nearest wall beside a gap; the size fit measures between walls (detect.py, fit.py)
+
+What: detect.py chooses the clear or centre-line reading of the size labels by how many labels agree at its scale,
+then how tightly; a label ray takes the nearest of the walls on its line and the right-way walls within the band (a
+ray through a door no longer keeps the next room's wall); rooms carry `label_at` (plan feet). fit.py chooses one size
+convention per storey, adds each bounding wall's own half thickness for centre-line sizes, rescales only beyond 1.5 %,
+and measures rooms between the walls from `label_at` (a reader's room rectangle can span two rooms). tests/test_fit.py
+adds a case (a room rectangle spanning two rooms moves no wall; it also passes on the old fit, so it guards rather
+than reproduces: the measured regression is on generated plans).
+Measured, tuning set (not looked at), vector wall recall / precision: fills 100/99, hatched 97/96, lines 100/98,
+solid 100/99 %. Labelled rooms within 2 % of their label: about 20 % -> 89 %. Before this, with the scale right, the
+size fit lowered held-out recall to 70-86 %; now it changes nothing on correct readings. Reference plans: same walls
+and rooms; OPT 5's scale moved 0.24 % (no ground truth to say which is closer).

@@ -56,4 +56,15 @@ p["floors"][0]["rooms"][0].pop("dims")
 q = copy.deepcopy(p)
 fit.fit_plan(p)
 assert p["floors"] == q["floors"]
-print("ok   size fit: scale error removed (every room within 2 %), walls and neighbours kept, a room 30 % off reported, metres work")
+# walls already right, but the reader's room rectangle spans two rooms (and stops at a wall centre): measured from
+# where the name is written, between the walls, every room already matches; nothing moves
+p = plan_row([(12, 10), (10, 10), (14, 10)])
+f = p["floors"][0]
+r0, r1 = f["rooms"][0], f["rooms"][1]
+r0["label_at"] = [(r0["rects"][0][0] + r0["rects"][0][1]) / 2, 5.0]
+r0["rects"] = [[r0["rects"][0][0], r1["rects"][0][1], T / 2, T + 10]]       # spans R0 and R1, bottom at a wall centre
+walls_before = copy.deepcopy(f["walls"])
+fit.fit_plan(p)
+assert f["walls"] == walls_before, (walls_before, f["walls"])
+
+print("ok   size fit: scale error removed (every room within 2 %), walls and neighbours kept, a room 30 % off reported, metres work, a wrong room rectangle moves no wall")
