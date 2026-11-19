@@ -25,3 +25,4 @@ stage | task | status | commit | note
 - 7 | plan-seeded palette (4 schemes, PLAN3D_STYLE) | partial | 7cb01da | code only, not yet built
 - 11 | scorer: openings neutral both sides | done | 3ceb931 | same readings: ALL recall 50->49%, precision 45->48% (vector ~+1, raster +3-4)
 - 11 | vector fix 1: scale (label rays across openings, 9" outer walls) | done | 3ceb931 | recall/precision fills 56/62->98/97, lines 63/66->100/99, solid 50/63->84/83, hatched 34/45->64/74; reference plans unchanged
+- 11 | vector fix 2: scale votes per axis, agreeing labels pick clear/centre | done | 883ce6b | CLEAN check on 150 tuning plans (not looked at): recall fills 35->93, hatched 49->99, lines 47->92, solid 34->91 %; precision 44->92, 56->98, 62->95, 42->96 %. Held-out vector 100/99 % but fixes were found on held-out plans, so held-out is no longer clean for them. test_scale.py added (fails on old detector)
