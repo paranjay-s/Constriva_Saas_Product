@@ -350,3 +350,11 @@ secret, puts it on every furniture request and build itself (any `set` a page se
 pictures from the set's folder. PlanTo3D never sees a user id. Checked live: a model uploaded to set A is listed for A
 only (not B, not shared), an invalid set is refused, and a villa built with set A imports it (43 MB house against
 11.9 MB). `PLAN3D_ALLOW_FURNITURE_CHANGES` stays false by default: turning it on is the owner's decision.
+
+## 30. A real potted plant; asset manifest with licences (blender/gen.py, fetch_assets.py, tests/test_assets.py)
+
+What: the potted plant is Poly Haven's potted_plant_02 (CC0, 2.6 MB) at about 1.1 m. Before, it was a faceted blob,
+which was the problem in docs/reference/issues/. The blob stays only as a fallback when the model is not downloaded.
+fetch_assets.py writes `assets/manifest.json` (kind, source, licence, page) for each asset. Sources are allowed only with
+a licence that permits redistribution (`SOURCES`, `ALLOWED_LICENCES`). tests/test_assets.py fails if an asset on disk is
+missing from the manifest or has another licence: 35 assets, all CC0.

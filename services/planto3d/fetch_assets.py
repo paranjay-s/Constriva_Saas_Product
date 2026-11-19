@@ -4,7 +4,7 @@ The server's home page runs the same download from its "Download materials" butt
 import json, os, sys, urllib.request
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
-MODELS = ["covered_car", "outdoor_table_chair_set_01", "street_lamp_01"]
+MODELS = ["covered_car", "outdoor_table_chair_set_01", "street_lamp_01", "potted_plant_02"]
 TEXTURES = ["american_walnut_veneer", "anti_skid_tiles", "asphalt_02", "black_walnut_veneer_01", "caban", "concrete_floor",
             "concrete_tiles", "cotton_jersey", "dry_river_pebbles", "floral_jacquard", "granite_tile",
             "herringbone_pavement", "hessian_380", "knitted_fleece", "laminate_floor_02", "large_floor_tiles_02",
@@ -13,6 +13,25 @@ TEXTURES = ["american_walnut_veneer", "anti_skid_tiles", "asphalt_02", "black_wa
             "velour_velvet", "waffle_pique_cotton", "white_plaster_02", "wool_boucle"]
 SKY, TOUR_SKY = "kloofendal_48d_partly_cloudy_puresky", "qwantani_dusk_2_puresky"
 UA = {"User-Agent": "planto3d-fetch/1.0"}
+# where assets may come from and under which licence: only licences that allow redistribution. Every downloaded asset
+# is recorded in assets/manifest.json with its source and licence (tests/test_assets.py holds the folder to it)
+SOURCES = {"polyhaven": dict(licence="CC0", url="https://polyhaven.com/a/{name}")}
+ALLOWED_LICENCES = {"CC0", "CC-BY-4.0"}
+MANIFEST = os.path.join(ROOT, "manifest.json")
+
+
+def record(kind, name, source="polyhaven"):
+    """add one asset to the manifest (kind, source, licence, page)"""
+    try:
+        with open(MANIFEST) as fh:
+            man = json.load(fh)
+    except (OSError, ValueError):
+        man = {}
+    src = SOURCES[source]
+    man[name] = dict(kind=kind, source=source, licence=src["licence"], url=src["url"].format(name=name))
+    with open(MANIFEST + ".part", "w") as fh:
+        json.dump(man, fh, indent=1, sort_keys=True)
+    os.replace(MANIFEST + ".part", MANIFEST)
 
 
 def get(url):
@@ -50,6 +69,7 @@ def fetch(progress=lambda done, total, name: None, tour=False):
         progress(k, len(todo), name)
         have = os.path.exists(os.path.join(ROOT, "hdri", f"{name}.hdr")) if name == TOUR_SKY else ("sky" if kind == "sky" else name) not in need
         if have:
+            record(kind, name)          # (assets fetched before the manifest existed are recorded too)
             continue
         try:
             f = files(name)
@@ -67,6 +87,7 @@ def fetch(progress=lambda done, total, name: None, tour=False):
                 save(f["hdri"]["1k"]["hdr"]["url"], os.path.join(ROOT, "hdri", "sky.hdr"))
             else:
                 save(f["hdri"]["2k"]["hdr"]["url"], os.path.join(ROOT, "hdri", f"{name}.hdr"))
+            record(kind, name)
         except Exception as e:      # one asset failing (network, renamed on Poly Haven) must not stop the rest
             failed.append(name)
             print("FAILED", name, e, flush=True)
