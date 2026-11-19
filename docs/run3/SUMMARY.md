@@ -89,8 +89,8 @@ The schemes are deliberately close; the exterior and wood tints differ most.
   needs `PLAN3D_CREATOR_AGENT` and a user id in `PLAN3D_CREATOR_ADMINS`.
 - **What it made:** for an invented area, "koi pond with deck" (6 × 4 m), the live agent built a sunken pond with a
   stone edge, a timber deck with a step, two lanterns, koi, lily pads and corner planting in 4 calls, 67 s and $0.29;
-  1,886 triangles, 6.00 × 4.00 × 0.85 m. Preview: `docs/run3/creator/koi_pond_preview.png`. Its water was black; fixed (§50)
-  in the evening preview. A scripted helipad tested the pipeline without a model.
+  1,886 triangles, 6.00 × 4.00 × 0.85 m. Preview: `docs/run3/creator/koi_pond_preview.png`. Its water was black in
+  both presets; fixed (§50). A scripted helipad tested the pipeline without a model.
 
 ## Stage 9: Blender service and lighting (partial)
 - Queue lanes (§49): Low builds and the Low step of a High build run before queued High bakes and tours;
