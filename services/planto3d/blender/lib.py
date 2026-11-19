@@ -798,6 +798,34 @@ def kitchen_island(x0, x1, y0, y1, stools=None):
     return done(r)
 
 
+ART = [("art_terracotta", (0.62, 0.27, 0.16)), ("art_ochre", (0.78, 0.55, 0.18)), ("art_navy", (0.08, 0.13, 0.28)),
+       ("art_sage", (0.45, 0.53, 0.42)), ("art_rose", (0.78, 0.52, 0.5)), ("art_charcoal", (0.12, 0.12, 0.13))]
+for _n, _c in ART:
+    mat(_n, _c, 0.85)
+mat("art_ground", (0.86, 0.82, 0.74), 0.9)
+
+
+def wall_art(x0, x1, y0, y1, front, seed=0):
+    """a framed colour-field canvas on a wall, centred 5.3 ft up: two soft blocks of colour on a warm ground, from
+    a fixed palette chosen by `seed` (the same house always gets the same pictures)"""
+    along_x = front in ("-y", "+y")
+    L, Dp = (x1 - x0, y1 - y0) if along_x else (y1 - y0, x1 - x0)
+    rot = {"-y": 0, "+x": 90, "+y": 180, "-x": 270}[front]
+    r = item("wall_art", (x0 + x1) / 2, (y0 + y1) / 2, rot)
+    h = min(3.5, 0.75 * L)
+    z0 = 5.3 - h / 2
+    p_box(r, "art_frame", L, Dp, h, "teak", (0, 0, z0), bevel=0.01)
+    face = -Dp / 2 - 0.004
+    p_box(r, "art_canvas", L - 0.2, 0.01, h - 0.2, "art_ground", (0, face, z0 + 0.1), bevel=0)
+    a, b = ART[seed % len(ART)][0], ART[(seed // len(ART) + 1 + seed) % len(ART)][0]
+    if a == b:
+        b = ART[(seed + 3) % len(ART)][0]
+    inner_w, inner_h = L - 0.6, h - 0.6
+    p_box(r, "art_block_top", inner_w, 0.01, inner_h * 0.55, a, (0, face - 0.005, z0 + 0.3 + inner_h * 0.45), bevel=0)
+    p_box(r, "art_block_low", inner_w, 0.01, inner_h * 0.38, b, (0, face - 0.005, z0 + 0.3), bevel=0)
+    return done(r, collide=False)
+
+
 def bar_stool(x, y, rot):
     """a counter stool: round black seat on a chrome column and base, with a foot ring"""
     r = item("bar_stool", x, y, rot)

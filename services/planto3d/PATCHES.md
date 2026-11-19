@@ -369,3 +369,12 @@ island, with 0 clashes. The dock house's kitchen was checked by screenshot.
 Fix: the Poly Haven plant from §30 turned the whole ground-floor light map black (mean 0.0, against 39.5 without it).
 The plant's objects are now marked unbaked and exported with the trees, which the walkthrough lights in real time.
 The map is back to 39.9.
+
+## 32. Wall art (furnish.py, blender/lib.py, blender/gen.py)
+
+What: living rooms, bedrooms and dining rooms get one framed colour-field canvas, centred on their longest wall
+stretch that has no window or door (at least 4 ft) and 5.3 ft up. It is up to 5 ft wide and never placed behind a
+wardrobe, a TV unit, a kitchen run, a desk or anything else tall against that wall. It has a teak frame, a warm ground
+and two colour blocks from a fixed six-colour palette, chosen by the room's position so a house always gets the same
+pictures. On 64 plans: 637 pictures in 689 such rooms, 0 clashes. Checked by screenshot, over the sofa in the dock
+house's living room.

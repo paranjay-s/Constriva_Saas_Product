@@ -725,8 +725,38 @@ def furnish_floor(floor):
             continue
         RULES[z["type"]](R)
         keep_passages(R)
+        if z["type"] in ART_ROOMS:
+            wall_art(R)
         out += R.items
     return out
+
+
+ART_ROOMS = {"living", "bedroom", "dining"}
+NO_ART_OVER = {"wardrobe", "tv_unit", "kitchen_run", "wall_cab2", "fridge2", "puja_mandir", "chimney", "desk"}
+
+
+def wall_art(R):
+    """one framed canvas on the room's longest wall stretch with no window or door (at least 4 ft), at eye height; not
+    behind a wardrobe, a TV or anything else that stands tall against that wall"""
+    x0, x1, y0, y1 = R.rect
+    best = None
+    for side in "NSEW":
+        for a, b in R.free[side]["tall"]:
+            if b - a < 4.0:
+                continue
+            near = {"N": (a, b, y1 - 2.5, y1), "S": (a, b, y0, y0 + 2.5), "E": (x1 - 2.5, x1, a, b), "W": (x0, x0 + 2.5, a, b)}[side]
+            if any(it["fn"] in NO_ART_OVER and overlap(near, it["box"], 0.0) for it in R.items):
+                continue
+            if best is None or b - a > best[2] - best[1]:
+                best = (side, a, b)
+    if not best:
+        return
+    side, a, b = best
+    w, c = min(5.0, 0.6 * (b - a)), (a + b) / 2
+    box = {"N": (c - w / 2, c + w / 2, y1 - 0.15, y1), "S": (c - w / 2, c + w / 2, y0, y0 + 0.15),
+           "E": (x1 - 0.15, x1, c - w / 2, c + w / 2), "W": (x0, x0 + 0.15, c - w / 2, c + w / 2)}[side]
+    front = {"N": "-y", "S": "+y", "E": "-x", "W": "+x"}[side]
+    R.add("wall_art", (0, 0, 0, 0), *box, front, int(abs(x0 * 31 + y0 * 17)) % 997, solid=False)
 
 
 def connected_doors(R, items, g=0.5, body=0.75):

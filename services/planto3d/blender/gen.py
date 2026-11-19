@@ -614,7 +614,7 @@ def custom(it):
     return True
 
 
-CALLS = dict(kitchen_island=kitchen_island, bar_stool=bar_stool, bathtub=bathtub, round_rug=round_rug, model=model, bed=bed, nightstand=nightstand, wardrobe=wardrobe, desk=desk, wc2=wc2, vanity=vanity,
+CALLS = dict(kitchen_island=kitchen_island, bar_stool=bar_stool, wall_art=wall_art, bathtub=bathtub, round_rug=round_rug, model=model, bed=bed, nightstand=nightstand, wardrobe=wardrobe, desk=desk, wc2=wc2, vanity=vanity,
              shower2=lambda x, y, rot: shower2(x, y, rot), geyser=lambda x, y, rot: geyser(x, y, rot),
              kitchen_run=kitchen_run, chimney=chimney, wall_cab2=wall_cab2, fridge2=fridge2, washer2=washer2,
              puja_mandir=puja_mandir, sofa=sofa, coffee_table=coffee_table, rug=rug, tv_unit=tv_unit,
