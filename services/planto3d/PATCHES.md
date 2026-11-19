@@ -457,3 +457,12 @@ the room's middle, facing it. A Measure button: two clicks on any surface (or G 
 a line and show the distance and its horizontal part in metres. `window.__measure` is there for tests. Checked
 headless on the dock house: 30 rooms listed, a jump to BREAKFAST AREA, a 4.10 m measurement.
 Not done: hiding furniture (it is baked into each storey's mesh, so it would need its own bake group).
+
+## 41. Does the drawing support a line? (server.py: POST /api/jobs/{id}/support)
+
+What: for proposed wall centre lines in plan feet (from the AI gap-filler), the share of 20 points along each where
+the PDF shows a wall. A point counts when a thin, wall-shaped fill covers it (floor fills cover whole rooms and do not
+count), or when pen strokes run the same way on both sides of it within 0.75 of the wall thickness. Measured on the
+stored vector plans: 20 of 32 real long walls score 0.6 or more, and 0 of 25 made-up lines across rooms do. A line
+the drawing does not support is never built; the gateway turns it into a suggestion. Scans have no pen strokes, so
+there every AI wall is a suggestion.

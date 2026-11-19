@@ -412,6 +412,71 @@ def run_tour(jid, quality, seconds=None, res=None):
     return os.path.basename(mp4), len(keys)
 
 
+def support(jid, k, segments):
+    """for each segment [x0, y0, x1, y1] in plan feet on storey k: the share (0-1) of 20 points along it where the
+    drawing shows a wall: a filled shape covers the point, or pen strokes run the same way (within 12°) on both sides
+    of it within 0.75 of the plan's wall thickness (a wall's two faces). A line the drawing does not support scores 0;
+    scans have no pen strokes, so everything scores 0 there."""
+    with open(os.path.join(jdir(jid), "plan.json")) as fh:
+        plan = json.load(fh)
+    f = plan["floors"][k]
+    s_ = plan.get("scale_pt_per_ft") or 1.0
+    X0, Y1 = f["origin_pt"]
+    page = vector.read_page(os.path.join(jdir(jid), "source.pdf"), f.get("page", 1) or 1)
+    reach = max(2.0, (plan.get("wall_pt") or 4.0) * 0.75)
+    segs = [g for g in page["segs"] if math.hypot(g[2] - g[0], g[3] - g[1]) > 1.0]
+    # only wall-shaped fills count (thin bands): a coloured floor fill covers a whole room and supports nothing
+    thick = (plan.get("wall_pt") or 4.0) * 2.5
+    fills = [poly for poly, _ in page.get("fills", []) if len(poly) >= 3 and
+             min(max(x for x, _ in poly) - min(x for x, _ in poly), max(y for _, y in poly) - min(y for _, y in poly)) <= thick]
+
+    def inside(px, py, poly):
+        c = False
+        for (x1, y1), (x2, y2) in zip(poly, poly[1:] + poly[:1]):
+            if (y1 > py) != (y2 > py) and px < x1 + (py - y1) * (x2 - x1) / (y2 - y1):
+                c = not c
+        return c
+
+    out = []
+    for seg in segments[:200]:
+        if not (isinstance(seg, (list, tuple)) and len(seg) == 4 and all(isinstance(v, (int, float)) for v in seg)):
+            out.append(0.0)
+            continue
+        ax, ay = X0 + seg[0] * s_, Y1 - seg[1] * s_            # plan feet -> page points (y down the page)
+        bx, by = X0 + seg[2] * s_, Y1 - seg[3] * s_
+        L = math.hypot(bx - ax, by - ay)
+        if L < 1e-6:
+            out.append(0.0)
+            continue
+        ux, uy = (bx - ax) / L, (by - ay) / L
+        box = (min(ax, bx) - reach, max(ax, bx) + reach, min(ay, by) - reach, max(ay, by) + reach)
+        near = [g for g in segs if min(g[0], g[2]) <= box[1] and max(g[0], g[2]) >= box[0] and min(g[1], g[3]) <= box[3]
+                and max(g[1], g[3]) >= box[2] and abs(ux * (g[3] - g[1]) - uy * (g[2] - g[0])) <= 0.21 * math.hypot(g[2] - g[0], g[3] - g[1])]
+        nfill = [poly for poly in fills if any(box[0] <= x <= box[1] and box[2] <= y <= box[3] for x, y in poly) or
+                 inside((ax + bx) / 2, (ay + by) / 2, poly)]
+        hits = 0
+        for t in range(20):
+            px, py = ax + (bx - ax) * (t + 0.5) / 20, ay + (by - ay) * (t + 0.5) / 20
+            if any(inside(px, py, poly) for poly in nfill):
+                hits += 1
+                continue
+            sides = set()
+            for g in near:
+                gx, gy = g[2] - g[0], g[3] - g[1]
+                gl = math.hypot(gx, gy)
+                tt = ((px - g[0]) * gx + (py - g[1]) * gy) / (gl * gl)
+                if not -0.02 <= tt <= 1.02:
+                    continue
+                off = ((px - g[0]) * gy - (py - g[1]) * gx) / gl          # signed distance across the stroke
+                if 0.3 <= abs(off) <= reach:
+                    sides.add(off > 0)
+                if len(sides) == 2:
+                    hits += 1
+                    break
+        out.append(round(hits / 20, 2))
+    return out + [0.0] * (len(segments) - len(out))
+
+
 def builder():
     """High is built after a Low preview: the house can be walked through in about a minute while High bakes into
     .next/, whose files then replace the preview's (a failed High leaves the Low house in place)"""
@@ -940,6 +1005,13 @@ class H(BaseHTTPRequestHandler):
             m = re.match(r"^/api/jobs/([a-f0-9]{12})/import$", p)
             if m and os.path.isdir(jdir(m.group(1))):
                 return self.import_plan(m.group(1))
+            m = re.match(r"^/api/jobs/([a-f0-9]{12})/support$", p)
+            if m and os.path.isdir(jdir(m.group(1))):      # does the drawing back these lines? (the AI gap-filler asks)
+                req_s = json.loads(self.body() or b"{}")
+                try:
+                    return self.send(200, {"coverage": support(m.group(1), int(req_s.get("floor", 0)), req_s.get("segments") or [])})
+                except (OSError, ValueError, KeyError, IndexError) as e:
+                    return self.send(400, {"error": str(e)[:200]})
             m = re.match(r"^/api/jobs/([a-f0-9]{12})/(plan|build|export|tour)$", p)
             if m and os.path.isdir(jdir(m.group(1))):
                 jid, what = m.groups()
