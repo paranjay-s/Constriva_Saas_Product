@@ -625,6 +625,7 @@ CALLS = dict(kitchen_island=kitchen_island, bar_stool=bar_stool, wall_art=wall_a
 COLLIDERS, META_FLOORS, LAMPS = [], [], []
 WET_GROUND = []     # pools, water and docks of the ground storey: the plinth and the site ground are open over them
 by_floor = {}
+DOWNLIGHT_ROOMS = {"living", "dining", "kitchen", "bedroom", "study", "foyer", "breakfast", "bar", "cinema"}
 UNBAKED = []           # objects lit in real time in the walkthrough instead of baked (see plant)
 
 
@@ -827,7 +828,10 @@ for k, f in enumerate(floors):
         if (x1 - x0) * (y1 - y0) < 6:
             continue
         cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-        ceiling_light(cx, cy, 0.7)
+        if zn["type"] in DOWNLIGHT_ROOMS and min(x1 - x0, y1 - y0) >= 9:
+            downlights(x0 + 1, x1 - 1, y0 + 1, y1 - 1)       # recessed lights in a grid (the bake keeps one lamp)
+        else:
+            ceiling_light(cx, cy, 0.7)
         LAMPS.append((cx, cy, z + H - 0.25, (x1 - x0) * (y1 - y0), zn["type"]))
     by_floor[k] = [o for o in new_objects(before) if not o.get("unbaked")]
     UNBAKED.extend(o for o in new_objects(before) if o.get("unbaked"))

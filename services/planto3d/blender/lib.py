@@ -416,6 +416,18 @@ def ceiling_light(x, y, s=0.9):
                     coll="furniture")
 
 
+def downlights(x0, x1, y0, y1, step=5.5):
+    """recessed downlights over a room: a grid about `step` feet apart, each a small glowing square in a white trim"""
+    nx, ny = max(2, round((x1 - x0) / step)), max(2, round((y1 - y0) / step))
+    boxes = []
+    for i in range(nx):
+        for j in range(ny):
+            cx, cy = x0 + (i + 0.5) * (x1 - x0) / nx, y0 + (j + 0.5) * (y1 - y0) / ny
+            boxes.append((cx - 0.3, cx + 0.3, cy - 0.3, cy + 0.3, WALL_H - 0.03, WALL_H, "white_gloss"))
+            boxes.append((cx - 0.22, cx + 0.22, cy - 0.22, cy + 0.22, WALL_H - 0.05, WALL_H - 0.02, "light"))
+    mesh_from_boxes("downlights", boxes, coll="furniture")
+
+
 
 
 # ---------------------------------------------------------------- real fixtures: curved, bevelled meshes

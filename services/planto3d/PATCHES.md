@@ -378,3 +378,11 @@ wardrobe, a TV unit, a kitchen run, a desk or anything else tall against that wa
 and two colour blocks from a fixed six-colour palette, chosen by the room's position so a house always gets the same
 pictures. On 64 plans: 637 pictures in 689 such rooms, 0 clashes. Checked by screenshot, over the sofa in the dock
 house's living room.
+
+## 33. Recessed downlights (blender/lib.py, blender/gen.py)
+
+What: living, dining, kitchen, bedroom, study, foyer, breakfast, bar and cinema rooms whose shorter side is at least
+9 ft get a grid of recessed downlights about 5.5 ft apart (a glowing square in a white trim), in place of the single
+central panel. Smaller rooms keep the panel. The bake still uses one area lamp per room, so how bright a room is does
+not change. Checked by screenshot in the dock house's living room. The first version's steel trims baked nearly black,
+so they are white now.
