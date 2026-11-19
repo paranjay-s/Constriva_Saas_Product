@@ -1,12 +1,15 @@
-"""asset_library: the 3D asset library (room kits, furniture, appliances, fixtures, materials, lighting rigs,
-parametric builders), including assets the creator agent makes
+"""asset_library: the 3D asset library
+
+Room kits, furniture, appliances, fixtures, materials, lighting rigs and parametric builders,
+including the assets the creator agent makes.
 
 Revision ID: 20261119_0001
 Revises: 20261118_0001
 Create Date: 2026-11-19
 
-Until this table exists, services/planto3d/library/index.json is the index (the same fields). Not applied
-automatically: run `uv --directory backend run alembic upgrade head` with DATABASE_URL pointing at the database.
+Until this table exists, services/planto3d/library/index.json is the index (the same fields).
+Not applied automatically: run `uv --directory backend run alembic upgrade head` with
+DATABASE_URL pointing at the database.
 """
 
 from collections.abc import Sequence
@@ -47,14 +50,21 @@ def upgrade() -> None:
         # the creator agent's prompt and cost, for assets it made
         sa.Column("prompt", sa.Text(), nullable=True),
         sa.Column("cost_usd", sa.Numeric(10, 4), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
         sa.Column("reviewed_at", sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint(f"kind IN {KINDS}", name="asset_library_kind"),
         sa.CheckConstraint(f"shape IN {SHAPES}", name="asset_library_shape"),
         sa.CheckConstraint(f"review IN {REVIEW}", name="asset_library_review"),
     )
     op.create_index("asset_library_kind_review", "asset_library", ["kind", "review"])
-    op.create_index("asset_library_room_types", "asset_library", ["room_types"], postgresql_using="gin")
+    op.create_index(
+        "asset_library_room_types", "asset_library", ["room_types"], postgresql_using="gin"
+    )
 
 
 def downgrade() -> None:
