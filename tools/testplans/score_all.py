@@ -76,6 +76,10 @@ def main():
             else:
                 reader = "none"
         det = det or {"floors": []}
+        if det["floors"]:
+            sys.path.insert(0, str(P3D))
+            import checks
+            det.setdefault("kind", checks.building_kind(det))
         s = score_plan.plan_score(det, ref)
         for key in (item["style"], "ALL"):
             g = agg[key]
@@ -97,14 +101,14 @@ def main():
 
     pct = lambda n, t: f"{100 * n / t:.0f}%" if t else "-"
     lines = [f"\n## {a.label} ({a.set} set, {len(pick)} plans, {fresh} fresh AI calls)\n",
-             "| style | plans | read | detector / ai / none | wall recall | wall precision | doors found | windows found | room type | specials | storeys |",
-             "|---|---|---|---|---|---|---|---|---|---|---|"]
+             "| style | plans | read | detector / ai / none | wall recall | wall precision | doors found | windows found | room type | specials | storeys | building type |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for key in sorted(agg, key=lambda k: (k == "ALL", k)):
         g = agg[key]
         lines.append(f"| {key} | {g['plans']:.0f} | {pct(g['read'], g['plans'])} | {g['by_detector']:.0f} / {g['by_ai']:.0f} / {g['by_none']:.0f} | "
                      f"{pct(g['hit_r'], g['len_r'])} | {pct(g['hit_d'], g['len_d'])} | {pct(g['doors_found'], g['doors_ref'])} | "
                      f"{pct(g['windows_found'], g['windows_ref'])} | {pct(g['types_ok'], g['n_rooms'])} | "
-                     f"{pct(g['specials_found'], g['specials_total'])} | {pct(g['storeys_ok'], g['plans'])} |")
+                     f"{pct(g['specials_found'], g['specials_total'])} | {pct(g['storeys_ok'], g['plans'])} | {pct(g['kind_ok'], g['plans'])} |")
     text = "\n".join(lines) + "\n"
     print(text)
     with open(a.out, "a", encoding="utf-8") as fh:

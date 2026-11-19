@@ -104,4 +104,27 @@ def annotate(plan, reader="user"):
             o["conf"] = round(min(conf, caps.get((fi, "opening", k), 1.0)), 2)
             seen["openings"].append(o["conf"])
     plan["confidence"] = {k: round(sum(v) / len(v), 2) if v else None for k, v in seen.items()}
+    if not plan.get("kind"):
+        plan["kind"] = building_kind(plan)
     return plan
+
+
+NARROW_FT = 40.0       # a house no wider than this (its shorter side) on two or more storeys is a townhouse
+
+
+def building_kind(plan):
+    """apartment, townhouse or villa, from what any plan shows: one storey with no grounds of its own (no garden, court,
+    pool, parking: a balcony does not count) is an apartment; otherwise a house whose footprint's shorter side is at most
+    NARROW_FT feet is a townhouse, a wider one a villa. A guess from geometry, so it is shown with the plan, not imposed."""
+    fl = plan.get("floors") or []
+    if not fl:
+        return None
+    grounds = {t for t in rooms.kinds("outdoor", "water")} - {"balcony"}
+    has_grounds = any(r.get("type") in grounds for f in fl for r in f.get("rooms", []))
+    if len(fl) == 1 and not has_grounds:
+        return "apartment"
+    ws = fl[0].get("walls") or []
+    if not ws:
+        return None
+    w = min(max(x[1] for x in ws) - min(x[0] for x in ws), max(x[3] for x in ws) - min(x[2] for x in ws))
+    return "townhouse" if w <= NARROW_FT else "villa"
