@@ -15,10 +15,26 @@ class MinSize(NamedTuple):
     short_side_cm: int
 
 
+class _MinRooms(dict):
+    """MIN_ROOM: the Dubai Building Code minimums while the site rules are on (the default,
+    FLOORPLAN_SITE_RULES); the earlier practical minimums in whole-plot mode (small plots
+    laid out without setbacks), for the room types where they differ."""
+
+    def __getitem__(self, key: str) -> "MinSize":
+        from app.modules.ai.floorplan.settings import get_settings
+
+        if key in WHOLE_PLOT_MIN_ROOM and not get_settings().site_rules:
+            return WHOLE_PLOT_MIN_ROOM[key]
+        return super().__getitem__(key)
+
+    def get(self, key, default=None):
+        return self[key] if key in self else default
+
+
 # Minimum size per room type, measured on wall centre lines. Living spaces follow the Dubai
 # Building Code K.5.3.1 Table K.2 (10.5 m2 and 3.0 m net, inside the walls): on centre lines
 # that is about 3.2 m and 11.5 m2 with the walls' halves (to be confirmed by an engineer).
-MIN_ROOM: dict[str, MinSize] = {
+MIN_ROOM: dict[str, MinSize] = _MinRooms({
     "master_bedroom": MinSize(12.0, 320),
     "bedroom": MinSize(11.5, 320),
     "living": MinSize(12.0, 320),
@@ -54,6 +70,18 @@ MIN_ROOM: dict[str, MinSize] = {
     "driveway": MinSize(0.0, 300),
     "dock": MinSize(0.0, 300),
     "other": MinSize(0.0, 0),
+})
+WHOLE_PLOT_MIN_ROOM: dict[str, MinSize] = {
+    "master_bedroom": MinSize(12.0, 300),
+    "bedroom": MinSize(9.5, 270),
+    "living": MinSize(12.0, 300),
+    "family_hall": MinSize(12.0, 300),
+    "dining": MinSize(7.5, 240),
+    "kitchen": MinSize(5.5, 180),
+    "maid_room": MinSize(6.0, 210),
+    "study": MinSize(6.0, 210),
+    "majlis": MinSize(10.5, 300),
+    "driver_room": MinSize(5.5, 210),
 }
 
 # Typical comfortable size per room type (m2): fallback targets when the LLM is not
