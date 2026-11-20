@@ -464,3 +464,81 @@ def test_history_lists_opens_and_deletes_analyses(api):
     assert client.delete(f"{BASE}/{first['id']}").status_code == 204
     assert [r["id"] for r in client.get(BASE).json()] == [second["id"]]
     assert client.get(f"{BASE}/{first['id']}").status_code == 404
+
+
+# ------------------------------------------------- B: picking one of several same-named rooms
+
+TOILETS_PLAN = plan_json(
+    [
+        ("Living", 0, 0, 16, 14),
+        ("Toilet", 16, 0, 8.1, 3.8),
+        ("Toilet", 16, 3.8, 8.5, 5.4),
+        ("Toilet", 16, 9.2, 6, 5),
+        ("Bedroom", 0, 14, 12, 12),
+    ]
+)
+
+
+def _toilet_question(client, env) -> tuple[str, dict]:
+    """The reported sequence: a bathroom photo, 'apply it to my plan', then 'Toilet'."""
+    env.projects.add("user-a", "p9", "Lake House", TOILETS_PLAN)
+    env.vision = FakeVision(KITCHEN_PHOTO.model_copy(update={"scene": "study"}))
+    view = _analyse(client, focus_areas="", focus="")
+    _chat(client, view["id"], "use project lake house")
+    first = _chat(client, view["id"], "same look, all quantities please")
+    assert first["status"] == "needs_input" and "Which room should get" in first["message"]
+    q = _chat(client, view["id"], "Toilet")
+    assert q["status"] == "needs_input" and "3 toilets" in q["message"]
+    return view["id"], q
+
+
+def test_toilet_choices_are_clear_buttons_with_all_of_them(api) -> None:
+    client, env = api
+    _, q = _toilet_question(client, env)
+    assert q["options"] == [
+        "Toilet 1 · 8.1 × 3.8 ft",
+        "Toilet 2 · 8.5 × 5.4 ft",
+        "Toilet 3 · 6 × 5 ft",
+        "All of them",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("answer", "rooms"),
+    [
+        ("Toilet, 8.5 × 5.4 ft", 1),  # the exact answer that looped
+        ("Toilet 2 · 8.5 × 5.4 ft", 1),  # the button
+        ("toilet 2", 1),
+        ("the second one", 1),
+        ("8.5 x 5.4", 1),
+        ("the biggest", 1),
+        ("toilet 1 and 3", 2),
+        ("All of them", 3),
+    ],
+)
+def test_every_answer_form_picks_without_asking_again(api, answer: str, rooms: int) -> None:
+    client, env = api
+    sid, q = _toilet_question(client, env)
+    r = _chat(client, sid, answer)
+    # the design is applied (a later question about the counter-top layout may follow)
+    assert "Done: quantities" in r["message"], r["message"]
+    assert "Which one gets this design" not in r["message"]
+    floors = {
+        ln["application"] for ln in r["session"]["report"]["lines"] if "floor" in ln["application"]
+    }
+    assert len([f for f in floors if f.startswith("Toilet")]) == rooms, floors
+    if rooms > 1:
+        assert f"{rooms} rooms" in r["message"]
+
+
+def test_an_answer_it_cannot_match_shows_the_buttons_and_says_why(api) -> None:
+    client, env = api
+    sid, q = _toilet_question(client, env)
+    r = _chat(client, sid, "toilet 7")
+    assert r["status"] == "needs_input"
+    assert r["message"] != q["message"] and "could not tell" in r["message"]
+    assert "toilet 7" in r["message"] and r["options"] == q["options"]
+    again = _chat(client, sid, "toilet 7")
+    assert again["message"] != r["message"] or "still" in again["message"]
+    done = _chat(client, sid, "3")
+    assert "Done: quantities" in done["message"] and "6 × 5 ft" in done["message"]

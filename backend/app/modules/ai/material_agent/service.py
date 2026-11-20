@@ -49,11 +49,12 @@ from app.modules.ai.material_agent.schemas import (
 )
 from app.modules.ai.material_agent.settings import get_settings
 from app.modules.ai.material_agent.space import (
+    choice_labels,
+    looks_like_a_choice,
     manual_target,
     match_room,
     plan_target,
     room_kind,
-    room_label,
     rooms_from_plan,
 )
 from app.modules.ai.material_agent.store import Session, SessionStore
@@ -373,6 +374,9 @@ def handle_message(deps: Deps, s: Session, text: str) -> Reply:
             s.pending = None
             side = filled.pop("__side", None)
             return dispatch(deps, s, ChatIntent.model_validate(filled), side=side)
+        not_clear = _unclear_pick(s, pending, text)
+        if not_clear is not None:
+            return not_clear
     intent = interpret(deps.text_llm, text, s.materials, _context(s))
     if intent.action in ("explain_quantity", "explain_material", "advise", "set_piece_size"):
         intent = intent.model_copy(update={"question": text[:200]})  # answer the exact question
@@ -398,7 +402,12 @@ def _ask(
     question: str,
     options: list[str],
     option_values: dict | None = None,
+    rooms: list[RoomGeom] | None = None,
 ) -> Reply:
+    last = next((m for m in reversed(s.messages) if m.role == "assistant"), None)
+    if last is not None and last.status == "needs_input" and last.text == question:
+        # never the same question twice in a row
+        question = "Sorry, I still need this to go on: " + question
     s.pending = {
         "intent": intent.model_dump(mode="json"),
         "missing": missing,
@@ -406,7 +415,31 @@ def _ask(
         "options": options,
         "option_values": option_values or {},
     }
+    if rooms is not None:  # a pick among rooms: kept so typed answers can be matched
+        s.pending["rooms"] = [r.model_dump(mode="json") for r in rooms]
     return Reply("needs_input", question, options)
+
+
+def _unclear_pick(s: Session, pending: dict, text: str) -> Reply | None:
+    """An answer to "which room?" that matches no choice but is clearly meant as one:
+    say what was not understood and show the choices again as buttons (never the same
+    question word for word, never a round trip through the AI)."""
+    if pending.get("missing") != "room" or not pending.get("rooms"):
+        return None
+    rooms = [RoomGeom.model_validate(r) for r in pending["rooms"]]
+    if not looks_like_a_choice(text, rooms):
+        return None
+    options = pending.get("options") or []
+    kind = rooms[0].name.lower() if rooms else "room"
+    msg = (
+        f"I could not tell which {kind} you meant by “{text.strip()[:60]}”. Tap one below, "
+        "say its number (for example “2” or “the second one”), its size, or “all of them”."
+    )
+    last = next((m for m in reversed(s.messages) if m.role == "assistant"), None)
+    if last is not None and last.text == msg:  # never the same words twice in a row
+        msg = "Still not sure, sorry. " + msg
+    s.pending = {**pending, "question": msg}
+    return Reply("needs_input", msg, options)
 
 
 def dispatch(deps: Deps, s: Session, intent: ChatIntent, side: int | None = None) -> Reply:
@@ -540,11 +573,24 @@ def _space_for(deps: Deps, s: Session, intent: ChatIntent) -> TargetSpace | Repl
             [],
         )
     room_list, source = rooms
+    chosen = _picked(room_list, intent.room)
+    if chosen:  # one space here: the first room picked
+        return plan_target(chosen[0], source, s.project_id, s.project_name, s.uploaded_plan_name)
     match = match_room(room_list, intent.room)
     if match.status == "ambiguous":
-        labels = [room_label(r) for r in match.options]
-        values = {lbl: r.name for lbl, r in zip(labels, match.options, strict=True)}
-        return _ask(s, intent, "room", f"Which {intent.room.lower()}?", labels, values)
+        labels = choice_labels(match.options)
+        values = {
+            lbl: _pick_value(room_list, r) for lbl, r in zip(labels, match.options, strict=True)
+        }
+        return _ask(
+            s,
+            intent,
+            "room",
+            f"Which {intent.room.lower()}?",
+            labels,
+            values,
+            rooms=match.options,
+        )
     if match.room is None:
         names = ", ".join(r.name for r in room_list[:15]) or "none"
         return Reply(
@@ -572,6 +618,30 @@ SURFACE_APPLICATION = {
     "backsplash": "backsplash",
 }
 ALL_ROOMS = "__all__:"
+# A room picked from the choices: its position in the plan's room list ("__pick__:2,5").
+# Names are not unique (three rooms called TOILET), so the answer must not go back through
+# the name: that was the loop where picking one toilet asked "which toilet?" again.
+ROOM_PICK = "__pick__:"
+
+
+def _pick_value(room_list: list[RoomGeom], room: RoomGeom) -> str:
+    return f"{ROOM_PICK}{next(i for i, r in enumerate(room_list) if r is room)}"
+
+
+def _picked(room_list: list[RoomGeom], query: str | None) -> list[RoomGeom]:
+    """The rooms a pick names. Rooms that share a name get their number ("Toilet 2"), so
+    their lines in the report stay apart."""
+    if not query or not query.startswith(ROOM_PICK):
+        return []
+    out = []
+    for part in query[len(ROOM_PICK) :].split(","):
+        if part.strip().isdigit() and int(part) < len(room_list):
+            r = room_list[int(part)]
+            same = [o for o in room_list if o.name.strip().lower() == r.name.strip().lower()]
+            if len(same) > 1:
+                r = r.model_copy(update={"name": f"{r.name.strip()} {same.index(r) + 1}"})
+            out.append(r)
+    return out
 
 
 def _room_choice(deps: Deps, s: Session, intent: ChatIntent) -> list[TargetSpace] | Reply:
@@ -600,6 +670,12 @@ def _room_choice(deps: Deps, s: Session, intent: ChatIntent) -> list[TargetSpace
             "not_found", "I could not find any rooms in that plan. Type the room size instead."
         )
     every = [r for r in room_list if r.area_sqft > 0]
+    chosen = _picked(room_list, query)
+    if chosen:
+        return [
+            plan_target(r, source, s.project_id, s.project_name, s.uploaded_plan_name)
+            for r in chosen
+        ]
     all_of = query.startswith(ALL_ROOMS)
     query = query[len(ALL_ROOMS) :] if all_of else (query or (scene_kind or ""))
     match = match_room(room_list, query) if query else None
@@ -612,29 +688,34 @@ def _room_choice(deps: Deps, s: Session, intent: ChatIntent) -> list[TargetSpace
     if match and match.room:
         return targets([match.room])
     if match and match.options:
-        if all_of:
-            return targets(match.options)
-        labels = [room_label(r) for r in match.options]
-        values = {lbl: r.name for lbl, r in zip(labels, match.options, strict=True)}
+        if all_of:  # numbered when they share a name, so each keeps its own report lines
+            idx = ",".join(_pick_value(room_list, r)[len(ROOM_PICK) :] for r in match.options)
+            return targets(_picked(room_list, ROOM_PICK + idx))
+        labels = choice_labels(match.options)
+        values = {
+            lbl: _pick_value(room_list, r) for lbl, r in zip(labels, match.options, strict=True)
+        }
         values["All of them"] = ALL_ROOMS + query
         return _ask(
             s,
             intent,
             "room",
-            f"Your plan has {len(match.options)} {query.replace('_', ' ')}s. "
+            f"Your plan has {len(match.options)} {query.replace('_', ' ').lower()}s. "
             "Which one gets this design?",
             [*labels, "All of them"],
             values,
+            rooms=match.options,
         )
     seen = f"a {query.replace('_', ' ')}" if query else "the room in the photo"
-    labels = [room_label(r) for r in every[:12]]
+    labels = choice_labels(every[:12])
     return _ask(
         s,
         intent,
         "room",
         f"I couldn't find {seen} in your plan. Which room should get this design?",
         labels,
-        {lbl: r.name for lbl, r in zip(labels, every[:12], strict=True)},
+        {lbl: _pick_value(room_list, r) for lbl, r in zip(labels, every[:12], strict=True)},
+        rooms=every[:12],
     )
 
 

@@ -487,6 +487,8 @@ def answer_to_pending(text: str, pending: dict) -> dict | None:
             intent["layout"] = layout
             return intent
         return None
+    if missing == "room" and pending.get("rooms"):
+        return _room_answer(text, pending, intent)
     if chosen is None:
         return None
     if missing == "room":
@@ -508,6 +510,43 @@ def answer_to_pending(text: str, pending: dict) -> dict | None:
         intent["__side"] = options.index(chosen)
         return intent
     return None
+
+
+def _room_answer(text: str, pending: dict, intent: dict) -> dict | None:
+    """A typed or tapped answer to "which room?": by button, number, ordinal, size, name,
+    several at once ("toilet 1 and 3") or "all of them" (space.pick_rooms)."""
+    from app.modules.ai.material_agent.schemas import RoomGeom
+    from app.modules.ai.material_agent.space import pick_rooms
+
+    rooms = [RoomGeom.model_validate(r) for r in pending["rooms"]]
+    values: dict = pending.get("option_values") or {}
+    labels = [o for o in pending.get("options") or [] if o != "All of them"][: len(rooms)]
+    got = pick_rooms(text, rooms, labels if len(labels) == len(rooms) else None)
+    if got is None:
+        from app.modules.ai.material_agent.space import match_room
+
+        m = match_room(rooms, text)
+        narrower = m.status == "ambiguous" and len(m.options) < len(rooms)
+        if narrower or m.room is not None:
+            # "Toilet" when the choices were every room: narrow to the toilets (a new,
+            # shorter question) or take the one room of that kind
+            got = [rooms.index(m.room)] if m.room is not None else None
+            if got is None:
+                intent["room"] = text.strip()
+                return intent
+    if got is None:
+        return None
+    if got == "all":
+        if "All of them" in values:
+            intent["room"] = values["All of them"]
+            return intent
+        got = list(range(len(rooms)))
+    picks = [values.get(labels[i], "") for i in got] if len(labels) == len(rooms) else []
+    picks = [p.split(":", 1)[1] for p in picks if p.startswith("__pick__:")]
+    if not picks:
+        return None
+    intent["room"] = "__pick__:" + ",".join(picks)
+    return intent
 
 
 _WALL_WORDS = re.compile(r"\b(wall|facade|façade|backsplash|elevation|partition)\b", re.I)

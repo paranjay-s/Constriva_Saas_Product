@@ -219,6 +219,135 @@ def room_label(room: RoomGeom) -> str:
     return f"{room.name}, {fmt(room.area_sqft)} sq ft"
 
 
+def choice_labels(rooms: list[RoomGeom]) -> list[str]:
+    """Button labels for choosing among rooms: rooms that share a name are numbered in
+    plan order ("Toilet 1 · 8.1 × 3.8 ft"), every label shows the size."""
+    names = [_norm(r.name) for r in rooms]
+    seen: dict[str, int] = {}
+    out = []
+    for r, n in zip(rooms, names, strict=True):
+        base = r.name.strip()
+        if names.count(n) > 1:
+            seen[n] = seen.get(n, 0) + 1
+            base = f"{base} {seen[n]}"
+        if r.length_ft and r.width_ft:
+            long, short = max(r.length_ft, r.width_ft), min(r.length_ft, r.width_ft)
+            size = f"{fmt(long)} × {fmt(short)} ft"
+        else:
+            size = f"{fmt(r.area_sqft)} sq ft"
+        out.append(f"{base} · {size}")
+    return out
+
+
+_ORDINALS = {
+    "first": 1, "1st": 1, "second": 2, "2nd": 2, "third": 3, "3rd": 3, "fourth": 4, "4th": 4,
+    "fifth": 5, "5th": 5, "sixth": 6, "6th": 6, "seventh": 7, "7th": 7, "eighth": 8, "8th": 8,
+    "ninth": 9, "9th": 9, "tenth": 10, "10th": 10,
+}
+_WORD_NUMBERS = {  # "one" is handled apart: "the second one" means 2, not 1 and 2
+    "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+    "nine": 9, "ten": 10,
+}
+_SIZE = re.compile(
+    r"(\d+(?:\.\d+)?)\s*(?:'|ft|feet|foot)?\s*(?:\d+\s*(?:\"|in))?\s*(?:x|×|\*|by)\s*"
+    r"(\d+(?:\.\d+)?)\s*(?:'|ft|feet|foot)?",
+    re.IGNORECASE,
+)
+_AREA = re.compile(r"(\d+(?:\.\d+)?)\s*(?:sq\.?\s*ft|sqft|square\s+feet|sft)", re.IGNORECASE)
+_ALL = re.compile(r"\b(all|every|each|both|whole lot)\b", re.IGNORECASE)
+
+
+def pick_rooms(text: str, rooms: list[RoomGeom], labels: list[str] | None = None):
+    """Which of `rooms` (offered as choices) an answer means: "all", a list of indexes
+    (several are allowed: "toilet 1 and 3"), or None when it cannot tell.
+
+    Understood: the button text; "all of them" / "both"; numbers and ordinals by position
+    among the choices ("toilet 2", "the second one", "1 and 3", "last"); a size
+    ("8.5 x 5.4", "8.5 × 5.4 ft", "46 sq ft"); a name that only one choice has."""
+    labels = labels or choice_labels(rooms)
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    t = _norm(raw)
+    for i, lbl in enumerate(labels):
+        if _norm(lbl) == t:
+            return [i]
+    if _ALL.search(raw) and not re.search(r"\bnot all\b", t):
+        return "all"
+    picked: set[int] = set()
+    rest = raw
+    # sizes first, so their numbers are not read as positions
+    for m in _SIZE.finditer(raw):
+        a, b = float(m.group(1)), float(m.group(2))
+        best = None
+        for i, r in enumerate(rooms):
+            if not (r.length_ft and r.width_ft):
+                continue
+            long, short = max(r.length_ft, r.width_ft), min(r.length_ft, r.width_ft)
+            err = abs(max(a, b) - long) + abs(min(a, b) - short)
+            if err <= max(0.6, 0.06 * (long + short)) and (best is None or err < best[0]):
+                best = (err, i)
+        if best is not None:
+            picked.add(best[1])
+        rest = rest.replace(m.group(0), " ")
+    for m in _AREA.finditer(rest):
+        area = float(m.group(1))
+        best = min(
+            ((abs(r.area_sqft - area), i) for i, r in enumerate(rooms)), default=None
+        )
+        if best is not None and best[0] <= max(2.0, 0.05 * area):
+            picked.add(best[1])
+        rest = rest.replace(m.group(0), " ")
+    # a name only one choice has ("master toilet")
+    norms = [_norm(r.name) for r in rooms]
+    for i, n in enumerate(norms):
+        if norms.count(n) == 1 and n and re.search(rf"(^| ){re.escape(n)}( |$)", _norm(rest)):
+            picked.add(i)
+            rest = re.sub(re.escape(rooms[i].name), " ", rest, flags=re.I)
+    # a word only one choice's name has ("common" for COMMON TOILET)
+    name_words = [set(n.split()) for n in norms]
+    said = set(_norm(rest).split())
+    for i, ws in enumerate(name_words):
+        others = set().union(*(w for j, w in enumerate(name_words) if j != i))
+        own = {w for w in ws - others if not w.isdigit() and len(w) > 2}
+        if own & said:
+            picked.add(i)
+    # sizes in words: the biggest / smallest
+    if said & {"big", "bigger", "biggest", "large", "larger", "largest"}:
+        picked.add(max(range(len(rooms)), key=lambda i: rooms[i].area_sqft))
+    if said & {"small", "smaller", "smallest", "little", "tiny"}:
+        picked.add(min(range(len(rooms)), key=lambda i: rooms[i].area_sqft))
+    if picked:
+        return sorted(picked)
+    # positions: ordinals, "last", numbers and number words
+    words = _norm(rest).split()
+    n = len(rooms)
+    for w in words:
+        k = _ORDINALS.get(w) or _WORD_NUMBERS.get(w) or (int(w) if w.isdigit() else None)
+        if w == "last":
+            k = n
+        if k is not None and 1 <= k <= n:
+            picked.add(k - 1)
+    if not picked and "one" in words and not any(w in _ORDINALS for w in words):
+        picked.add(0)  # "toilet one"
+    return sorted(picked) or None
+
+
+def looks_like_a_choice(text: str, rooms: list[RoomGeom]) -> bool:
+    """True when an answer seems meant as a pick among the rooms (it names their kind,
+    gives a number, an ordinal or a size), so "not understood" beats starting over."""
+    t = _norm(text)
+    if _SIZE.search(text or "") or _AREA.search(text or "") or re.search(r"\d", t):
+        return True
+    if any(w in _ORDINALS or w in _WORD_NUMBERS or w in ("last", "one", "this", "that")
+           for w in t.split()):
+        return True
+    kinds = {r.kind or room_kind(r.name) for r in rooms} - {None}
+    return any(k and (room_kind(t) == k) for k in kinds) or any(
+        _norm(r.name) and _norm(r.name) in t for r in rooms
+    )
+
+
 # ---------------------------------------------------------------- matching
 
 
