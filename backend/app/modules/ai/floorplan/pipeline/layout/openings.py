@@ -25,6 +25,23 @@ SIDES = ("north", "south", "east", "west")
 PUBLIC_OPEN_PAIRS = {"living", "dining", "family_hall"}
 CLEAR = OPENING_END_CLEARANCE_CM + 3
 
+WINDOW_HEIGHT_CM = 150  # matches WINDOW_SPEC_MM["default"] in rules.py
+MAX_WINDOW_CM = 300
+GLAZING_SHARE = {  # DBC K.5.4.2.1: bedrooms, living spaces and kitchens 10 %, maid's room 8 %
+    "master_bedroom": 0.10,
+    "bedroom": 0.10,
+    "living": 0.10,
+    "family_hall": 0.10,
+    "majlis": 0.10,
+    "dining": 0.10,
+    "kitchen": 0.10 * 150 / 120,  # kitchen windows are 1.2 m tall (over the counter)
+    "study": 0.10,
+    "gym": 0.10,
+    "bar": 0.10,
+    "maid_room": 0.08,
+    "driver_room": 0.08,
+}
+
 # room type -> (preferred window width cm, max number of windows)
 WINDOW_SPEC: dict[str, tuple[int, int]] = {
     "master_bedroom": (150, 2),
@@ -164,6 +181,11 @@ def place_windows(plan: FloorPlan) -> list[Window]:
         if spec is None or room.is_open:
             continue
         pref, count = spec
+        # glazing at least GLAZING_SHARE of the floor (DBC K.5.4.2.1) at WINDOW_HEIGHT_CM tall
+        share = GLAZING_SHARE.get(room.type)
+        if share:
+            need = share * room.area_m2 * 10_000 / WINDOW_HEIGHT_CM
+            pref = int(max(pref, min(MAX_WINDOW_CM, need / max(1, count) + 10)))
         candidates: list[tuple[float, str, Interval]] = []
         for wall in SIDES:
             horizontal = wall in ("north", "south")

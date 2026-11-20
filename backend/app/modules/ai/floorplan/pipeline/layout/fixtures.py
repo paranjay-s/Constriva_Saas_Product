@@ -37,8 +37,8 @@ def _recipe(room: Room) -> list[tuple[str, str]]:
         return items
     if t == "dining":
         return [("dining_6" if area >= 10 and short >= 280 else "dining_4", "center")]
-    if t == "kitchen":
-        return [("kitchen_counter", "wall_exterior")]
+    if t == "kitchen":  # the fridge on another wall makes a work triangle with sink and hob
+        return [("kitchen_counter", "wall_exterior"), ("fridge", "wall")]
     if t == "bath":
         items = [("toilet", "wall_quiet"), ("basin", "wall")]
         if min(room.w, room.h) >= 160 and max(room.w, room.h) >= 240:

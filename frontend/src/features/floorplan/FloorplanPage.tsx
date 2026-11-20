@@ -370,6 +370,26 @@ export function FloorplanPage() {
                   ))}
                 </div>
               )}
+              {plan.checks.filter((c) => c.severity !== 'info').length > 0 && (
+                <details open={plan.checks.some((c) => c.severity === 'critical')} style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                  <summary style={{ cursor: 'pointer', color: 'var(--text-2)' }}>
+                    Engineering checks: {plan.checks.filter((c) => c.severity === 'critical').length} critical,{' '}
+                    {plan.checks.filter((c) => c.severity === 'warning').length} warnings
+                  </summary>
+                  <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+                    {plan.checks
+                      .filter((c) => c.severity !== 'info')
+                      .map((c, i) => (
+                        <li key={`${c.code}-${i}`} style={{ color: c.severity === 'critical' ? '#FFB4AB' : undefined }}>
+                          {c.severity === 'critical' ? 'Critical: ' : ''}
+                          {c.message}
+                          {c.ref ? ` (${c.ref})` : ''}
+                        </li>
+                      ))}
+                  </ul>
+                  <div style={{ marginTop: 6 }}>Values to be confirmed against the Dubai Building Code by an engineer.</div>
+                </details>
+              )}
               <ExportMenu planId={plan.id} />
               {plan.notes.length > 0 && (
                 <details style={{ fontSize: 13, color: 'var(--text-muted)' }}>

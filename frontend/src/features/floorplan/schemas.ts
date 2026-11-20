@@ -202,6 +202,19 @@ export const planResponseSchema = z.object({
   history: z.array(versionInfoSchema).default([]),
   facing: z.string().nullable().optional(),
   areas: z.array(z.string()).optional().default([]),
+  checks: z
+    .array(
+      z.object({
+        code: z.string(),
+        severity: z.enum(['critical', 'warning', 'info']),
+        message: z.string(),
+        rooms: z.array(z.string()).default([]),
+        ref: z.string().default(''),
+      }),
+    )
+    .optional()
+    .default([]),
+  model: z.string().optional().default(''),
 });
 export type PlanResponse = z.infer<typeof planResponseSchema>;
 

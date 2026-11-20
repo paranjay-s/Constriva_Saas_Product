@@ -424,7 +424,8 @@ def test_retry_loop_feeds_errors_and_stops_at_max(monkeypatch) -> None:
     )
     res = generate_plan(brief, llm=llm, max_attempts=3)
     assert res.status == "failed" and res.plan is None
-    assert len(calls) == 3
+    # attempt 1 tries with daylight rules for habitable rooms first, then without
+    assert len(calls) == 4 and any(r.kind == "daylight" for r in calls[0].rules)
     feedback_calls = [p for t, p in llm.calls if t == "room_program" and "layout_errors" in p]
     assert len(feedback_calls) == 2
     assert feedback_calls[0]["layout_errors"] == ["OVERLAP: bed_1 and bed_2 overlap by 1.00 m2"]

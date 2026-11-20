@@ -32,6 +32,7 @@ SymbolName = Literal[
     "dining_4",
     "dining_6",
     "kitchen_counter",
+    "fridge",
     "toilet",
     "basin",
     "bathtub",

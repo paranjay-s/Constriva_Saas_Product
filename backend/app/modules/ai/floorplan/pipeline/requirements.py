@@ -8,7 +8,7 @@ every bedroom can open onto circulation.
 from dataclasses import dataclass
 
 from app.modules.ai.floorplan.schemas.brief import Brief
-from app.modules.ai.floorplan.schemas.common import DEFAULT_LABEL
+from app.modules.ai.floorplan.schemas.common import DEFAULT_LABEL, is_open
 
 BEDROOM_TYPES = ("master_bedroom", "bedroom")
 
@@ -87,7 +87,19 @@ def expand_rooms(brief: Brief) -> tuple[list[ReqRoom], list[str]]:
                 )
             )
 
-    if n >= 3 and not any(r.type in ("lobby", "passage") for r in rooms):
+    # a lobby takes the doors of the bedrooms and other rooms off the living area: with 3+
+    # bedrooms, or when 7+ rooms would otherwise open straight off one room (they then
+    # cannot all reach an outside wall as well)
+    opening_off_hub = [
+        r
+        for r in rooms
+        if r.attached_to is None
+        and not is_open(r.type)
+        and r.type not in ("living", "family_hall", "foyer", "lobby", "passage")
+    ]
+    if (n >= 3 or len(opening_off_hub) >= 7) and not any(
+        r.type in ("lobby", "passage") for r in rooms
+    ):
         rooms.append(ReqRoom("lobby_1", "lobby", "LOBBY"))
     return rooms, notes
 

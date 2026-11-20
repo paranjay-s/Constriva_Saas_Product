@@ -13,3 +13,4 @@ Started 2026-11-20 on branch `feat/pro` (from `feat/merged` d08ad48).
 | 1 | 5 Areas, setbacks, built-up band | done | 2f66a65 | nandu-like brief: 1,987 -> 3,338 sq ft built-up (67%); 50x100 ft plots reach 67% max with 3/1.5 m setbacks |
 | 1 | 6 Chat and solver (rules, re-solve, conflicts, neutral model) | done | e518b4b | one older edit test is timing-sensitive under load (passed on rerun) |
 | 1 | 7 CAD drawing, muted, A3/A1 | done | eb888f2 | old svg_renderer kept only for the old DXF until task 8 |
+| 1 | 8 PDF/SVG/PNG, DXF, IFC, DWG, signed model | done | 6dd1058 | DWG writer is the ODA converter (licence: owner decision); 518 tests pass |

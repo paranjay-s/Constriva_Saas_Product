@@ -256,6 +256,8 @@ def _build() -> dict[str, Symbol]:
         ),
     )
 
+    s["fridge"] = Symbol("fridge", 70, 65, (Rect(-35, -32.5, 70, 65, fill="metal"),))
+
     s["toilet"] = Symbol(
         "toilet",
         40,

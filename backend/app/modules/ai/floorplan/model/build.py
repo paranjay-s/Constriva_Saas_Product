@@ -86,6 +86,7 @@ FIXTURE_KIND = {
     "shower": "shower",
     "bathtub": "bath",
     "kitchen_counter": "counter",
+    "fridge": "fridge",
     "wardrobe": "wardrobe",
     "bed_double": "bed_double",
     "bed_single": "bed_single",
@@ -343,9 +344,10 @@ def _fixtures(plan: FloorPlan) -> list[Fixture]:
         ux, uy = (1, 0) if f.rotation in (0, 180) else (0, 1)
         if f.rotation in (180, 270):
             ux, uy = -ux, -uy
-        for kind2, t, size in (("sink", -0.25, (800, 500)), ("hob", 0.2, (600, 520))):
+        for kind2, t, size in (("sink", -0.3, (800, 500)), ("hob", 0.28, (600, 520))):
             add(f.room, kind2, cx + ux * t * w, cy + uy * t * w, size[0], size[1], f.rotation)
-        if w >= 2400:  # room for a fridge at the end of the run
+        has_fridge = any(g.room == f.room and g.symbol == "fridge" for g in plan.fixtures)
+        if w >= 2400 and not has_fridge:  # no fridge of its own: at the end of the run
             fx = cx + ux * (w / 2 - 350)
             fy = cy + uy * (w / 2 - 350)
             add(f.room, "fridge", fx, fy, 700, 650, f.rotation)

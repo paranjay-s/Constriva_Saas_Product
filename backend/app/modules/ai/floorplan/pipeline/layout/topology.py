@@ -31,11 +31,13 @@ ENTRANCE_DOOR_CM = 100
 
 
 def door_width(room_type: str) -> int:
-    if room_type in ("bath", "toilet", "store"):
+    """Door leaf opening (cm), taken as the clear width. Dubai Building Code K.5.4.1
+    (Table K.4): general doors 915 mm, bathrooms and WCs 710 mm (RULES.md)."""
+    if room_type in ("bath", "toilet"):
         return 75
-    if room_type in ("dress", "utility"):
+    if room_type in ("store", "dress", "utility"):
         return 80
-    return 90
+    return 95
 
 
 def door_span_needed(room_type: str) -> int:

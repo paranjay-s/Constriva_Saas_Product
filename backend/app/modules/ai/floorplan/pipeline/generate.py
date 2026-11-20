@@ -45,6 +45,38 @@ class GenerationResult:
         return self.status == "ok"
 
 
+DAYLIGHT_TYPES = (
+    "bedroom",
+    "master_bedroom",
+    "living",
+    "family_hall",
+    "majlis",
+    "kitchen",
+    "study",
+    "maid_room",
+    "driver_room",
+)
+DAYLIGHT_NOTE = (
+    "Not every bedroom, living room and kitchen could get an outside wall on this plot; "
+    "see the checks for the rooms without a window."
+)
+
+
+def with_daylight(program: RoomProgram) -> RoomProgram:
+    """The program plus a daylight rule for each habitable room that has none yet."""
+    from app.modules.ai.floorplan.schemas.rules import Daylight
+
+    have = {r.room for r in program.rules if getattr(r, "kind", "") == "daylight"}
+    extra = [
+        Daylight(kind="daylight", room=r.id, text="")
+        for r in program.rooms
+        if r.type in DAYLIGHT_TYPES and r.id not in have
+    ]
+    if not extra:
+        return program
+    return program.model_copy(update={"rules": [*program.rules, *extra]})
+
+
 def plot_from_brief(brief: Brief) -> Plot:
     """The plot to lay out: size on the 5 cm grid, setbacks and the built-up target from
     the settings (or the person's own numbers). See built_up_target."""
@@ -170,7 +202,15 @@ def generate_plan(
         program, warnings = build_program(brief, llm, pool=choice)
         for attempt in range(1, tries + 1):
             tell("layout", f"Placing rooms (attempt {attempt} of {tries})")
-            res = generate_layout(program, plot, meta, plan_id, time_limit_s=solver_time_s)
+            # first try with daylight for every habitable room as a hard rule (DBC K.5.4.2)
+            trial = with_daylight(program) if attempt == 1 else program
+            res = generate_layout(trial, plot, meta, plan_id, time_limit_s=solver_time_s)
+            if res.ok and trial is not program:
+                res.program = (res.program or trial).model_copy(update={"rules": program.rules})
+            elif not res.ok and attempt == 1 and trial is not program:
+                res = generate_layout(program, plot, meta, plan_id, time_limit_s=solver_time_s)
+                if res.ok:
+                    warnings = [*warnings, DAYLIGHT_NOTE]
             attempts += [f"#{attempt} {choice.layout} {a}" for a in res.attempts]
             tell("checking", "Checking the plan")
             if res.ok:

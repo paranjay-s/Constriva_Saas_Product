@@ -98,6 +98,11 @@ class PlanResponse(_Model):
         default_factory=list,
         description="Total, built-up and exterior area in the title block's wording",
     )
+    checks: list[dict] = Field(
+        default_factory=list,
+        description="Engineering checks of this version: code, severity, message, rooms, ref",
+    )
+    model: str = Field(default="", description="The AI model that made this version")
 
 
 class RevertRequest(_Model):

@@ -79,9 +79,11 @@ def run_generation(
     job.emit("saving", "Saving the plan")
     from app.modules.ai.floorplan.model.areas import area_lines
     from app.modules.ai.floorplan.model.build import build_building
+    from app.modules.ai.floorplan.model.checks import run_checks, summary
 
-    areas = area_lines(build_building(res.plan).areas, brief.plot.input_unit)
-    notes = [*areas, *brief.assumptions, *res.warnings]
+    built = build_building(res.plan)
+    areas = area_lines(built.areas, brief.plot.input_unit)
+    notes = [*areas, summary(run_checks(built)), *brief.assumptions, *res.warnings]
     sp = StoredPlan(
         id=plan_id,
         owner_id=job.owner_id,
@@ -116,7 +118,27 @@ def to_response(sp: StoredPlan) -> PlanResponse:
         ],
         facing=facing(sp.plan),
         areas=_area_lines(sp),
+        checks=[i.as_dict() for i in _checks(sp)],
+        model=sp.model,
     )
+
+
+def _checks(sp: StoredPlan) -> list:
+    from app.modules.ai.floorplan.model.checks import run_checks
+
+    try:
+        return run_checks(building_for(sp))
+    except Exception:  # the checks are informative; never fail a read over them
+        logger.exception("could not check plan %s", sp.id)
+        return []
+
+
+def checks_line(sp: StoredPlan) -> str:
+    """One sentence for the chat: critical issues are always named."""
+    from app.modules.ai.floorplan.model.checks import summary
+
+    issues = _checks(sp)
+    return summary(issues) if issues else ""
 
 
 def preview_svg(sp: StoredPlan) -> str:
@@ -273,6 +295,9 @@ def edit(
         lines = _area_lines(sp)
         if lines:
             reply += " " + lines[0] + "."
+        line = checks_line(sp)
+        if line and "critical" in line:
+            reply += " " + line
     else:
         reply = res.message
         if res.alternatives:
