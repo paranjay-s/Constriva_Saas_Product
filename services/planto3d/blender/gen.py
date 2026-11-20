@@ -875,7 +875,11 @@ def custom(it, path=None, any_fn=False):
             o.parent = root
     root.scale = (s, s, s)
     root.rotation_euler = (0, 0, math.radians(rot))
-    root.location = ((x0 + x1) / 2 * lib.F, (y0 + y1) / 2 * lib.F, lib.LEVEL * lib.F)
+    z = lib.LEVEL * lib.F
+    if hang:              # hung from the ceiling: its top at the ceiling, never lower than 7.2 ft above the floor
+        drop = (hi.z - lo.z) * s
+        z += max(lib.WALL_H * lib.F - drop, 7.2 * lib.F)
+    root.location = ((x0 + x1) / 2 * lib.F, (y0 + y1) / 2 * lib.F, z)
     return True
 
 
