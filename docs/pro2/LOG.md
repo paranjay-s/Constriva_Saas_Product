@@ -12,3 +12,7 @@ counted at the end of the lines that used them.
 | A1 | 5 relaxation ladder (weighted, a-f) | done | b61d03c | ladder steps logged per run (relax_log) |
 | A1 | 6 a plan is always delivered; adjustments listed in chat | done | b61d03c | feasibility shortfall no longer refuses |
 | A1 | 7 brief understanding (spoken words, unclear numbers, rule binding) | done | 1e13b22 | 4 live AI calls (total 14) |
+| A2 | 1 presentation renderer | done | f3fb60c | |
+| A2 | 2 view toggle, downloads follow it, presentation PDF signed | done | f3fb60c | |
+| A2 | 3 engineering snapshot byte-identical (PDF, SVG, PNG, DXF) | done | ef0faba+f3fb60c | 20 files, run stamps blanked |
+| A2 | 4 side-by-side samples | done | f3fb60c | docs/pro2/2d/presentation |
