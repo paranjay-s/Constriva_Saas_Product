@@ -11,3 +11,4 @@ counted at the end of the lines that used them.
 | A1 | 4 weighted soft constraints in CP-SAT | done | fd5f8ec | hard mode unchanged (golden test) |
 | A1 | 5 relaxation ladder (weighted, a-f) | done | b61d03c | ladder steps logged per run (relax_log) |
 | A1 | 6 a plan is always delivered; adjustments listed in chat | done | b61d03c | feasibility shortfall no longer refuses |
+| A1 | 7 brief understanding (spoken words, unclear numbers, rule binding) | done | 1e13b22 | 4 live AI calls (total 14) |
