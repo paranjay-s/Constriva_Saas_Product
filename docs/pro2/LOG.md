@@ -31,3 +31,4 @@ counted at the end of the lines that used them.
 | C2 | 4 drawing-only round trip to 98% doors and windows | partial | 03734b8 | doors 85.2% (was 82.6%), windows 96.4% (was 91.5%), walls 99.9%; 98% not met; missed doors sit at wall ends beside cross walls; swing-door attempt x2 reverted; engineering drawing unchanged |
 | C3 | 2 design details in the room kits | done | 1ba08c5 | chandelier hanging fixed in a later commit |
 | C3 | 4 reference vs Low vs High sheets | done | 3a12afa | sheets on disk only |
+| C3 | 3 Unreal stills via MRQ command line | done | 4fce861 | 2 stills in 2.5 min of the 15-min cap; picture mirrored (camera Y flip) and overexposed; server still uses the old capture; Blender stays default |
