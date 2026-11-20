@@ -81,3 +81,23 @@ def test_the_ladder_falls_back_to_the_corridor_layout_and_reports_issues() -> No
     assert res.step == "fallback" and res.plan.rooms and res.plan.doors
     assert any("corridor" in a for a in res.adjustments)
     assert res.report is not None and not res.report.errors  # errors become notes
+
+
+def test_random_briefs_always_get_a_plan() -> None:
+    """A small, fast slice of tools/floorplan_cases/random_briefs.py (the full run of 50 is
+    in docs/pro2/2d/RELAXATION.md)."""
+    import random
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools" / "floorplan_cases"))
+    from random_briefs import random_brief
+
+    from app.modules.ai.floorplan.pipeline.generate import generate_plan
+
+    rng = random.Random(11)
+    for _ in range(6):
+        brief = random_brief(rng)
+        res = generate_plan(brief, llm=None, solver_time_s=2.0)
+        assert res.ok and res.plan is not None and res.plan.rooms
+        assert res.report is not None and res.report.ok
