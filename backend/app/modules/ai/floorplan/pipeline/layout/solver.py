@@ -61,6 +61,7 @@ HABITABLE = {
 }
 SMALL = {"bath", "toilet", "store", "dress", "utility", "foyer"}
 
+BUILT_UP_SLACK = 1.02  # enclosed rooms may exceed the built-up target by this much (no setbacks)
 SLIVER_CM = 60  # gaps this thin are absorbed by a neighbour rather than left as a duct
 W_AREA = 10
 W_DEV = 5  # per grid cell away from a room's target area
@@ -356,6 +357,12 @@ def solve_layout(
                 )
 
     total_area = sum(b.area for b in boxes.values())
+    if plot.built_up_m2 and not plot.has_setbacks:
+        # no setbacks to keep the house in: the built-up target caps the enclosed rooms
+        # (with setbacks the buildable box does that, as before)
+        enclosed = [boxes[r.id].area for r in program.rooms if not is_open(r.type)]
+        if enclosed:
+            m.Add(sum(enclosed) <= math.ceil(plot.built_up_m2 * 10_000 * BUILT_UP_SLACK / cell))
     if exact_tiling:
         m.Add(total_area == grid.nx * grid.ny)
     else:
@@ -708,10 +715,15 @@ def fill_gaps(
         return 0 if r.type in OPEN_GROW else (1 if r.type in CIRCULATION else 2)
 
     order = sorted(range(len(rooms)), key=lambda i: (rank(rooms[i]), rooms[i].id))
+    budget = (
+        plot.built_up_m2 * BUILT_UP_SLACK
+        if plot.built_up_m2 and not plot.has_setbacks
+        else None
+    )
     # Two rounds: other rooms take the gaps first; a room given an exact size only takes
     # a thin sliver nobody else could (so "2 ft wider" stays 2 ft, not 3).
     for allow_keep in (False, True):
-        _grow_into_gaps(rooms, order, plot, targets, keep, allow_keep)
+        _grow_into_gaps(rooms, order, plot, targets, keep, allow_keep, budget)
     return rooms
 
 
@@ -722,7 +734,11 @@ def _grow_into_gaps(
     targets: dict[str, float],
     keep: set[str],
     allow_keep: bool,
+    budget: float | None = None,
 ) -> None:
+    def enclosed_m2() -> float:
+        return sum(r.area_m2 for r in rooms if not r.is_open and r.type != "shaft")
+
     changed = True
     while changed:
         changed = False
@@ -746,6 +762,12 @@ def _grow_into_gaps(
                     cap = target * (1.24 if d <= 60 else 1.2)
                 if grown.area_m2 > cap:
                     continue
+                if (
+                    budget is not None
+                    and not r.is_open
+                    and enclosed_m2() + grown.area_m2 - r.area_m2 > budget
+                ):
+                    continue  # the space stays open (garden or shaft) instead
                 rooms[i] = r = grown
                 changed = True
 

@@ -112,7 +112,8 @@ def generate_layout(
             best = (len(rep.errors), plan, rep, method)
         return None
 
-    templates_ok = not plot.has_setbacks  # the row templates fill the whole plot
+    # the row templates fill the whole plot: not when setbacks or a built-up target limit it
+    templates_ok = not plot.has_setbacks and not plot.built_up_m2
     if use_templates and templates_ok and not fixed and not is_special(program.pool_layout):
         tpl = compact_rows(program, plot)
         if tpl is None:
