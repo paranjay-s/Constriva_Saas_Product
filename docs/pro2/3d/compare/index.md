@@ -6,7 +6,7 @@ contain your reference pictures. For design purposes only, not for construction.
 
 House: nandu, built from its building model (so the bar and puja keep their types and kits), with this run's
 space changes (3.4 m ceilings, 2.4 m doors) and design details (C3.2). Low build 185 s with light maps; stills
-91-105 s each (Apple M1 Pro, Metal, 96 samples, 1920 x 1080). Same reference pictures as the feat/pro sheets
+22-112 s each (elevation 22 s; Apple M1 Pro, Metal, 96 samples, 1920 x 1080). Same reference pictures as the feat/pro sheets
 (docs/pro/3d/compare/index.md), so the two sets can be laid side by side.
 
 | Room type | Sheet | What changed since feat/pro | Still missing against the reference |
