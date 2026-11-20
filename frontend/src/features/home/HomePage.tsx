@@ -25,11 +25,13 @@ import {
 import { type FloorplanSummary, floorplanApi } from '../floorplan';
 import { materialApi } from '../materials';
 import { type Plan3dJob, plan3dApi } from '../plan3d';
+import { type BoqSaved, boqApi } from '../sheets';
 import type { SessionSummary } from '../materials/schemas';
 
 const HERO = '/assets/house-bg.webp?v=lantern1';
 const PLANS_SHOWN = 3;
 const CHATS_SHOWN = 3;
+const BILLS_SHOWN = 4;
 
 type Chat =
   | { kind: 'plan'; id: string; title: string; meta: string; at: string; plan: FloorplanSummary }
@@ -50,6 +52,9 @@ export function HomePage() {
   // 3D houses (2D to 3D jobs); a failure here only hides them, the rest of the overview stands
   const [houses, setHouses] = useState<Plan3dJob[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  // saved bills of quantities; a failure here only says so in their card
+  const [bills, setBills] = useState<BoqSaved[] | null>(null);
+  const [billsError, setBillsError] = useState<string | null>(null);
 
   // a project opened from the bottom of a long list would otherwise be half out of view
   useEffect(() => {
@@ -76,6 +81,13 @@ export function HomePage() {
       .list()
       .then(setHouses)
       .catch(() => setHouses([]));
+    boqApi
+      .history()
+      .then((list) => {
+        setBills(list);
+        setBillsError(null);
+      })
+      .catch((err) => setBillsError(errorText(err, 'Saved bills could not be loaded.')));
   };
   useEffect(load, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -266,6 +278,36 @@ export function HomePage() {
         </section>
 
         <section className="cv-col cv-ov-mid">
+          <div className="cv-card cv-card-glow cv-rise" style={{ ['--d' as string]: '.45s' }} aria-label="Saved bills of quantities">
+            <div className="cv-between" style={{ marginBottom: 8 }}>
+              <h2 className="cv-h2">Saved BOQs</h2>
+              <span className="cv-note">{bills ? plural(bills.length, 'bill') : ''}</span>
+            </div>
+            {billsError && <p className="cv-error">{billsError}</p>}
+            {bills === null && !billsError ? (
+              <p className="cv-state">Loading your bills…</p>
+            ) : bills && bills.length === 0 ? (
+              <p className="cv-state">No bills yet. Every BOQ you make is saved here.</p>
+            ) : (
+              (bills ?? []).slice(0, BILLS_SHOWN).map((b) => (
+                <Link key={b.id} to={`/boq?bill=${encodeURIComponent(b.id)}`} className="cv-chat">
+                  <span className="cv-tag">BOQ</span>
+                  <span className="cv-chat-body">
+                    <b>{b.name || 'Bill of quantities'}</b>
+                    <small>
+                      {[
+                        shortDate(new Date(b.created_at)),
+                        b.summary.items != null && plural(b.summary.items, 'row'),
+                        b.summary.area_m2 != null && `${b.summary.area_m2} m² built`,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </small>
+                  </span>
+                </Link>
+              ))
+            )}
+          </div>
           <div className="cv-spacer" />
           <div className="cv-create cv-rise" style={{ ['--d' as string]: '.7s' }}>
             <Link to="/projects/new" className="cv-create-pill">

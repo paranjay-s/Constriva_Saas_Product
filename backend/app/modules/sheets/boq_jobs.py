@@ -146,6 +146,9 @@ class BoqJobManager:
             )
         else:
             job.finish(result)
+            from app.modules.sheets.boq_history import record
+
+            record(job.owner_id, job.filename, result)
 
     def _forget_old(self) -> None:
         now = time.time()

@@ -7,6 +7,9 @@ POST /jobs/{job_id}/recalculate   JSON `BoqAssumptions` -> the BOQ again, from t
 GET  /jobs/{job_id}          job state with every event so far
 GET  /jobs/{job_id}/events   SSE progress (replays, then live): uploading, parsing, calculating
 GET  /jobs/{job_id}/result   the BOQ once the job is done
+GET  /history                the user's saved bills, newest first (summaries)
+GET  /history/{id}           one saved bill, whole
+DELETE /history/{id}         forget a saved bill
 POST /export/pdf             the rows of a result -> PDF
 POST /export/xlsx            the rows of a result -> Excel
 
@@ -30,6 +33,7 @@ from app.modules.sheets.boq_export import (
     build_boq_xlsx,
     export_filename,
 )
+from app.modules.sheets.boq_history import HistoryStore, get_history_store
 from app.modules.sheets.boq_jobs import BoqJob, BoqJobManager, get_boq_jobs
 from app.modules.sheets.boq_schemas import (
     BoqAssumptions,
@@ -54,6 +58,7 @@ def get_pdf_parser() -> PlanPdfParser:
 User = Annotated[AuthenticatedUser, Depends(get_current_user)]
 Jobs = Annotated[BoqJobManager, Depends(get_boq_jobs)]
 Parser = Annotated[PlanPdfParser, Depends(get_pdf_parser)]
+History = Annotated[HistoryStore, Depends(get_history_store)]
 
 
 def _own_job(jobs: BoqJobManager, job_id: str, user: AuthenticatedUser) -> BoqJob:
@@ -192,3 +197,31 @@ async def export_boq_xlsx(payload: BoqExportRequest, user: User) -> Response:
         assumptions=data["assumptions"],
     )
     return _file_response(xlsx, XLSX_MIME, export_filename(data["project_metadata"], "xlsx"))
+
+
+@router.get("/history", summary="The user's saved bills of quantities, newest first")
+async def boq_history(user: User, history: History) -> dict[str, Any]:
+    try:
+        rows = history.list_for_user(user.id)
+    except Exception as e:  # noqa: BLE001 - e.g. the table is not created yet
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "The saved bills cannot be read right now."
+        ) from e
+    return {"bills": rows}
+
+
+@router.get("/history/{bill_id}", summary="One saved bill of quantities")
+async def boq_history_bill(bill_id: str, user: User, history: History) -> dict[str, Any]:
+    row = history.get(user.id, bill_id)
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Saved bill not found")
+    return row
+
+
+@router.delete(
+    "/history/{bill_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Forget a saved bill"
+)
+async def boq_history_delete(bill_id: str, user: User, history: History) -> Response:
+    if not history.delete(user.id, bill_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Saved bill not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

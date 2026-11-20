@@ -95,7 +95,38 @@ function saveBlob(blob: Blob, fileName: string): void {
   URL.revokeObjectURL(url);
 }
 
+/** A saved bill as lists show it (GET /history): no rows, only a summary. */
+export const boqSavedSchema = z.looseObject({
+  id: z.string(),
+  name: z.string(),
+  source: z.string(),
+  created_at: z.string(),
+  summary: z.looseObject({
+    items: z.number().nullable().optional(),
+    in_quote: z.number().nullable().optional(),
+    levels: z.number().nullable().optional(),
+    area_m2: z.number().nullable().optional(),
+    rooms: z.number().nullable().optional(),
+  }),
+});
+export type BoqSaved = z.infer<typeof boqSavedSchema>;
+
 export const boqApi = {
+  /** The user's saved bills, newest first (every finished BOQ is saved). */
+  history: async (): Promise<BoqSaved[]> =>
+    z.object({ bills: z.array(boqSavedSchema) }).parse(await apiRequest(`${BOQ_BASE}/history`)).bills,
+
+  /** One saved bill, whole: its rows as when it was made. */
+  savedBill: async (id: string): Promise<{ saved: BoqSaved; result: BoqResult }> => {
+    const body = boqSavedSchema.extend({ result: z.unknown() }).parse(await apiRequest(`${BOQ_BASE}/history/${encodeURIComponent(id)}`));
+    return { saved: body, result: boqResultSchema.parse(body.result) };
+  },
+
+  /** Forget a saved bill. */
+  deleteSaved: async (id: string): Promise<void> => {
+    await apiRequest(`${BOQ_BASE}/history/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+
   /** Upload the floor-plan PDF; the answer is the job to follow. */
   start: async (file: File, signal?: AbortSignal): Promise<{ job_id: string }> => {
     const body = new FormData();

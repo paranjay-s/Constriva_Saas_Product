@@ -77,6 +77,16 @@ const DATA_ROUTES: Record<string, Route> = {
   'GET /api/v1/projects': { body: PROJECTS },
   'GET /api/v1/ai/floorplans': { body: PLANS },
   'GET /api/v1/ai/material-analysis': { body: ANALYSES },
+  'GET /api/v1/sheets/boq/history': {
+    body: {
+      bills: [
+        {
+          id: 'b1', user_id: 'u1', name: 'Villa A.pdf', source: 'upload', created_at: NOW,
+          summary: { items: 64, in_quote: 60, levels: 2, area_m2: 312.3, warnings: 1, rooms: 14 },
+        },
+      ],
+    },
+  },
 };
 
 function signedIn() {
@@ -187,8 +197,9 @@ describe('project overview', () => {
     signedIn();
     mockApi(DATA_ROUTES);
     const { container } = renderApp(<HomePage />);
-    await waitFor(() => expect(container.querySelectorAll('.cv-chat').length).toBe(3));
-    const rows = [...container.querySelectorAll('.cv-chat')].map((r) => r.textContent);
+    const chats = () => container.querySelectorAll('button.cv-chat'); // the saved bills are links
+    await waitFor(() => expect(chats().length).toBe(3));
+    const rows = [...chats()].map((r) => r.textContent);
     expect(rows[0]).toMatch(/IMAGE.*Living room.*3 materials/);
     expect(rows[1]).toMatch(/PLAN.*3 BHK on 30 x 40 ft.*v3/);
     expect(rows[2]).toMatch(/PLAN.*Courtyard option B.*v1/);
@@ -415,5 +426,25 @@ describe('dayLabel', () => {
     expect(dayLabel(new Date(2025, 11, 31, 12, 0).toISOString(), now)).toBe('31 dec 2025');
     expect(dayLabel('', now)).toBe('');
     expect(dayLabel('not a date', now)).toBe('');
+  });
+
+  it('lists the saved bills of quantities, each opening its bill', async () => {
+    signedIn();
+    mockApi(DATA_ROUTES);
+    renderApp(<HomePage />);
+    const card = await screen.findByLabelText('Saved bills of quantities');
+    const link = await within(card).findByRole('link', { name: /Villa A\.pdf/ });
+    expect(link.getAttribute('href')).toBe('/boq?bill=b1');
+    expect(link.textContent).toContain('64 rows');
+    expect(link.textContent).toContain('312.3 m² built');
+  });
+
+  it('says so when the saved bills cannot be read, and shows the rest', async () => {
+    signedIn();
+    mockApi({ ...DATA_ROUTES, 'GET /api/v1/sheets/boq/history': { status: 503, body: { detail: 'The saved bills cannot be read right now.' } } });
+    renderApp(<HomePage />);
+    const card = await screen.findByLabelText('Saved bills of quantities');
+    await within(card).findByText(/cannot be read right now/);
+    await waitFor(() => expect(screen.getByTestId('count-projects').textContent).toBe('3'));
   });
 });

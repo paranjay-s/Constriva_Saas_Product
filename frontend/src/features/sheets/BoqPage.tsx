@@ -7,8 +7,8 @@
  * Quantities only (no money). Nothing is assumed about the rows: the table is built from
  * whatever items, categories and sub-categories the server returns.
  */
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { AlertCircleIcon, ArrowLeftIcon, IconDownload, IconFilePdf, IconUpload } from '../../components/ui/Icons';
@@ -20,6 +20,7 @@ import { BoqSummary } from './components/BoqSummary';
 import { BoqTable } from './components/BoqTable';
 import { BoqUpload } from './components/BoqUpload';
 import { BoqWarnings } from './components/BoqWarnings';
+import { boqApi } from './boqApi';
 import { useBoqExport } from './hooks/useBoqExport';
 import { useBoqJob } from './hooks/useBoqJob';
 
@@ -123,6 +124,27 @@ export function BoqPage() {
   const [fileError, setFileError] = useState<string | null>(null);
   const job = useBoqJob();
   const { phase } = job;
+  // a saved bill opened from the dashboard (?bill=<id>): shown as it was made
+  const [params, setParams] = useSearchParams();
+  const billId = params.get('bill');
+  const [saved, setSaved] = useState<{ name: string; result: BoqResult } | null>(null);
+  const [savedRecalcNote, setSavedRecalcNote] = useState<string | null>(null);
+  const [savedError, setSavedError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!billId) {
+      setSaved(null);
+      return;
+    }
+    let live = true;
+    setSavedError(null);
+    boqApi
+      .savedBill(billId)
+      .then(({ saved: s, result }) => live && setSaved({ name: s.name, result }))
+      .catch((e: unknown) => live && setSavedError(e instanceof Error && e.message ? e.message : 'The saved bill could not be opened.'));
+    return () => {
+      live = false;
+    };
+  }, [billId]);
   const limits = useUploadLimits();
 
   const pick = (picked: File) => {
@@ -133,6 +155,7 @@ export function BoqPage() {
 
   /** Back to the empty page (also stops following a run that is still going). */
   const reset = () => {
+    if (billId) setParams({});
     job.reset();
     setFile(null);
     setFileError(null);
@@ -162,7 +185,18 @@ export function BoqPage() {
             </div>
           </div>
 
-          {phase === 'ready' && job.result ? (
+          {savedError && <ErrorBanner message={savedError} />}
+          {saved && phase !== 'ready' ? (
+            <BoqResultView
+              result={saved.result}
+              sourceName={saved.name}
+              choices={{}}
+              recalculating={false}
+              recalculateError={savedRecalcNote}
+              onRecalculate={() => setSavedRecalcNote('Upload the PDF again to change the assumptions of a saved bill.')}
+              onReset={reset}
+            />
+          ) : phase === 'ready' && job.result ? (
             <BoqResultView
               result={job.result}
               sourceName={file?.name ?? null}

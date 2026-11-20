@@ -44,6 +44,9 @@ def test_every_boq_endpoint_declares_the_same_auth_as_project_endpoints():
             ("POST", f"{BOQ}/jobs/{{job_id}}/recalculate"),
             ("POST", f"{BOQ}/export/pdf"),
             ("POST", f"{BOQ}/export/xlsx"),
+            ("GET", f"{BOQ}/history"),
+            ("GET", f"{BOQ}/history/{{bill_id}}"),
+            ("DELETE", f"{BOQ}/history/{{bill_id}}"),
         ]
     )
     bearer = [{"HTTPBearer": []}]

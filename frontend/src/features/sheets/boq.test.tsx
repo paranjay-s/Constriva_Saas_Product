@@ -547,3 +547,28 @@ describe('BOQ page', () => {
     expect(Object.keys(boqExportBody(older)).sort()).toEqual(['geometry_summary', 'items', 'project_metadata', 'warnings']);
   });
 });
+
+describe('a saved bill', () => {
+  beforeEach(() => localStorage.setItem(TOKEN_STORAGE_KEY, 'test-token'));
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  it('opens from /boq?bill=<id> as it was made, without uploading anything', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith(`${BOQ_BASE}/history/b1`))
+        return json({ id: 'b1', name: 'Villa A.pdf', source: 'upload', created_at: '2026-11-20T08:00:00Z', summary: { items: TOTAL }, result: RAW_BOQ_RESULT });
+      return json({ detail: 'Not found' }, 404);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(
+      <MemoryRouter initialEntries={['/boq?bill=b1']}>
+        <BoqPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(screen.getAllByRole('row').length).toBeGreaterThan(TOTAL / 2));
+    expect(fetchMock.mock.calls.some(([u]) => String(u).endsWith(BOQ_BASE))).toBe(false);
+  });
+});
