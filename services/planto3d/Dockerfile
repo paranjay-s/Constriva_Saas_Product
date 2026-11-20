@@ -29,11 +29,16 @@ COPY services/planto3d/ /app/
 # the viewer library, the CC0 textures, models and sky (recorded in assets/manifest.json), then the asset library
 RUN npm ci --omit=dev --prefix /app || npm install --omit=dev --prefix /app
 RUN python3 fetch_assets.py --tour && python3 tests/test_assets.py
-RUN bash library/build/build_all.sh || true
+# every piece (build_all.sh stops a batch after 9 minutes, so it runs until nothing is left), or copy a library
+# built elsewhere into services/planto3d/library before building the image (scripts/asset_library.sh pack/unpack)
+RUN for i in $(seq 1 30); do BLENDER=$BLENDER bash library/build/build_all.sh | tee /tmp/lib.log; \
+        grep -q "stopping before" /tmp/lib.log || break; done; python3 library/build/index.py
 
 # Blender picks the GPU itself (blender/bake.py tries OptiX, then CUDA). Tours: PLAN3D_TOUR_CHUNK_S and
 # PLAN3D_TOUR_COOL_S (0 on a server with proper cooling).
-ENV PLAN3D_TOUR_COOL_S=0
+ENV PLAN3D_TOUR_COOL_S=0 \
+    PLAN3D_STILL_COOL_S=0 \
+    PLAN3D_RENDERER=blender
 EXPOSE 8080
 VOLUME ["/app/jobs"]
 CMD ["python3", "server.py", "--host", "0.0.0.0", "--port", "8080"]
