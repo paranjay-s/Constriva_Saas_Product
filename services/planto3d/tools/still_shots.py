@@ -60,34 +60,43 @@ def room_shot(room, floor, eye):
     furn = [f for f in floor.get("furniture", []) if isinstance(f, list) and len(f) >= 4
             and x0 - 0.1 <= (f[0] + f[1]) / 2 <= x1 + 0.1 and y0 - 0.1 <= (f[2] + f[3]) / 2 <= y1 + 0.1]
 
+    main = max(furn, key=lambda f: (f[1] - f[0]) * (f[3] - f[2])) if furn else None
+
+    boxes = floor.get("colliders", []) + furn
+    small = [b for b in boxes if (b[1] - b[0]) < w * 0.9 and (b[3] - b[2]) < d * 0.9]
+
+    def stand(c):
+        """where the camera stands for corner c: in along the diagonal until out of furniture -> (t, x, y)"""
+        far = (x0 + x1 - c[0], y0 + y1 - c[1])
+        t = 0.12
+        while t < 0.45 and inside(c[0] + (far[0] - c[0]) * t, c[1] + (far[1] - c[1]) * t, small):
+            t += 0.04
+        return t, c[0] + (far[0] - c[0]) * t, c[1] + (far[1] - c[1]) * t
+
     def seen(c):
-        """furniture in front of a camera in corner c looking at the far corner: within 40 degrees of the view
-        line and at least 1.5 m away (a wardrobe filling the picture is not a view)"""
+        """furniture in front of the camera standing for corner c, looking at the far corner: within 40 degrees of
+        the view line and at least 1.5 m away (a wardrobe filling the picture is not a view). The room's largest
+        piece (the bed, the sofa, the dining table) counts three times: it is what the picture is of. A corner
+        whose camera has to walk far in (past the middle pieces) loses."""
+        t, sx, sy = stand(c)
         fx_, fy_ = x0 + x1 - c[0], y0 + y1 - c[1]
-        ax, ay = fx_ - c[0], fy_ - c[1]
-        n = 0.0
+        ax, ay = fx_ - sx, fy_ - sy
+        n = -2.0 if t >= 0.3 else 0.0
         for f in furn:
-            mx, my = (f[0] + f[1]) / 2 - c[0], (f[2] + f[3]) / 2 - c[1]
+            weight = 3.0 if f is main else 1.0
+            mx, my = (f[0] + f[1]) / 2 - sx, (f[2] + f[3]) / 2 - sy
             dist = math.hypot(mx, my)
             if dist < 1.5:
-                n -= 1.0
+                n -= weight
                 continue
             cos = (mx * ax + my * ay) / max(1e-6, dist * math.hypot(ax, ay))
-            n += cos > math.cos(math.radians(40))
+            n += weight * (cos > math.cos(math.radians(40)))
         return n
 
     # the corner that sees the most furniture; among equals, the one by the door
     cx, cy = max(corners, key=lambda c: (seen(c), -door_dist(c)))
     fx, fy = x0 + x1 - cx, y0 + y1 - cy                   # the far corner
-    boxes = floor.get("colliders", []) + furn
-    step = 0.04
-    t = 0.12
-    while t < 0.45:                                       # in from the corner along the diagonal, out of furniture
-        px, py = cx + (fx - cx) * t, cy + (fy - cy) * t
-        if not inside(px, py, [b for b in boxes if (b[1] - b[0]) < w * 0.9 and (b[3] - b[2]) < d * 0.9]):
-            break
-        t += step
-    px, py = cx + (fx - cx) * t, cy + (fy - cy) * t
+    t, px, py = stand((cx, cy))
     dist = math.hypot(fx - px, fy - py)
     lens = 18 if dist < 4.5 else 20 if dist < 7 else 24     # 18-24 mm full frame: wide, never distorted (C1)
     z = floor["z"] + eye
