@@ -32,3 +32,6 @@ counted at the end of the lines that used them.
 | C3 | 2 design details in the room kits | done | 1ba08c5 | chandelier hanging fixed in a later commit |
 | C3 | 4 reference vs Low vs High sheets | done | 3a12afa | sheets on disk only |
 | C3 | 3 Unreal stills via MRQ command line | done | 4fce861 | 2 stills in 2.5 min of the 15-min cap; picture mirrored (camera Y flip) and overexposed; server still uses the old capture; Blender stays default |
+| C2 | 2 scans: scan reader walls + AI names/types | done | 81ac7ca | room types 11-52% -> 32-61%; AI alone 85-92% |
+| C2 | 3 model comparison opus-5-5 vs fable-5-2 | done | 81ac7ca | fable walls 95%/89%, doors 90%, windows 93% vs opus 69/63/65/67; $0.84 vs $0.22 per plan; 33 live calls |
+| C2 | 1 wrong doors and walls on the fresh plan | partial | - | causes listed in SPACE.md/ACCURACY.md (72 dpi hollow walls; AI walls rough); hollow-wall fix reverted after 2 attempts |
