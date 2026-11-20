@@ -23,3 +23,5 @@ counted at the end of the lines that used them.
 | B | 4 never the same question twice; unmatched -> buttons + why | done | 821a971 | |
 | B | 5 tests incl. the exact looping sequence | done | 821a971 | material suite 69 passed |
 | A | end-of-section suites: backend 1350 passed / 1 failed (fixed in b3431c3) / 3 skipped; floorplan 564 passed after the fix | done | b3431c3 | coverage band without setbacks |
+| C2 | 1 hollow-wall (two thin lines) mask for low-resolution scans | skipped | - | two attempts: lines at 72 dpi too faint and broken; beds and stairs close into blocks; no closed rooms. Reverted. Fresh plan stays on the AI reader's walls |
+| C3 | 1 curved walls, round rooms, spiral stairs | done | 2c7c2e0 | DXF/IFC export of arcs not done; the AI reader (PlanJSON) has no arcs |
