@@ -126,7 +126,7 @@ def test_generate_refuses_incomplete_brief(api) -> None:
         assert r.status_code == 422
 
 
-def test_infeasible_job_fails_with_options(api) -> None:
+def test_a_too_small_plot_still_gets_a_plan_that_says_what_was_adjusted(api) -> None:
     client, _ = api
     form = {**FORM, "plot_width": 15, "plot_depth": 20, "bedrooms": 4}
     brief = client.post(f"{BASE}/brief/parse", json=form).json()["brief"]
@@ -136,9 +136,11 @@ def test_infeasible_job_fails_with_options(api) -> None:
             "job_id"
         ],
     )
-    assert st["status"] == "failed"
-    assert st["error"]
-    assert st["options"]
+    assert st["status"] == "done" and st["plan_id"]
+    plan = client.get(f"{BASE}/{st['plan_id']}").json()
+    first = plan["messages"][0]
+    assert first["role"] == "assistant" and first["status"] == "adjusted"
+    assert "bring any of these back" in first["text"]
 
 
 def test_other_user_cannot_see_plan_or_job(api) -> None:

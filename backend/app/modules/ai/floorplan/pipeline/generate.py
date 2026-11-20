@@ -3,11 +3,15 @@
     feasibility (code) -> room program (LLM) -> layout (code) -> validator (code)
           ^-------------- validator errors, at most FLOORPLAN_MAX_ATTEMPTS -------|
 
-A plan is returned only after it passed the validator. Progress is reported through an
-optional callback: progress(stage, detail) with stages
+The first pass keeps every wish as asked (hard rules). When it finds no layout, or the
+rooms cannot fit at their usual sizes, the relaxation ladder (pipeline/relax.py) gives up
+wishes step by step and always returns a plan; the reply lists what was adjusted in plain
+words (`adjustments`). Only a brief without a plot size is sent back ("incomplete").
+Progress is reported through an optional callback: progress(stage, detail) with stages
 "feasibility", "program", "layout", "checking", "done".
 """
 
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal
@@ -39,6 +43,9 @@ class GenerationResult:
     attempts: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     method: str = ""
+    adjustments: list[str] = field(default_factory=list)  # wishes given up, in plain words
+    relax_step: str = ""  # the relaxation ladder's rung that made the plan ("" = none)
+    relax_log: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -197,11 +204,16 @@ def generate_plan(
 
     tell("feasibility", "Checking the rooms fit the plot")
     feas = check_feasibility(brief)
-    if not feas.ok:
+    if not feas.ok and (brief.plot.width_cm is None or brief.plot.depth_cm is None):
         return GenerationResult("infeasible", feas.message, feasibility=feas)
 
     plot, meta = plot_from_brief(brief), meta_from_brief(brief)
     chain, pool_notes = pool_choices(brief)
+    if not feas.ok:
+        # the rooms do not fit at their usual sizes: no point in the full solve; the
+        # ladder shrinks them (and says so) instead of refusing
+        pool_notes = [feas.message, *pool_notes]
+        chain = []
     site_notes = built_up_target(brief, plot)[1] if s.site_rules else []
 
     attempts: list[str] = []
@@ -239,11 +251,11 @@ def generate_plan(
                     method=res.method,
                 )
             report = res.report
-            feedback = (
-                report.feedback()
-                if report
-                else ["NO_LAYOUT: the rooms could not be arranged on the plot"]
-            )
+            if report is None:
+                # no layout at all: resizing with the AI cannot help a model that has no
+                # solution; the relaxation ladder below takes over
+                break
+            feedback = report.feedback()
             if attempt < tries:
                 program, more = build_program(
                     brief, llm, feedback=feedback, previous=program, pool=choice
@@ -253,26 +265,41 @@ def generate_plan(
             pool_notes.append(fallback_note(choice.layout, chain[i + 1].layout))
             tell("layout", f"Trying a {chain[i + 1].layout.replace('_', ' ')} pool instead")
 
-    reasons = report.feedback()[:3] if report else ["the rooms could not be arranged on the plot"]
-    hint = "Try fewer or smaller rooms, or a larger plot."
-    if plot.has_setbacks:
-        x0, y0, x1, y1 = plot.buildable()
-        sb = plot.setbacks
-        hint = (
-            f"Inside the setbacks ({sb.front / 100:g} m front, {sb.left / 100:g} m sides, "
-            f"{sb.rear / 100:g} m rear) the house can use {(x1 - x0) * (y1 - y0) / 10_000:,.0f} "
-            "m² of the plot. Try smaller setbacks (say \"1 m setbacks\" or \"no setbacks\"), "
-            "fewer or smaller rooms, or a larger plot."
-        )
+    # nothing fitted with every wish as asked: relax step by step; a plan is always made
+    from app.modules.ai.floorplan.pipeline.relax import RESTORE, relax_layout
+
+    tell("layout", "Some wishes do not fit together; adjusting the plan")
+    base = program or build_program(brief, llm)[0]
+    relaxed = relax_layout(
+        base,
+        plot,
+        meta,
+        plan_id or f"plan_{uuid.uuid4().hex[:12]}",
+        shape_assumed=brief.plot.shape_assumed,
+        unit=brief.plot.input_unit,
+        time_limit_s=min(solver_time_s, 6.0),
+        progress=progress,
+    )
+    tell("done", "Plan ready")
+    adjustments = list(dict.fromkeys(relaxed.adjustments))
     return GenerationResult(
-        "failed",
-        "No valid plan could be made for this brief. Main problems: "
-        + "; ".join(reasons)
-        + ". "
-        + hint,
-        program=program,
+        "ok",
+        message=(
+            "I adjusted a few things so the plan fits:\n"
+            + "\n".join(f"- {a}" for a in adjustments)
+            + "\n"
+            + RESTORE
+            if adjustments
+            else ""
+        ),
+        plan=relaxed.plan,
+        program=relaxed.program,
         feasibility=feas,
-        report=report,
-        attempts=attempts,
-        warnings=warnings,
+        report=relaxed.report,
+        attempts=attempts + [f"relax {line}" for line in relaxed.log],
+        warnings=site_notes + pool_notes + warnings,
+        method=f"relaxed ({relaxed.step})",
+        adjustments=adjustments,
+        relax_step=relaxed.step,
+        relax_log=relaxed.log,
     )

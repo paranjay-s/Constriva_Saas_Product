@@ -95,6 +95,14 @@ def run_generation(
         notes=list(dict.fromkeys(notes)),
     )
     sp.model = getattr(llm, "model", "") or ""
+    if res.adjustments:
+        # the first reply in the chat says what was adjusted, and how to get it back
+        sp.messages.append(
+            ChatMessage(
+                role="assistant", text=res.message, status="adjusted", version=sp.version
+            ).model_dump()
+        )
+        sp.notes = list(dict.fromkeys([*sp.notes, *res.adjustments]))
     store.create(sp)
     return plan_id, None, []
 

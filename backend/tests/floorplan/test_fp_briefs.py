@@ -44,3 +44,17 @@ def test_the_working_brief_reaches_the_solver_exactly_as_on_feat_pro(feat_pro_se
     assert got_calls[0] == want[1]
     for g, w in zip(got_calls, want[1:], strict=False):
         assert g == w
+
+
+@pytest.mark.parametrize("name", ["fail1", "fail2"])
+def test_the_refused_briefs_now_get_a_plan_with_the_adjustments_listed(name: str) -> None:
+    from golden import plan_for
+
+    res = plan_for(_brief_text(name))
+    assert res.ok and res.plan is not None
+    # brief 1 needs the ladder; brief 2 now fits in the first pass (no setbacks by default
+    # and the stated built-up area), so either path is fine as long as a plan comes back
+    assert res.report is not None and res.report.ok
+    if res.adjustments:
+        assert "bring any of these back" in res.message
+        assert all(a.endswith(".") for a in res.adjustments)

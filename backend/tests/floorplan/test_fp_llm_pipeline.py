@@ -302,8 +302,11 @@ def test_feasibility_rejects_with_reason_and_options() -> None:
     assert "need about" in feas.message and "56 m2" in feas.message
     assert any(o.startswith("Reduce to") for o in feas.options)
     assert any("larger plot" in o for o in feas.options)
+    # the feasibility check still explains the problem, but a plan is always made (A1):
+    # the relaxation ladder shrinks the rooms and the notes say so
     res = generate_plan(pr.brief)
-    assert res.status == "infeasible" and res.plan is None
+    assert res.status == "ok" and res.plan is not None and res.relax_step
+    assert feas.message in res.warnings
 
 
 def test_feasibility_rejects_too_narrow_plot() -> None:
@@ -423,13 +426,13 @@ def test_retry_loop_feeds_errors_and_stops_at_max(monkeypatch) -> None:
         }
     )
     res = generate_plan(brief, llm=llm, max_attempts=3)
-    assert res.status == "failed" and res.plan is None
+    # three attempts with feedback, then the relaxation ladder delivers a plan anyway
+    assert res.status == "ok" and res.plan is not None and res.relax_step
     # attempt 1 tries with daylight rules for habitable rooms first, then without
     assert len(calls) == 4 and any(r.kind == "daylight" for r in calls[0].rules)
     feedback_calls = [p for t, p in llm.calls if t == "room_program" and "layout_errors" in p]
     assert len(feedback_calls) == 2
     assert feedback_calls[0]["layout_errors"] == ["OVERLAP: bed_1 and bed_2 overlap by 1.00 m2"]
-    assert "OVERLAP" in res.message
 
 
 def test_end_to_end_with_fake_llm_produces_valid_plan() -> None:

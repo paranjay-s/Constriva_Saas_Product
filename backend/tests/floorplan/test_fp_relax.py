@@ -48,3 +48,36 @@ def test_contradictory_wishes_are_infeasible_hard_but_solved_soft() -> None:
     assert rooms is not None
     # exactly one of the two sides is given up; the touching wish is kept
     assert len(set(soft["unmet"]) & {0, 1}) == 1 and 2 not in soft["unmet"]
+
+
+@pytest.mark.parametrize("road", ["south", "north", "east", "west"])
+def test_the_corridor_layout_always_places_every_room(road: str) -> None:
+    from app.modules.ai.floorplan.pipeline.layout.engine import with_spare_garden
+    from app.modules.ai.floorplan.pipeline.layout.fallback import corridor_layout
+
+    b = _brief().model_copy(update={"road_side": road})
+    program, _ = build_program(b, None)
+    plot = plot_from_brief(b)
+    program = with_spare_garden(program, plot)
+    fb = corridor_layout(program, plot)
+    placed = {r.id for r in fb.rooms}
+    assert {r.id for r in program.rooms} <= placed
+    for r in fb.rooms:
+        assert 0 <= r.x and r.x2 <= plot.width and 0 <= r.y and r.y2 <= plot.depth
+    for i, a in enumerate(fb.rooms):
+        for c in fb.rooms[i + 1 :]:
+            ox = min(a.x2, c.x2) - max(a.x, c.x)
+            oy = min(a.y2, c.y2) - max(a.y, c.y)
+            assert ox <= 0 or oy <= 0, (a.id, c.id)
+
+
+def test_the_ladder_falls_back_to_the_corridor_layout_and_reports_issues() -> None:
+    from app.modules.ai.floorplan.pipeline.generate import meta_from_brief
+    from app.modules.ai.floorplan.pipeline.relax import _fallback
+
+    b = _brief()
+    program, _ = build_program(b, None)
+    res = _fallback(program, plot_from_brief(b), meta_from_brief(b), "p1", [], [], 0.0)
+    assert res.step == "fallback" and res.plan.rooms and res.plan.doors
+    assert any("corridor" in a for a in res.adjustments)
+    assert res.report is not None and not res.report.errors  # errors become notes

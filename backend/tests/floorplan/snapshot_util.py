@@ -19,7 +19,8 @@ SAMPLES = ("villa-1500", "villa-3000", "villa-5000", "villa-8000", "nandu")
 FORMATS = ("pdf", "svg", "png", "dxf")
 
 _PDF_DATE = re.compile(rb"D:\d{14}[^)]{0,12}")
-_PDF_ID = re.compile(rb"/ID\s*\[<[0-9A-Fa-f]+>\s*<[0-9A-Fa-f]+>\]")
+_PDF_STR = rb"(?:<[0-9A-Fa-f]*>|\((?:\\.|[^\\)])*\))"  # hex or literal string
+_PDF_ID = re.compile(rb"/ID\s*\[" + _PDF_STR + rb"\s*" + _PDF_STR + rb"\]", re.DOTALL)
 _DXF_GUID = re.compile(rb"\{[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\}")
 _DXF_STAMP = re.compile(rb"(\d+\.\d+\.\d+ @ )\d{4}-\d\d-\d\dT[0-9:.+]+")
 _DXF_TD = re.compile(rb"(\$TD[A-Z]+\r?\n\s*40\r?\n)[0-9.]+")
