@@ -19,6 +19,7 @@ against them (validator RULE_...). When rules cannot all hold, the generator nam
 rules that conflict and offers the closest layouts that drop one of them.
 """
 
+import re
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -154,3 +155,101 @@ def resolve_rule(rule, rooms: list):
             return None
         data["others"] = list(dict.fromkeys(others))
     return type(rule).model_validate(data)
+
+
+_FILLER = {"ROOM", "AREA", "THE", "A", "AN", "AND", "OF", "WITH", "TO", "IN", "ON", "AT", "MY"}
+
+
+def _words(text: str) -> set[str]:
+    return set(re.findall(r"[A-Z]+", (text or "").upper())) - _FILLER
+
+
+def _type_candidates(ref: str, rooms: list) -> list:
+    """The rooms a type reference could mean, when there are several of that type."""
+    if ref in {r.id for r in rooms}:
+        return []
+    key = ref.strip().lower().replace(" ", "_")
+    same = [r for r in rooms if r.type == key]
+    return same if len(same) > 1 else []
+
+
+def resolve_rules(rules: list, rooms: list) -> list:
+    """Every rule with its references replaced by room ids (None where a room is missing),
+    like resolve_rule, but a room type with several rooms ("garden" when there is a front
+    lawn and a backyard garden, "bath" with an attached and a common bath) goes to the
+    right one:
+      1. the room whose own label words appear in the rule's words ("front yard lawn" ->
+         FRONT LAWN, "common washroom" -> COMMON BATH), when exactly one fits best;
+      2. otherwise a room no other rule names yet, a room attached to another room only
+         when the rule also names that room, then the first one.
+    Rules are matched in two passes so a clear match is never taken by an earlier vague one.
+    """
+    from app.modules.ai.floorplan.schemas.common import DEFAULT_LABEL
+
+    picks: dict[tuple[int, str, int], str] = {}  # (rule, field, position) -> room id
+    pending: list[tuple[int, str, int, str]] = []
+    named: set[str] = set()
+
+    def refs(rule) -> list[tuple[str, int, str]]:
+        out = []
+        for f in ("room", "a", "b"):
+            if hasattr(rule, f):
+                out.append((f, 0, getattr(rule, f)))
+        for k, o in enumerate(getattr(rule, "others", []) or []):
+            out.append(("others", k, o))
+        return out
+
+    for i, rule in enumerate(rules):
+        said = _words(rule.text)
+        for f, k, ref in refs(rule):
+            cands = _type_candidates(ref, rooms)
+            if not cands:
+                rid = resolve_ref(ref, rooms)
+                if rid is not None:
+                    picks[(i, f, k)] = rid
+                    named.add(rid)
+                continue
+            # words every candidate's label shares say nothing about which one is meant
+            labels = [_words(r.label or DEFAULT_LABEL.get(r.type, "")) for r in cands]
+            generic = set.intersection(*labels)
+            scores = [len((w - generic) & said) for w in labels]
+            best = max(scores)
+            if best > 0 and scores.count(best) == 1:
+                rid = cands[scores.index(best)].id
+                picks[(i, f, k)] = rid
+                named.add(rid)
+            else:
+                pending.append((i, f, k, ref))
+
+    for i, f, k, ref in pending:
+        cands = _type_candidates(ref, rooms)
+        others = {v for (j, _, _), v in picks.items() if j == i}
+
+        def rank(r, others=others):
+            attached = getattr(r, "attached_to", None)
+            return (r.id in named, bool(attached) and attached not in others)
+
+        rid = min(cands, key=rank).id
+        picks[(i, f, k)] = rid
+        named.add(rid)
+
+    out = []
+    for i, rule in enumerate(rules):
+        data = rule.model_dump()
+        missing = False
+        for f, k, _ in refs(rule):
+            rid = picks.get((i, f, k))
+            if rid is None:
+                missing = True
+                break
+            if f == "others":
+                data["others"][k] = rid
+            else:
+                data[f] = rid
+        if missing:
+            out.append(None)
+            continue
+        if "others" in data:
+            data["others"] = list(dict.fromkeys(data["others"]))
+        out.append(type(rule).model_validate(data))
+    return out

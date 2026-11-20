@@ -58,3 +58,68 @@ def test_the_refused_briefs_now_get_a_plan_with_the_adjustments_listed(name: str
     if res.adjustments:
         assert "bring any of these back" in res.message
         assert all(a.endswith(".") for a in res.adjustments)
+
+
+@pytest.mark.parametrize(
+    ("said", "read"),
+    [
+        ("a Garage, Four year leading to a courtyard", "a Garage, foyer leading to a courtyard"),
+        ("and for year I want a meeting room", "and foyer I want a meeting room"),
+        ("And four and courtyard in front", "And foyer and courtyard in front"),
+        ("must have a walking wardrobe", "must have a walk-in wardrobe"),
+        ("One common washroom", "One common bathroom"),
+        ("Pooja room", "puja room"),
+        ("a drawing room", "a living room"),
+    ],
+)
+def test_spoken_words_are_corrected_and_shown(said: str, read: str) -> None:
+    from app.modules.ai.floorplan.pipeline.brief_parser import fix_spoken_words
+
+    text, notes = fix_spoken_words(said)
+    assert text == read and len(notes) == 1 and notes[0].startswith("I read “")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "my son is 4 year old",
+        "four bedrooms and four bathrooms",
+        "south facing villa, 2 bedrooms with attached bathroom and walk in wardrobes",
+    ],
+)
+def test_correct_words_are_left_alone(text: str) -> None:
+    from app.modules.ai.floorplan.pipeline.brief_parser import fix_spoken_words
+
+    assert fix_spoken_words(text) == (text, [])
+
+
+def test_an_unclear_number_becomes_an_assumption_not_a_failure() -> None:
+    from app.modules.ai.floorplan.pipeline.brief_parser import unclear_numbers
+
+    notes = unclear_numbers("One Master bedroom 18 on the Ground floor, bedroom 12 x 14 ft")
+    assert len(notes) == 1 and "Master bedroom 18" in notes[0]
+
+
+def test_rules_bind_to_the_room_their_words_name() -> None:
+    from types import SimpleNamespace as R
+
+    from app.modules.ai.floorplan.schemas.rules import DoorBetween, Place, Touches, resolve_rules
+
+    rooms = [
+        R(id="bath_1", type="bath", label="BATH", attached_to="bed_1"),
+        R(id="bath_c1", type="bath", label="COMMON BATH", attached_to=None),
+        R(id="foyer_1", type="foyer", label="FOYER", attached_to=None),
+        R(id="garden_1", type="garden", label="LAWN", attached_to=None),
+        R(id="garden_2", type="garden", label="GARDEN", attached_to=None),
+        R(id="pool_1", type="pool", label="SWIMMING POOL", attached_to=None),
+    ]
+    rules = [
+        Place(kind="place", room="garden", side="front", text="in the front yard a lawn"),
+        Place(kind="place", room="garden", side="rear", text="in the backyard a garden"),
+        Touches(kind="touches", room="pool", others=["garden"], text="garden by the pool"),
+        DoorBetween(kind="door_between", a="bath", b="foyer", text="common washroom off foyer"),
+    ]
+    got = resolve_rules(rules, rooms)
+    assert got[0].room == "garden_1" and got[1].room == "garden_2"
+    assert got[2].others == ["garden_2"]
+    assert got[3].a == "bath_c1"

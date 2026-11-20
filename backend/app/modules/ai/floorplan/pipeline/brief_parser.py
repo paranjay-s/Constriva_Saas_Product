@@ -46,6 +46,77 @@ class ParseResult:
         return not self.missing
 
 
+# Speech-to-text slips and common abbreviations, corrected before the AI reads the brief.
+# Each entry: pattern, replacement, and what the card says. Only words that are wrong as
+# written are changed ("walk in wardrobe" stays; "walking wardrobe" becomes "walk-in").
+SPOKEN_FIXES: tuple[tuple[str, str, str], ...] = (
+    (r"\b(?:four|for|4)[\s-]+years?\b(?!\s+old)", "foyer", "foyer"),
+    # "four" used as a noun ("and four and courtyard in front"): a number is followed by
+    # what it counts, never by "and", a comma or "leading"
+    (
+        r"\b(a|the|and|with|plus)\s+four\b(?=\s*(?:and\b|&|,|\.|$|with\b|leading\b"
+        r"|near\b|next\b|in\s+front\b|which\b|that\b))",
+        r"\1 foyer",
+        "foyer",
+    ),
+    (r"\bfoyar\b|\bfoyeur\b", "foyer", "foyer"),
+    (r"\bwalking[\s-]+(wardrobe|closet|robe)s?\b", r"walk-in \1", "walk-in wardrobe"),
+    (r"\bwash[\s-]?rooms\b", "bathrooms", "bathroom"),
+    (r"\bwash[\s-]?room\b", "bathroom", "bathroom"),
+    (r"\brest[\s-]?rooms?\b", "bathroom", "bathroom"),
+    (r"\bpooja\b", "puja", "puja room"),
+    (r"\bhome[\s-]*theat(?:er|re)\b|\bhome[\s-]*cinema\b", "home theatre", "home theatre"),
+    (r"\bdrawing[\s-]+room\b", "living room", "living room"),
+    (r"\bbed[\s-]?rm\b|\bbdrm\b", "bedroom", "bedroom"),
+    (r"\bmaster[\s-]+bed\b(?![\s-]?room)", "master bedroom", "master bedroom"),
+    (r"\bswimming[\s-]+poll\b", "swimming pool", "swimming pool"),
+    (r"\bcourt[\s-]+yard\b", "courtyard", "courtyard"),
+    (r"\bmajles\b|\bmajles\b|\bmajalis\b", "majlis", "majlis"),
+)
+_ROOM_WORD = (
+    r"(master\s+bed\s*room|bed\s*room|living\s+room|kitchen|dining(?:\s+room)?|majlis|"
+    r"study|office|bath\s*room|toilet|maid(?:'s)?\s+room|garage|parking|pool|garden|lawn)"
+)
+_UNCLEAR_NUMBER = re.compile(
+    rf"\b{_ROOM_WORD}\s+(\d{{1,4}})\b(?!\s*(?:x|×|\*|by|ft|feet|foot|'|\"|m\b|m2|m²|sq|square|"
+    r"%|cars?|people|persons|seats?|bed|bath))",
+    re.IGNORECASE,
+)
+
+
+def fix_spoken_words(text: str) -> tuple[str, list[str]]:
+    """The text with speech-to-text slips corrected, and one line per kind of fix for the
+    card ("I read “four year” as “foyer”")."""
+    notes: list[str] = []
+    for pattern, repl, meaning in SPOKEN_FIXES:
+        found = sorted(
+            {
+                m.group(0).strip()
+                for m in re.finditer(pattern, text, re.IGNORECASE)
+                if m.group(0).strip().lower() != meaning
+            }
+        )
+        if not found:
+            continue
+        text = re.sub(pattern, repl, text, flags=re.IGNORECASE)
+        said = " / ".join(f"“{w}”" for w in found)
+        notes.append(f"I read {said} as “{meaning}”.")
+    return text, notes
+
+
+def unclear_numbers(text: str) -> list[str]:
+    """Numbers after a room name that are not a count, size or unit ("Master bedroom 18"):
+    an assumption on the card instead of a guess or a failure."""
+    out = []
+    for m in _UNCLEAR_NUMBER.finditer(text):
+        room, n = " ".join(m.group(1).split()), m.group(2)
+        out.append(
+            f"“{room} {n}”: the {n} was not clear (a size? a width in feet?); planned "
+            f"the {room.lower()} at a usual size. Tell me if {n} is a size."
+        )
+    return out
+
+
 def read_text(prompt: str, llm: LLMClient | None) -> tuple[TextBrief, list[str]]:
     text = prompt.strip()
     if not text:
@@ -72,6 +143,9 @@ def read_text(prompt: str, llm: LLMClient | None) -> tuple[TextBrief, list[str]]
 
 
 def parse_brief(form: BriefForm, llm: LLMClient | None = None) -> ParseResult:
+    fixed, interpretation = fix_spoken_words(form.prompt)
+    if fixed != form.prompt:
+        form = form.model_copy(update={"prompt": fixed})
     tb, warnings = read_text(form.prompt, llm)
     conflicts: list[Conflict] = []
     unknowns: list[str] = []
@@ -216,7 +290,8 @@ def parse_brief(form: BriefForm, llm: LLMClient | None = None) -> ParseResult:
         notes=tb.notes,
         unknowns=unknowns,
         conflicts=conflicts,
-        assumptions=assumptions,
+        assumptions=assumptions + unclear_numbers(form.prompt),
+        interpretation=interpretation,
     )
     return ParseResult(brief=brief, warnings=warnings, missing=missing_required(brief))
 

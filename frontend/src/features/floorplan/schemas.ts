@@ -120,6 +120,8 @@ export const briefSchema = z.looseObject({
   unknowns: z.array(z.string()),
   conflicts: z.array(conflictSchema),
   assumptions: z.array(z.string()),
+  // how spoken or abbreviated words were read ("four year" -> foyer), to confirm on the card
+  interpretation: z.array(z.string()).optional(),
 });
 export type Brief = z.infer<typeof briefSchema>;
 

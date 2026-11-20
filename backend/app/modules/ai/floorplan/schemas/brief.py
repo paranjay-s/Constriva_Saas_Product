@@ -158,3 +158,7 @@ class Brief(_Model):
     unknowns: list[str] = Field(default_factory=list)
     conflicts: list[Conflict] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
+    interpretation: list[str] = Field(
+        default_factory=list,
+        description="How spoken or abbreviated words were read (shown on the card to confirm)",
+    )

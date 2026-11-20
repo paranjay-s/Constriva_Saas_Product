@@ -1,0 +1,187 @@
+{
+ "task": "room_program",
+ "model": "claude-opus-5-5",
+ "user": "{\"brief\": {\"purpose\": \"residential\", \"bedrooms\": 1, \"bathrooms\": 2, \"road_side\": null, \"preferences\": [{\"kind\": \"adjacent\", \"a\": \"pool\", \"b\": \"garden\", \"text\": \"in backyard I want a garden which is attached with the swimming pool\"}, {\"kind\": \"adjacent\", \"a\": \"living\", \"b\": \"dining\", \"text\": \"living room should be attached with Dining and kitchen\"}, {\"kind\": \"adjacent\", \"a\": \"living\", \"b\": \"kitchen\", \"text\": \"living room should be attached with Dining and kitchen\"}], \"notes\": \"Built-up area wanted is 5000 sq ft of the 6000 sq ft plot; living, dining and kitchen should share a garden outside (described as on the left), and the '18' after master bedroom is unclear.\"}, \"plot\": {\"width_m\": 19.3, \"depth_m\": 28.9, \"usable_area_m2\": 557.8}, \"rooms\": [{\"id\": \"bed_1\", \"type\": \"master_bedroom\", \"default_label\": \"MASTER BED ROOM\", \"min_area_m2\": 12.0, \"attached_to\": null}, {\"id\": \"bath_1\", \"type\": \"bath\", \"default_label\": \"BATH\", \"min_area_m2\": 2.8, \"attached_to\": \"bed_1\"}, {\"id\": \"dress_1\", \"type\": \"dress\", \"default_label\": \"DRESS\", \"min_area_m2\": 2.5, \"attached_to\": \"bed_1\"}, {\"id\": \"bath_c1\", \"type\": \"bath\", \"default_label\": \"BATH\", \"min_area_m2\": 2.8, \"attached_to\": null}, {\"id\": \"parking_1\", \"type\": \"parking\", \"default_label\": \"GARAGE\", \"min_area_m2\": 12.5, \"attached_to\": null}, {\"id\": \"foyer_1\", \"type\": \"foyer\", \"default_label\": \"FOYER\", \"min_area_m2\": 2.5, \"attached_to\": null}, {\"id\": \"courtyard_1\", \"type\": \"courtyard\", \"default_label\": \"COURTYARD\", \"min_area_m2\": 6.0, \"attached_to\": null}, {\"id\": \"living_1\", \"type\": \"living\", \"default_label\": \"LIVING\", \"min_area_m2\": 12.0, \"attached_to\": null}, {\"id\": \"dining_1\", \"type\": \"dining\", \"default_label\": \"DINING\", \"min_area_m2\": 11.5, \"attached_to\": null}, {\"id\": \"kitchen_1\", \"type\": \"kitchen\", \"default_label\": \"KITCHEN\", \"min_area_m2\": 6.0, \"attached_to\": null}, {\"id\": \"other_1\", \"type\": \"other\", \"default_label\": \"MEETING ROOM\", \"min_area_m2\": 0.0, \"attached_to\": null}, {\"id\": \"other_2\", \"type\": \"other\", \"default_label\": \"GAM",
+ "answer": {
+  "rooms": [
+   {
+    "id": "bed_1",
+    "target_area_m2": 30.0,
+    "label": "MASTER BED ROOM"
+   },
+   {
+    "id": "bath_1",
+    "target_area_m2": 5.0,
+    "label": null
+   },
+   {
+    "id": "dress_1",
+    "target_area_m2": 5.0,
+    "label": null
+   },
+   {
+    "id": "bath_c1",
+    "target_area_m2": 4.5,
+    "label": "COMMON BATH"
+   },
+   {
+    "id": "parking_1",
+    "target_area_m2": 30.0,
+    "label": null
+   },
+   {
+    "id": "foyer_1",
+    "target_area_m2": 10.0,
+    "label": null
+   },
+   {
+    "id": "courtyard_1",
+    "target_area_m2": 25.0,
+    "label": null
+   },
+   {
+    "id": "living_1",
+    "target_area_m2": 55.0,
+    "label": "LIVING ROOM"
+   },
+   {
+    "id": "dining_1",
+    "target_area_m2": 28.0,
+    "label": null
+   },
+   {
+    "id": "kitchen_1",
+    "target_area_m2": 12.0,
+    "label": null
+   },
+   {
+    "id": "other_1",
+    "target_area_m2": 25.0,
+    "label": "MEETING ROOM"
+   },
+   {
+    "id": "other_2",
+    "target_area_m2": 28.0,
+    "label": "GAMING ROOM"
+   },
+   {
+    "id": "other_3",
+    "target_area_m2": 6.0,
+    "label": "PUJA"
+   },
+   {
+    "id": "other_4",
+    "target_area_m2": 30.0,
+    "label": "HOME THEATRE"
+   },
+   {
+    "id": "garden_1",
+    "target_area_m2": 40.0,
+    "label": "LAWN"
+   },
+   {
+    "id": "garden_2",
+    "target_area_m2": 40.0,
+    "label": "GARDEN"
+   },
+   {
+    "id": "pool_1",
+    "target_area_m2": 45.0,
+    "label": "SWIMMING POOL"
+   },
+   {
+    "id": "lobby_1",
+    "target_area_m2": 18.0,
+    "label": null
+   }
+  ],
+  "adjacency": [
+   {
+    "a": "pool_1",
+    "b": "garden_2",
+    "weight": 10
+   },
+   {
+    "a": "living_1",
+    "b": "dining_1",
+    "weight": 10
+   },
+   {
+    "a": "living_1",
+    "b": "kitchen_1",
+    "weight": 10
+   },
+   {
+    "a": "kitchen_1",
+    "b": "dining_1",
+    "weight": 9
+   },
+   {
+    "a": "living_1",
+    "b": "garden_1",
+    "weight": 7
+   },
+   {
+    "a": "dining_1",
+    "b": "garden_1",
+    "weight": 6
+   },
+   {
+    "a": "kitchen_1",
+    "b": "garden_1",
+    "weight": 5
+   },
+   {
+    "a": "foyer_1",
+    "b": "living_1",
+    "weight": 8
+   },
+   {
+    "a": "parking_1",
+    "b": "foyer_1",
+    "weight": 6
+   },
+   {
+    "a": "lobby_1",
+    "b": "living_1",
+    "weight": 6
+   },
+   {
+    "a": "lobby_1",
+    "b": "bed_1",
+    "weight": 6
+   },
+   {
+    "a": "lobby_1",
+    "b": "bath_c1",
+    "weight": 5
+   },
+   {
+    "a": "lobby_1",
+    "b": "other_4",
+    "weight": 4
+   },
+   {
+    "a": "lobby_1",
+    "b": "other_2",
+    "weight": 4
+   },
+   {
+    "a": "foyer_1",
+    "b": "other_1",
+    "weight": 5
+   },
+   {
+    "a": "courtyard_1",
+    "b": "living_1",
+    "weight": 4
+   },
+   {
+    "a": "other_3",
+    "b": "living_1",
+    "weight": 3
+   }
+  ],
+  "notes": "Total target area about 436.5 m2 (~78% of usable 557.8 m2), consistent with the ~5000 sq ft built-up request. Master bedroom sized generously at 30 m2 since the '18' note is unclear. LAWN (garden_1) is the garden shared by living, dining and kitchen (on the left side); GARDEN (garden_2) is the backyard garden attached to the swimming pool."
+ }
+}

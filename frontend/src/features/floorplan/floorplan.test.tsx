@@ -76,6 +76,16 @@ describe('ConfirmationCard', () => {
     expect(onGenerate).toHaveBeenCalled();
   });
 
+  it('shows how spoken words were read, to confirm', () => {
+    const parsed = {
+      ...PARSED,
+      brief: { ...PARSED.brief, interpretation: ['I read “four year” as “foyer”.'] },
+    };
+    render(<ConfirmationCard parsed={parsed} busy={false} onBack={() => {}} onGenerate={() => {}} />);
+    expect(screen.getByText('I read your words as')).toBeDefined();
+    expect(screen.getByText(/“four year” as “foyer”/)).toBeDefined();
+  });
+
   it('blocks generating while something is missing', () => {
     render(
       <ConfirmationCard

@@ -37,7 +37,7 @@ from app.modules.ai.floorplan.rules import (
 from app.modules.ai.floorplan.schemas.brief import Brief
 from app.modules.ai.floorplan.schemas.common import ZONE_BY_TYPE
 from app.modules.ai.floorplan.schemas.program import Adjacency, ProgramRoom, RoomProgram
-from app.modules.ai.floorplan.schemas.rules import resolve_rule
+from app.modules.ai.floorplan.schemas.rules import resolve_rules
 from app.modules.ai.llm.client import LLMClient, LLMError
 
 logger = logging.getLogger("construtiva.ai.floorplan")
@@ -172,8 +172,7 @@ def build_program(
     ]
     has_pool = any(r.type == "pool" for r in reqs)
     rules = []
-    for rule in brief.rules:
-        resolved = resolve_rule(rule, rooms)
+    for rule, resolved in zip(brief.rules, resolve_rules(brief.rules, rooms), strict=True):
         if resolved is None:
             warnings.append(f"Rule not applied (a room it names is not in the plan): {rule.text}")
         else:

@@ -145,6 +145,7 @@ export function ConfirmationCard({ parsed, busy, onBack, onGenerate, names, onNa
           </div>
         )}
 
+        <List title="I read your words as" items={b.interpretation ?? []} tone="info" />
         <List title="Needed before drawing" items={parsed.missing} tone="error" />
         <List title="Form and description disagree" items={conflicts} tone="warn" />
         <List title="Please note" items={[...parsed.warnings, ...b.unknowns]} tone="warn" />
