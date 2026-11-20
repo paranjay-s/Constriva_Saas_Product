@@ -28,7 +28,28 @@ def progress(p, msg):
 
 
 plan = json.load(open(PLAN))
+# Space (PART C1, docs/pro2/3d/SPACE.md): room sizes stay exactly as read; heights and light make them read
+# generously. Settings (metres, as an architect states them):
+#   PLAN3D_CEILING_M       floor to ceiling, 3.4 for villas; used unless the plan states its own
+#                          ("floor_height_stated": true)
+#   PLAN3D_DOOR_HEIGHT_M   door openings, 2.4
+#   PLAN3D_WINDOW_HEAD_M   top of the windows, level with the doors, 2.4
+#   PLAN3D_WALK_FOV_DEG    the walkthrough's horizontal field of view, 90 (a "Wide view" toggle there)
+#   PLAN3D_LIGHT_FINISHES  1: walls and wood lighter by LIGHTEN of the way to warm white; 0: as before
+#   PLAN3D_LAMP_GAIN       indoor lamps brighter by this factor, 1.4
+M_FT = 1 / 0.3048
+CEILING_M = float(os.environ.get("PLAN3D_CEILING_M", "3.4") or 3.4)
+DOOR_HEAD = float(os.environ.get("PLAN3D_DOOR_HEIGHT_M", "2.4") or 2.4) * M_FT
+WINDOW_HEAD = float(os.environ.get("PLAN3D_WINDOW_HEAD_M", "2.4") or 2.4) * M_FT
+WALK_FOV = float(os.environ.get("PLAN3D_WALK_FOV_DEG", "90") or 90)
+LIGHT_FINISHES = os.environ.get("PLAN3D_LIGHT_FINISHES", "1") != "0"
+LAMP_GAIN = float(os.environ.get("PLAN3D_LAMP_GAIN", "1.4") or 1.4)
+LIGHTEN = 0.45
 H, SLAB = plan.get("floor_height", 10.0), plan.get("slab", 0.5)
+if not plan.get("floor_height_stated"):
+    H = round(CEILING_M * M_FT, 3)
+DOOR_HEAD = min(DOOR_HEAD, H - 1.0)          # a lintel always stays under the ceiling
+WINDOW_HEAD = min(WINDOW_HEAD, H - 1.0)
 FFH = H + SLAB
 lib.WALL_H = H
 floors = plan["floors"]
@@ -76,7 +97,12 @@ def plan_scheme(plan):
 
 
 SCHEME = plan_scheme(plan)
-_sc = SCHEMES[SCHEME]
+_sc = dict(SCHEMES[SCHEME])
+if LIGHT_FINISHES:  # lighter walls and wood: rooms read larger (C1)
+    _warm_white = (0.96, 0.94, 0.90)
+    for key in ("wall", "wood"):
+        if _sc.get(key):
+            _sc[key] = tuple(round(c + (w - c) * LIGHTEN, 3) for c, w in zip(_sc[key], _warm_white))
 mat("wall", _sc["wall"], 0.9, tex="white_plaster_02", tile=1.5, albedo=False)
 mat("exterior", _sc["exterior"], 0.9, tex="white_plaster_02", tile=2.5, albedo=False)
 mat("wall_accent", rough=0.5, tex="american_walnut_veneer", tile=1.2, tint=_sc["accent"])
@@ -449,13 +475,13 @@ VENT_MAX = 2.6
 def opening_heights(f, o):
     r = o["rect"]
     if o["type"] != "window":
-        return (-1, 7.0)
+        return (-1, DOOR_HEAD)
     cx, cy = (r[0] + r[1]) / 2, (r[2] + r[3]) / 2
     sides = [zone_at(f, cx, cy - 1.0), zone_at(f, cx, cy + 1.0)] if o["axis"] == "x" else \
             [zone_at(f, cx - 1.0, cy), zone_at(f, cx + 1.0, cy)]
     wet = any(z and z["type"] == "toilet" for z in sides)
     width = max(r[1] - r[0], r[3] - r[2])
-    return (6.0, 7.5) if wet or width <= VENT_MAX else (3.0, 7.0)
+    return (WINDOW_HEAD - 1.5, WINDOW_HEAD) if wet or width <= VENT_MAX else (3.0, WINDOW_HEAD)
 
 
 CURTAIN_ROOMS = {"bedroom", "living", "dining", "study", "room", "dress", "puja"}
@@ -848,7 +874,7 @@ def custom(it, path=None, any_fn=False):
     return True
 
 
-CALLS = dict(kitchen_island=kitchen_island, bar_stool=bar_stool, wall_art=wall_art, bathtub=bathtub, round_rug=round_rug, model=model, bed=bed, nightstand=nightstand, wardrobe=wardrobe, desk=desk, wc2=wc2, vanity=vanity,
+CALLS = dict(kitchen_island=kitchen_island, bar_stool=bar_stool, wall_art=wall_art, wall_mirror=wall_mirror, bathtub=bathtub, round_rug=round_rug, model=model, bed=bed, nightstand=nightstand, wardrobe=wardrobe, desk=desk, wc2=wc2, vanity=vanity,
              shower2=lambda x, y, rot: shower2(x, y, rot), geyser=lambda x, y, rot: geyser(x, y, rot),
              kitchen_run=kitchen_run, chimney=chimney, wall_cab2=wall_cab2, fridge2=fridge2, washer2=washer2,
              oven_stack=oven_stack,
@@ -975,9 +1001,11 @@ for k, f in enumerate(floors):
         x0, x1, y0, y1 = o["rect"]
         t = 0.25
         if o["axis"] == "x":
-            frames += [(x0, x0 + t, y0, y1, 0, 7, "teak"), (x1 - t, x1, y0, y1, 0, 7, "teak"), (x0, x1, y0, y1, 7 - t, 7, "teak")]
+            frames += [(x0, x0 + t, y0, y1, 0, DOOR_HEAD, "teak"), (x1 - t, x1, y0, y1, 0, DOOR_HEAD, "teak"),
+                       (x0, x1, y0, y1, DOOR_HEAD - t, DOOR_HEAD, "teak")]
         else:
-            frames += [(x0, x1, y0, y0 + t, 0, 7, "teak"), (x0, x1, y1 - t, y1, 0, 7, "teak"), (x0, x1, y0, y1, 7 - t, 7, "teak")]
+            frames += [(x0, x1, y0, y0 + t, 0, DOOR_HEAD, "teak"), (x0, x1, y1 - t, y1, 0, DOOR_HEAD, "teak"),
+                       (x0, x1, y0, y1, DOOR_HEAD - t, DOOR_HEAD, "teak")]
     mesh_from_boxes(f"door_frames_{k}", frames, bevel=0.004)
     # floors per zone (none over the stairwell coming up from below, nor over a void of an upper storey)
     fl = {}
@@ -1358,7 +1386,7 @@ collection("lights").objects.link(sun)
 lamps = []
 for cx, cy, zz, a, typ in LAMPS:
     L = bpy.data.lights.new("lamp", "AREA")
-    L.energy = (14 if typ in INDOOR else 8) * a * lib.F * lib.F
+    L.energy = (14 * LAMP_GAIN if typ in INDOOR else 8) * a * lib.F * lib.F
     L.size, L.shape = 0.6, "SQUARE"
     L.color = (1.0, 0.9, 0.78)
     o = bpy.data.objects.new("lamp", L)
@@ -1416,6 +1444,8 @@ res = bake.bake_and_export(groups, unbaked=trees, out=JOB, quality=QUALITY, do_b
                            variants=[("evening", evening, day)] if EVENING else [])
 SIZE_ERRORS = [e for z in REPORT["zones"] for e in z.get("errors", [])]
 meta = dict(version=1, floors=META_FLOORS, roof_z=round(top * lib.F, 3), eye=1.6, kits=USED_KITS, scheme=SCHEME,
+            fov_h=WALK_FOV, ceiling_m=round(H * lib.F, 3), door_head_m=round(DOOR_HEAD * lib.F, 3),
+            window_head_m=round(WINDOW_HEAD * lib.F, 3),
             size_errors=SIZE_ERRORS[:30],
             north_deg=NORTH, sun_bearing=SUN_BEARING,
             bounds=[round(v * lib.F, 3) for v in (X0, X1, Y0, Y1)], **res)

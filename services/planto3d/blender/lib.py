@@ -884,6 +884,18 @@ for _n, _c in ART:
 mat("art_ground", (0.86, 0.82, 0.74), 0.9)
 
 
+def wall_mirror(x0, x1, y0, y1, front):
+    """a full-length mirror in a thin brass frame, 0.4 to 6.6 ft up (dressing rooms, C1)"""
+    along_x = front in ("-y", "+y")
+    L, Dp = (x1 - x0, y1 - y0) if along_x else (y1 - y0, x1 - x0)
+    rot = {"-y": 0, "+x": 90, "+y": 180, "-x": 270}[front]
+    r = item("wall_mirror", (x0 + x1) / 2, (y0 + y1) / 2, rot)
+    z0, h = 0.4, 6.2
+    p_box(r, "mirror_frame", L, Dp, h, "brass", (0, 0, z0), bevel=0.01)
+    p_box(r, "mirror", L - 0.12, 0.02, h - 0.12, "mirror", (0, -Dp / 2 - 0.006, z0 + 0.06), bevel=0)
+    return r
+
+
 def wall_art(x0, x1, y0, y1, front, seed=0):
     """a framed colour-field canvas on a wall, centred 5.3 ft up: two soft blocks of colour on a warm ground, from
     a fixed palette chosen by `seed` (the same house always gets the same pictures)"""

@@ -596,9 +596,37 @@ window.__frame = (x, y, z, yaw, pitch) => {
   return renderer.domElement.toDataURL('image/jpeg', 0.92);
 };
 window.__ready = true;
+// ---- field of view (PART C1): set horizontally, so a room fills the screen the same on any window shape. Wide
+// (meta.fov_h, PLAN3D_WALK_FOV_DEG, 90 degrees) by default; the "Wide view" button switches to a normal 65.
+const FOV_WIDE = Math.min(110, Math.max(50, meta.fov_h || 90));
+const FOV_NORMAL = 65;
+let wideView = true;
+try { wideView = localStorage.getItem('planto3d.wide') !== '0'; } catch { /* private window: wide */ }
+function applyFov() {
+  const h = THREE.MathUtils.degToRad(wideView ? FOV_WIDE : FOV_NORMAL);
+  const v = 2 * Math.atan(Math.tan(h / 2) / camera.aspect);
+  camera.fov = Math.min(100, Math.max(30, THREE.MathUtils.radToDeg(v)));
+  camera.updateProjectionMatrix();
+}
+const fovBtn = document.createElement('button');
+fovBtn.id = 'fovbtn';
+fovBtn.type = 'button';
+fovBtn.textContent = 'Wide view';
+fovBtn.title = `Wide angle (${FOV_WIDE}°) or normal (${FOV_NORMAL}°) view`;
+const syncFovBtn = () => { fovBtn.classList.toggle('on', wideView); fovBtn.setAttribute('aria-pressed', String(wideView)); };
+fovBtn.onclick = () => {
+  wideView = !wideView;
+  try { localStorage.setItem('planto3d.wide', wideView ? '1' : '0'); } catch { /* not kept */ }
+  syncFovBtn();
+  applyFov();
+};
+document.getElementById('measurebtn')?.before(fovBtn);
+syncFovBtn();
+applyFov();
+window.__fov = () => ({ vertical: camera.fov, horizontal: wideView ? FOV_WIDE : FOV_NORMAL, wide: wideView });
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
+  applyFov();
   renderer.setSize(innerWidth, innerHeight);
 });
 

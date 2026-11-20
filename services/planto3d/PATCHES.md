@@ -672,3 +672,25 @@ The scan reader itself is in the gateway (`backend/app/modules/plan3d/scan_reade
 - `POST /api/jobs/<id>/stills` takes `redo: {name: {ev, kelvin}}` (checked: |ev| <= 1.5, 3500-6500 K): only
   those stills are rendered again with that exposure and white balance (the gateway's PLAN3D_AI_POLISH).
 - `blender/cinema.py`: a shot's own `kelvin` sets its white balance.
+
+## 59. Space: generous heights, a wide walkthrough, furniture that leaves room (feat/pro_2, C1)
+
+Room sizes stay exactly as read (rooms are read to the inside wall faces; walls take 0-0.6 % of a room's
+rectangle, measured with `tools/space_check.py`); what changes is how the space reads.
+- `blender/gen.py`: `PLAN3D_CEILING_M` (3.4 m floor to ceiling, unless the plan states its own with
+  `floor_height_stated`; was 10 ft = 3.05 m), `PLAN3D_DOOR_HEIGHT_M` (2.4 m, was 7 ft = 2.13 m) and
+  `PLAN3D_WINDOW_HEAD_M` (2.4 m, level with the doors; was 7 ft) for every cut, frame and curtain;
+  `PLAN3D_LIGHT_FINISHES` lightens the scheme's wall and wood colours 45 % of the way to warm white;
+  `PLAN3D_LAMP_GAIN` (1.4) brightens the indoor lamps; meta.json carries `fov_h`, `ceiling_m`,
+  `door_head_m`, `window_head_m`.
+- `web/view.js`: the walkthrough's field of view is set horizontally (`meta.fov_h`, `PLAN3D_WALK_FOV_DEG`, 90
+  degrees), so a room fills the screen the same way on any window shape (it was 70 degrees vertical: 102
+  horizontal on 16:9, 86 on 4:3); a "Wide view" button switches to a normal 65 degrees (kept per browser).
+- `furnish.py`: the bed matches the room (king from a 13 ft short side, queen from 9 ft, single below) with
+  0.9 m clear at its foot wherever a wall allows it (0.67 m before; a tight room keeps its bed with 0.67 m);
+  `declutter` drops optional pieces (plants, lamps, side tables, armchairs, a desk, a second nightstand...)
+  while solid furniture covers more than 38 % of a room under 120 sq ft (48 % in larger rooms); dressing rooms
+  get a full-length mirror (`lib.wall_mirror`). Bathrooms already had a backlit vanity mirror.
+- `tools/still_shots.py`: room stills use 18-24 mm full-frame lenses (was 16-24), level cameras (verticals
+  straight), from the corner along the room's longest diagonal.
+- `tests/test_space.py` (in run_all.sh).

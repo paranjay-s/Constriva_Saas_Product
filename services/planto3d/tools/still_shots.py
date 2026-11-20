@@ -5,7 +5,7 @@
 Writes shots for cinema.py --shots (feet, like its tours) and the small tour file cinema.py needs to start.
 - A room: the camera stands at eye height in the corner nearest the room's door, a little in from the walls,
   moved further in while it would stand inside furniture, and looks level at the far corner (verticals stay
-  straight). The lens is chosen so the far wall fills the picture: 16 mm in small rooms, up to 24 mm in large ones.
+  straight). The lens is chosen so the far wall fills the picture: 18 mm in small rooms, up to 24 mm in large ones.
 - Elevations: front, rear, left and right (front = the side facing the road when the plan says so, else the side
   of the main door, else south), named by compass too; level cameras at 1.6 m, 35 mm, far enough for the whole
   house, the lens shifted up to take in the roof.
@@ -89,7 +89,7 @@ def room_shot(room, floor, eye):
         t += step
     px, py = cx + (fx - cx) * t, cy + (fy - cy) * t
     dist = math.hypot(fx - px, fy - py)
-    lens = 16 if dist < 4.5 else 20 if dist < 7 else 24
+    lens = 18 if dist < 4.5 else 20 if dist < 7 else 24     # 18-24 mm full frame: wide, never distorted (C1)
     z = floor["z"] + eye
     look_x, look_y = fx - (fx - px) * 0.15, fy - (fy - py) * 0.15
     return dict(p=[round(px * M_TO_FT, 2), round(py * M_TO_FT, 2), round(z * M_TO_FT, 2)],

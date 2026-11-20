@@ -249,12 +249,14 @@ def rect_at(c, w, d, side):
 
 # ------------------------------------------------------------------ rules per room type
 def bedroom(R):
-    double = min(R.w, R.d) >= 9.0
-    bw, bl = (5.0, 6.6) if double else (3.5, 6.5)
-    for side in R.sides_by("long", tall=True):
-        depth_room = R.d if side in "NS" else R.w
-        if depth_room < bl + 2.2:
-            continue
+    """the bed scaled to the room (king in large rooms, queen, single in narrow ones) with a 0.9 m walk-way at its
+    foot (PASSAGE_FT); then a wardrobe and, in large rooms, a desk"""
+    short = min(R.w, R.d)
+    bw, bl = (6.0, 6.8) if short >= 13.0 else (5.0, 6.6) if short >= 9.0 else (3.5, 6.5)
+    # 0.9 m at the foot on any wall that allows it; else a tight room keeps its bed with the old 0.67 m
+    sides = R.sides_by("long", tall=True)
+    tries = [(sd, c) for c in (PASSAGE_FT, 2.2) for sd in sides if (R.d if sd in "NS" else R.w) >= bl + c]
+    for side, _clear in tries:
         p = R.spot(side, bw + 2 * 1.6, bl, tall=True)
         stands = p is not None
         p = p or R.spot(side, bw, bl, tall=True)
@@ -601,13 +603,43 @@ def dining_table(R):
 
 
 def dress(R):
-    """walk-in dressing room: wardrobes along the free walls"""
+    """walk-in dressing room: wardrobes along the free walls, and a full-length mirror (C1)"""
     for side in R.sides_by("long", tall=True)[:2]:
         for w in (6.0, 5.0, 4.0, 3.0):
             p = R.spot(side, w, 2.0, tall=True)
             if p:
                 R.add("wardrobe", p[3], p[0], p[1], p[2], w=w, d=2.0, h=7.0)
                 break
+    full_mirror(R)
+
+
+def full_mirror(R, width=2.2):
+    """a full-length mirror on the longest free wall stretch that no wardrobe or other tall piece stands against"""
+    x0, x1, y0, y1 = R.rect
+    best = None
+    for side in "NSEW":
+        for a, b in R.free[side]["tall"]:
+            if b - a < width + 0.4:
+                continue
+            # where along the stretch the mirror can hang with nothing standing in front of it
+            n = max(1, int((b - a - width - 0.4) / 0.5))
+            for k in range(n + 1):
+                c = a + 0.2 + width / 2 + (b - a - width - 0.4) * (0.5 if n == 1 else k / n)
+                lo, hi = c - width / 2 - 0.2, c + width / 2 + 0.2
+                near = {"N": (lo, hi, y1 - 2.5, y1), "S": (lo, hi, y0, y0 + 2.5), "E": (x1 - 2.5, x1, lo, hi),
+                        "W": (x0, x0 + 2.5, lo, hi)}[side]
+                if any(it["solid"] and overlap(near, it["box"], 0.0) for it in R.items):
+                    continue
+                if best is None or b - a > best[2] - best[1]:
+                    best = (side, a, b, c)
+                break
+    if not best:
+        return
+    side, a, b, c = best
+    box = {"N": (c - width / 2, c + width / 2, y1 - 0.08, y1), "S": (c - width / 2, c + width / 2, y0, y0 + 0.08),
+           "E": (x1 - 0.08, x1, c - width / 2, c + width / 2), "W": (x0, x0 + 0.08, c - width / 2, c + width / 2)}[side]
+    front = {"N": "-y", "S": "+y", "E": "-x", "W": "+x"}[side]
+    R.add("wall_mirror", (0, 0, 0, 0), *box, front, solid=False)
 
 
 def puja(R):
@@ -835,6 +867,31 @@ def bedroom_study(R):
             return
 
 
+PASSAGE_FT = 3.0          # 0.9 m: the walk-way kept in front of beds and around the main pieces (C1)
+OPTIONAL = ("plant", "floor_lamp", "side_table", "armchair", "desk", "nightstand", "coffee_table")
+SMALL_ROOM_FT2 = 120.0    # about 11 m2: fewer pieces below this
+MAX_COVER = (0.38, 0.48)  # largest share of the floor solid furniture may take: small rooms, larger rooms
+
+
+def declutter(R):
+    """fewer pieces in small rooms: optional pieces (plants, lamps, side tables, armchairs, a desk, a second
+    nightstand...) go, least needed first, while solid furniture covers more than MAX_COVER of the floor"""
+    floor = area(R.rect)
+    if floor <= 0:
+        return
+    limit = MAX_COVER[0] if floor < SMALL_ROOM_FT2 else MAX_COVER[1]
+
+    def cover():
+        return sum(area(it["box"]) for it in R.items if it["solid"] and it["fn"] != "rug") / floor
+
+    for fn in OPTIONAL:
+        while cover() > limit:
+            drop = next((it for it in reversed(R.items) if it["fn"] == fn), None)
+            if drop is None:
+                break
+            R.items = [x for x in R.items if x is not drop]
+
+
 def furnish_floor(floor):
     """-> list of items {fn, args, kw, box, solid, room} for one floor"""
     out = []
@@ -845,6 +902,7 @@ def furnish_floor(floor):
         if R.w < 2.5 or R.d < 2.5:
             continue
         RULES[z["type"]](R)
+        declutter(R)
         keep_passages(R)
         if z["type"] in ART_ROOMS:
             wall_art(R)
