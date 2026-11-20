@@ -592,3 +592,19 @@ tries every quarter foot from 0.25 to 1.5 ft. Found by the full suite: on job 0b
 run) a door opens onto a parallel wall 0.84 ft behind it, which test_openings reports (the walker cannot pass) and the
 verifier did not; it is now a critical item, so Build stays off on the review page until it is fixed or dismissed.
 tests/test_verify.py: still no warning on the 200 true plans.
+
+## 53. Build report, and no "line of water" from pool slivers (blender/gen.py)
+
+Why: a pool zone with sliver rectangles (gaps joined to the pool by the converter) was built with
+water inside inverted coping boxes: a thin line of water beside the pool (the nandu build of
+2026-11-20). And nothing recorded what each room was built as, so "rooms smaller than the
+drawing" could not be checked.
+
+What: `water_parts` builds a pool rectangle narrower than `POOL_MIN_FT` (3 ft) as paved deck; a
+pool zone with a `water` rectangle (the backend's building-model export) gets its basin exactly
+there and the rest paved. Every build writes `build_report.json`: per zone the read type, label,
+read size and area, the built floor (or deck and water) area and size, and the builder used; per
+furniture item its room and source (own model, library kit, built-in, skipped).
+
+Effect: the nandu pool rebuilds as one 29.1 x 11.8 ft basin; `tools/diag/rooms_report.py` turns
+the report into a table (docs/pro/3d/DIAGNOSIS.md).

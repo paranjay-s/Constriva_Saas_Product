@@ -183,13 +183,26 @@ def parking_parts(zn):
     return out
 
 
+POOL_MIN_FT = 3.0  # a pool rectangle narrower than this is paved round the water, not filled (PATCHES 53)
+
+
 def water_parts(zn, k):
     """a pool: a basin sunk 4.5 ft (raised 1.5 ft on an upper storey) lined with tile, coping round it, three steps
     at one short end and a water plane; a water body or fountain: a shallow basin; a dock: water with a walkable plank
     deck along its two long sides, on posts. -> (boxes, walkable rects); the rest of the zone is closed to the walker"""
     out, walk = [], []
+    pool_zone = zn["type"] == "pool"
+    water_rect = zn.get("water") if pool_zone else None
     for r in zn["rects"]:
         x0, x1, y0, y1 = r
+        narrow = min(x1 - x0, y1 - y0) < (POOL_MIN_FT if pool_zone else 1.2)
+        if water_rect or narrow:
+            # the model's water outline (or nothing, for a sliver): the rest is paved deck at ground level.
+            # Filling a sliver gave a "line of water" with inverted coping boxes.
+            if not narrow or min(x1 - x0, y1 - y0) > 0.05:
+                out.append((x0, x1, y0, y1, -0.1, 0.12 if pool_zone else 0.05, "coping"))
+                walk.append((x0, x1, y0, y1))
+            continue
         if zn["type"] == "dock":
             long_x = x1 - x0 >= y1 - y0
             d = min(4.0, (min(x1 - x0, y1 - y0)) / 3)
@@ -236,6 +249,23 @@ def water_parts(zn, k):
                     (x0, x1, y0, y0 + t, 0, h + 0.15, "coping"), (x0, x1, y1 - t, y1, 0, h + 0.15, "coping"),
                     (x0, x0 + t, y0, y1, 0, h + 0.15, "coping"), (x1 - t, x1, y0, y1, 0, h + 0.15, "coping"),
                     (*b, h - 0.3, h - 0.25, "water")]
+    if water_rect and (water_rect[1] - water_rect[0]) >= POOL_MIN_FT and (water_rect[3] - water_rect[2]) >= POOL_MIN_FT:
+        # the model's water rectangle: a basin there, the rest of the pool area paved round it
+        b = tuple(water_rect)
+        cut = [(*b, -9, 9)]
+        out = [o for o in out if o[6] != "coping"] + [
+            (*q[:4], -0.1, 0.12, "coping") for o in out if o[6] == "coping" for q in subtract_all([(*o[:4], -0.1, 0.12)], cut)
+        ]
+        walk = [q[:4] for q in subtract_all([(*w, -1, 1) for w in walk], cut)]
+        t = 0.3
+        if k == 0:
+            deep = 4.5
+            out += [(b[0], b[1], b[2], b[3], -deep - t, -deep, "pooltile"),
+                    (b[0], b[1], b[2], b[2] + t, -deep, -0.1, "pooltile"), (b[0], b[1], b[3] - t, b[3], -deep, -0.1, "pooltile"),
+                    (b[0], b[0] + t, b[2], b[3], -deep, -0.1, "pooltile"), (b[1] - t, b[1], b[2], b[3], -deep, -0.1, "pooltile"),
+                    (*b, -0.5, -0.45, "water")]
+        else:
+            out += [(*b, 0.0, 0.1, "pooltile"), (*b, 1.2, 1.25, "water")]
     return out, walk
 
 
@@ -627,6 +657,30 @@ if os.environ.get("PLAN3D_LIBRARY", "1") != "0" and os.path.exists(os.path.join(
                    (e.get("review") != "rejected" and (str(e.get("source", "")).startswith("team-made") or _unrev))}
 HANGING = {"chandelier", "pendant_cluster"}       # hung from the ceiling over (x, y), at their own size
 USED_KITS = {}                                   # piece -> how many times the library served it (meta.json)
+# build_report.json: per room and area what was read and what was built, and by which builder (PATCHES 53)
+REPORT = {"zones": [], "items": []}
+
+
+def _box_area(bs):
+    return round(sum(max(0.0, b[1] - b[0]) * max(0.0, b[3] - b[2]) for b in bs), 2)
+
+
+def _report_zone(k, zn, builder, built_boxes=None, water_boxes=None):
+    rects = zn.get("rects") or []
+    xs = [v for r in rects for v in (r[0], r[1])]
+    ys = [v for r in rects for v in (r[2], r[3])]
+    entry = dict(floor=k, type=zn["type"], label=zn.get("label") or "", builder=builder,
+                 read_area_ft2=_box_area(rects),
+                 read_size_ft=[round(max(xs) - min(xs), 2), round(max(ys) - min(ys), 2)] if rects else None)
+    if built_boxes is not None:
+        entry["built_area_ft2"] = _box_area(built_boxes)
+    if water_boxes is not None:
+        entry["water_area_ft2"] = _box_area(water_boxes)
+        if water_boxes:
+            wx = [v for b in water_boxes for v in (b[0], b[1])]
+            wy = [v for b in water_boxes for v in (b[2], b[3])]
+            entry["water_size_ft"] = [round(max(wx) - min(wx), 2), round(max(wy) - min(wy), 2)]
+    REPORT["zones"].append(entry)
 
 
 def library_model(it):
@@ -824,9 +878,12 @@ for k, f in enumerate(floors):
             parts, deck = water_parts(zn, k)
             water += parts
             wet_walk += deck
+            _report_zone(k, zn, "water_parts", [b for b in parts if b[6] == "coping"],
+                         [b for b in parts if b[6] == "water"])
             continue
         if zn["type"] == "court":          # its own surface and markings (court_parts)
             water += court_parts(zn)
+            _report_zone(k, zn, "court_parts")
             continue
         if zn["type"] == "custom" and LIBRARY.get(str(zn.get("area_type") or "")) and \
                 LIBRARY[zn["area_type"]].get("source") == "creator agent":
@@ -836,6 +893,7 @@ for k, f in enumerate(floors):
                 if custom(dict(fn=zn["area_type"], box=r, args=[(r[0] + r[1]) / 2, (r[2] + r[3]) / 2, 0]),
                           os.path.join(LIB_DIR, e["browser"]), any_fn=True):
                     USED_KITS[zn["area_type"]] = USED_KITS.get(zn["area_type"], 0) + 1
+            _report_zone(k, zn, f"creator kit {zn['area_type']}", zn["rects"])
             continue
         if zn["type"] == "custom":         # an area built from its spec (areaspec.py), or a labelled generic zone
             spec = areaspec.spec_for(zn.get("area_type") or zn.get("label"))
@@ -848,11 +906,15 @@ for k, f in enumerate(floors):
                     platforms.append((r, bxs[0][5]))     # the surface is parts()'s first box
                 for part, ox_, oy_, rot in objs:
                     custom_objects.append((part, ox_, oy_, rot))
+            _report_zone(k, zn, f"area spec {spec['id'] if spec and 'id' in spec else (zn.get('area_type') or 'generic')}",
+                         zn["rects"])
             continue
         if zn["type"] == "parking":
             water += parking_parts(zn)
         m = FLOOR_MAT.get(zn["type"], "tile")
-        fl.setdefault(m, []).extend((*b[:4], -0.02, 0.0, m) for r in zn["rects"] for b in subtract_all([(*r, -0.02, 0.0)], well + voids))
+        built = [(*b[:4], -0.02, 0.0, m) for r in zn["rects"] for b in subtract_all([(*r, -0.02, 0.0)], well + voids)]
+        fl.setdefault(m, []).extend(built)
+        _report_zone(k, zn, f"floor {m}" + (" + parking_parts" if zn["type"] == "parking" else ""), built)
     for m, bs in fl.items():
         mesh_from_boxes(f"floor_{k}_{m}", bs)
     if water:     # the water planes apart: a transparent object is not baked, so the basin and decks must not share it
@@ -936,14 +998,21 @@ for k, f in enumerate(floors):
     # furniture: none if the review page's "Furniture" box was unticked; hand-placed items win over the rules
     items = [] if plan.get("furnish") is False else f.get("items") or furnish.furnish_floor(f)
     for it in items:
+        src = "failed"
         try:
-            if not (custom(it) or library_model(it)):
-                if it["fn"] in CALLS:
-                    CALLS[it["fn"]](*it["args"], **it["kw"])
-                else:
-                    print("ITEM SKIPPED (library piece not built)", it["fn"], flush=True)
+            if custom(it):
+                src = "own model"
+            elif library_model(it):
+                src = "library kit"
+            elif it["fn"] in CALLS:
+                CALLS[it["fn"]](*it["args"], **it["kw"])
+                src = "built-in"
+            else:
+                src = "skipped"
+                print("ITEM SKIPPED (library piece not built)", it["fn"], flush=True)
         except Exception as e:     # one bad item must not stop the build
             print("ITEM FAILED", it["fn"], e, flush=True)
+        REPORT["items"].append(dict(floor=k, room=it.get("room", ""), fn=it["fn"], source=src))
     if items:
         curtains(f, items)
     # lifts: a landing door on the side facing the most open neighbour, a call panel beside it, and on the lowest
@@ -1157,6 +1226,8 @@ meta = dict(version=1, floors=META_FLOORS, roof_z=round(top * lib.F, 3), eye=1.6
             bounds=[round(v * lib.F, 3) for v in (X0, X1, Y0, Y1)], **res)
 with open(os.path.join(JOB, "meta.json"), "w") as fh:
     json.dump(meta, fh)
+with open(os.path.join(JOB, "build_report.json"), "w") as fh:
+    json.dump(dict(REPORT, kits=USED_KITS, library_entries=len(LIBRARY)), fh)
 progress(100, "done")
 print("GEN OK", flush=True)
 os._exit(0)
