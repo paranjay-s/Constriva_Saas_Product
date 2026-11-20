@@ -3,7 +3,12 @@
 Run inside the editor (no sign-in is needed for a local project; never log in to anything for this):
 
     UnrealEditor tools/unreal/HouseProto/HouseProto.uproject -ExecutePythonScript="tools/unreal/import_render.py" \
-        -stdout -FullStdOutLogOutput -unattended -nosplash -windowed -ResX=640 -ResY=360
+        -stdout -FullStdOutLogOutput -nosplash -windowed -ResX=640 -ResY=360
+
+Measured on the M1 Pro (2026-11-20, UE 5.8): the import and the scene work (62 MB glb: 523 assets in 20 s, 299
+meshes placed, lights, post-process volume and both cameras); with -unattended the editor quit three frames after
+the script returned, before the capture (QUIT_EDITOR), so no Unreal still was made. Without -unattended the
+editor should keep ticking until the script quits it; not yet verified (stopped after two attempts, LOG.md).
 
 Environment (paths are absolute):
     PLAN3D_UE_GLB     the house from blender/export_engine.py (house_engine.glb, world-space meshes)

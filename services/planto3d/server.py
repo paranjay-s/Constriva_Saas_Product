@@ -485,7 +485,7 @@ def run_stills_unreal(d, out, shots, mode="evening"):
                PLAN3D_UE_OUT=out, PLAN3D_UE_ONLY=",".join(names), PLAN3D_UE_MODE=mode)
     pr = subprocess.run([UNREAL, os.path.join(root, "tools", "unreal", "HouseProto", "HouseProto.uproject"),
                          "-ExecutePythonScript=" + os.path.join(root, "tools", "unreal", "import_render.py"),
-                         "-stdout", "-FullStdOutLogOutput", "-unattended", "-nosplash", "-windowed",
+                         "-stdout", "-FullStdOutLogOutput", "-nosplash", "-windowed",
                          "-ResX=640", "-ResY=360"], env=env, capture_output=True, text=True, timeout=7200)
     times = {m.group(1): float(m.group(2)) for m in re.finditer(r"UE STILL (\S+) ([\d.]+)", pr.stdout)}
     for n in times:

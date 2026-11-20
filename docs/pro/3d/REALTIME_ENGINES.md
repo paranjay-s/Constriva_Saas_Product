@@ -31,8 +31,26 @@ default.
 
 ## Measured
 
-See "Renderer measured" in [../SUMMARY.md](../SUMMARY.md); the per-still times and hardware are filled in from the
-runs of this stage.
+Apple M1 Pro (10 CPU cores, 16-core GPU, 32 GB), on AC power, `nice -n 10`, 2 minutes between stills:
+
+| Renderer | What | Time |
+|---|---|---|
+| Blender Cycles (Metal GPU), the handover look, 1920 x 1080, 96 adaptive samples, denoised | 13 room stills, evening | 98-119 s each, 108 s on average |
+| same | 4 elevations, evening / day | 21-27 s / 17-22 s each |
+| same | 2 room stills by day | 73-78 s each |
+| fast tour from the stills (CPU, NumPy) | 17 shots -> 51.5 s at 1080p | 12 s depth + 5.6 min film |
+| Unreal Engine 5.8 (Lumen) | glTF import and scene | 20 s import (523 assets), 299 meshes, editor start about 3 min |
+| Unreal Engine 5.8 | living room and front elevation stills | not made: the editor quit before the capture (two attempts, see LOG.md) |
+
+**Default renderer: Blender**, by measurement and by what can be measured: it renders every still headless on
+the same machine as the builds, with the reference look, in about 110 s per room on this laptop (a server GPU is
+several times faster; `scripts/benchmark_high.sh`). Unreal gives no measured still yet, needs a windowed editor on
+a GPU and the Unreal seat subscription for a company above USD 1 M revenue. It stays behind
+`PLAN3D_RENDERER=unreal`.
+
+Estimates for an NVIDIA T4 (16 GB, the common cloud GPU), from public Cycles benchmark ratios (T4 OptiX about
+1.5-2x an M1 Pro on Metal): a room still 55-75 s, an elevation 12-18 s, a 15-room villa about 20 minutes for the
+evening set. Not measured; run `scripts/benchmark_high.sh` on the server.
 
 ## Sources
 
