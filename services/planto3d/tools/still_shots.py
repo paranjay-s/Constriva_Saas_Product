@@ -30,6 +30,20 @@ def inside(px, py, boxes, pad=0.25):
     return any(b[0] - pad <= px <= b[1] + pad and b[2] - pad <= py <= b[3] + pad for b in boxes)
 
 
+OUTDOOR = {"garden", "parking", "balcony", "terrace"}
+
+
+def outdoor_shot(room, floor, eye, centre):
+    """an outdoor area: from its point farthest from the house, looking at the house across it"""
+    x0, x1, y0, y1 = largest(room["rects"])
+    pts = [(x0 + 0.5, y0 + 0.5), (x1 - 0.5, y0 + 0.5), (x0 + 0.5, y1 - 0.5), (x1 - 0.5, y1 - 0.5)]
+    px, py = max(pts, key=lambda p: math.hypot(p[0] - centre[0], p[1] - centre[1]))
+    z = floor["z"] + eye
+    return dict(p=[round(px * M_TO_FT, 2), round(py * M_TO_FT, 2), round(z * M_TO_FT, 2)],
+                t=[round(centre[0] * M_TO_FT, 2), round(centre[1] * M_TO_FT, 2), round(z * M_TO_FT, 2)],
+                lens=20, level=True)
+
+
 def room_shot(room, floor, eye):
     x0, x1, y0, y1 = largest(room["rects"])
     w, d = x1 - x0, y1 - y0
@@ -43,9 +57,29 @@ def room_shot(room, floor, eye):
               if x0 - 0.5 <= (r[0] + r[1]) / 2 <= x1 + 0.5 and y0 - 0.5 <= (r[2] + r[3]) / 2 <= y1 + 0.5]
         return min(ds) if ds else 0.0
 
-    cx, cy = min(corners, key=door_dist)
+    furn = [f for f in floor.get("furniture", []) if isinstance(f, list) and len(f) >= 4
+            and x0 - 0.1 <= (f[0] + f[1]) / 2 <= x1 + 0.1 and y0 - 0.1 <= (f[2] + f[3]) / 2 <= y1 + 0.1]
+
+    def seen(c):
+        """furniture in front of a camera in corner c looking at the far corner: within 40 degrees of the view
+        line and at least 1.5 m away (a wardrobe filling the picture is not a view)"""
+        fx_, fy_ = x0 + x1 - c[0], y0 + y1 - c[1]
+        ax, ay = fx_ - c[0], fy_ - c[1]
+        n = 0.0
+        for f in furn:
+            mx, my = (f[0] + f[1]) / 2 - c[0], (f[2] + f[3]) / 2 - c[1]
+            dist = math.hypot(mx, my)
+            if dist < 1.5:
+                n -= 1.0
+                continue
+            cos = (mx * ax + my * ay) / max(1e-6, dist * math.hypot(ax, ay))
+            n += cos > math.cos(math.radians(40))
+        return n
+
+    # the corner that sees the most furniture; among equals, the one by the door
+    cx, cy = max(corners, key=lambda c: (seen(c), -door_dist(c)))
     fx, fy = x0 + x1 - cx, y0 + y1 - cy                   # the far corner
-    boxes = floor.get("colliders", []) + [f for f in floor.get("furniture", []) if isinstance(f, list)]
+    boxes = floor.get("colliders", []) + furn
     step = 0.04
     t = 0.12
     while t < 0.45:                                       # in from the corner along the diagonal, out of furniture
@@ -121,7 +155,9 @@ def main():
             rooms.append(((x1 - x0) * (y1 - y0), k, f, r))
     rooms.sort(key=lambda t: -t[0])
     for _, k, f, r in rooms[:most]:
-        sh = room_shot(r, f, eye)
+        bx0, bx1, by0, by1 = meta["bounds"]
+        sh = outdoor_shot(r, f, eye, ((bx0 + bx1) / 2, (by0 + by1) / 2)) if r["type"] in OUTDOOR \
+            else room_shot(r, f, eye)
         if not sh:
             continue
         label = (r.get("label") or NAMES.get(r["type"], r["type"])).strip()

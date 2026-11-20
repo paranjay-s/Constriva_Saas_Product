@@ -431,7 +431,10 @@ if "--shots" in argv:                           # stills from fixed cameras: [{"
         cam.rotation_euler = aim.to_track_quat("-Z", "Y").to_euler()
         cam.data.lens = sh.get("lens", 18)
         cam.data.shift_y = sh.get("shift_y", 0.0)
-        sc.view_settings.exposure = TOUR.get("exposure", 0.9 if not LOOK else (0.4 if DAY else 0.6)) + sh.get("ev", 0.0)
+        base = TOUR.get("exposure", 0.9 if not LOOK else (-0.4 if DAY else 0.6))
+        if DAY and sh["name"].startswith("room_"):  # by day the rooms get only window light: open up indoors
+            base += 0.8
+        sc.view_settings.exposure = base + sh.get("ev", 0.0)
         if LOOK:                                # a white balance of its own (AI polish), else the look's
             look.white_balance(sc, sh.get("kelvin") or (5600 if DAY else 4700))
         if "--save" in argv:                    # keep each view as a named camera in the saved scene
