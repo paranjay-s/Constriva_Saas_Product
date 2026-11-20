@@ -23,3 +23,8 @@ Started 2026-11-20 on branch `feat/pro` (from `feat/merged` d08ad48).
 | 2 | B3 Model comparison | skipped | - | no held-out raster plan has readings by both models and the Gemini key answered 429 to fresh calls; default unchanged; command written in RESEARCH.md |
 | 2 | C Low quality, Medium removed, size errors >5% | done | 993a8d5 | draft builds 10 s; 1000206523: 6 rooms flagged 6-66%. PlanTo3D suite: tour (not required) and one opening check on an old saved build (0bdaca14d7bf) fail, as before this run |
 | 2 | D Room kits | partial | cc7905c | dishwasher, ovens, lift cabins (passenger/service), pool ladder added; puja and qibla-facing prayer kept; curved/circular rooms need an arc shape in the plan format (owner decision). Blender time so far about 3 min |
+| 2 | E High quality (look, stills, elevations, fast tour, 1080p tours, UAE front, gallery, email, AI polish, engines) | partial | 7f0c796, b2feea7, db4b2d2, 2ec22c4 | Blender stills measured (108 s per room on the M1 Pro); Unreal import works but no still after two attempts (editor quits before the capture); Twinmotion research only; render time used about 42 min |
+| 2 | F Reference vs Low vs High | done | 27de1f0 | 8 room types; sheets on disk only (your reference pictures) |
+| 3 | Saved BOQ history + dashboard | done | 22d5cb8 | migration written, not applied (SQL in SUMMARY) |
+| 3 | Landing images | done | 93bc621 | auth hero -38 %; tour frames left (2-7 % only) |
+| 3 | Dockerfiles, deploy-3d.md, asset library script | done | e22f965 | images not built here (no Docker on this Mac) |
