@@ -457,13 +457,21 @@ def kitchen(R):
         hob_main = (b_ - 1.6) if sink is None or abs((b_ - 1.6) - sink) > 2.6 else (a_ + 1.6)
         if sink is not None and abs(hob_main - sink) < 2.6:
             hob_main = None
+    sink_at = sink if sink is not None else (a_ + 1.4 if ret is None else (a_ + b_) / 2)
+    # the dishwasher (2 ft) next to the sink, on the side with room, never under the hob
+    dw = None
+    for d_ in (2.05, -2.05):
+        u = sink_at + d_
+        if a_ + 1.0 <= u <= b_ - 1.0 and (hob_main is None or abs(u - hob_main) > 2.4):
+            dw = u
+            break
     R.add("kitchen_run", box_on(side, a_, b_), *box_on(side, a_, b_), FRONT[side],
-          sink=sink if sink is not None else (a_ + 1.4 if ret is None else (a_ + b_) / 2), hob=hob_main)
+          sink=sink_at, hob=hob_main, dishwasher=dw, oven=hob_main is not None)
     runs = [(side, a_, b_, hob_main)]
     if ret:
         s2, p, q = ret
         hob = (p + q) / 2
-        R.add("kitchen_run", box_on(s2, p, q), *box_on(s2, p, q), FRONT[s2], sink=None, hob=hob)
+        R.add("kitchen_run", box_on(s2, p, q), *box_on(s2, p, q), FRONT[s2], sink=None, hob=hob, oven=True)
         runs.append((s2, p, q, hob))
     for sd, p, q, hob in runs:
         if hob is not None:
@@ -478,6 +486,7 @@ def kitchen(R):
                     box = {"N": (u, v, y1 - 1.1, y1), "S": (u, v, y0, y0 + 1.1), "E": (x1 - 1.1, x1, u, v), "W": (x0, x0 + 1.1, u, v)}[sd]
                     R.add("wall_cab2", (0, 0, 0, 0), *box, FRONT[sd], solid=False)
     fridge(R)
+    oven_tower(R)
     island(R, side, a_, b_)
 
 
@@ -521,6 +530,16 @@ def fridge(R):
         p = R.spot(side, 2.4, 2.3, tall=True, align="end", gap=0.1)
         if p:
             R.add("fridge2", p[3], p[0], p[1], p[2])
+            return
+
+
+def oven_tower(R):
+    """the built-in oven and microwave tower on a free tall wall, next to the fridge where it fits"""
+    ds = R.door_side()
+    for side in sorted(R.sides_by("long", tall=True), key=lambda q: q == ds):
+        p = R.spot(side, 2.1, 2.1, tall=True, align="end", gap=0.1)
+        if p:
+            R.add("oven_stack", p[3], p[0], p[1], p[2])
             return
 
 
@@ -834,7 +853,7 @@ def furnish_floor(floor):
 
 
 ART_ROOMS = {"living", "bedroom", "dining"}
-NO_ART_OVER = {"wardrobe", "tv_unit", "kitchen_run", "wall_cab2", "fridge2", "puja_mandir", "chimney", "desk"}
+NO_ART_OVER = {"wardrobe", "tv_unit", "kitchen_run", "wall_cab2", "fridge2", "oven_stack", "puja_mandir", "chimney", "desk"}
 
 
 def wall_art(R):

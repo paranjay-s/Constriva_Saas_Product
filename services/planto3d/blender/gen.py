@@ -186,6 +186,81 @@ def parking_parts(zn):
 POOL_MIN_FT = 3.0  # a pool rectangle narrower than this is paved round the water, not filled (PATCHES 53)
 
 
+SERVICE_LIFT = ("SERVICE", "GOODS", "FREIGHT", "CARGO", "DUMB")     # label words of a service lift (PATCHES 56)
+
+
+def lift_cabin(zn, rect, door_side):
+    """a lift car standing in the shaft: floor, ceiling with a light panel and three walls (open on the landing side).
+    A passenger lift: wood panels, a mirror on the back wall, a handrail and a button panel. A service lift (its
+    label says SERVICE, GOODS ...): brushed steel walls with bumper rails at trolley height, a chequer-plate floor."""
+    x0, x1, y0, y1 = rect
+    g = 0.2                                   # running clearance to the shaft
+    a0, a1, b0, b1 = x0 + g, x1 - g, y0 + g, y1 - g
+    service = any(w in (zn.get("label") or "").upper() for w in SERVICE_LIFT)
+    wall_m, floor_m = ("steel_brushed", "cast_iron") if service else ("teak", "marble")
+    t, top = 0.12, 7.6
+    out = [(a0, a1, b0, b1, 0.0, 0.15, floor_m), (a0, a1, b0, b1, top, top + 0.15, "steel"),
+           ((a0 + a1) / 2 - 0.9, (a0 + a1) / 2 + 0.9, (b0 + b1) / 2 - 0.9, (b0 + b1) / 2 + 0.9, top - 0.03, top,
+            "light")]
+    walls = {"S": (a0, a1, b0, b0 + t), "N": (a0, a1, b1 - t, b1), "W": (a0, a0 + t, b0, b1), "E": (a1 - t, a1, b0, b1)}
+    back = {"S": "N", "N": "S", "W": "E", "E": "W"}[door_side]
+    for sd, (p0, p1, q0, q1) in walls.items():
+        if sd == door_side:
+            continue
+        out.append((p0, p1, q0, q1, 0.15, top, wall_m))
+        inward = {"S": 1, "N": -1, "W": 1, "E": -1}[sd]
+        if sd in "SN":
+            f0, f1 = sorted(((q1 if inward > 0 else q0), (q1 if inward > 0 else q0) + inward * 0.12))
+            span = (p0 + 0.3, p1 - 0.3)
+        else:
+            f0, f1 = sorted(((p1 if inward > 0 else p0), (p1 if inward > 0 else p0) + inward * 0.12))
+            span = (q0 + 0.3, q1 - 0.3)
+
+        def rail(z0, z1, m, f0=f0, f1=f1, span=span, sd=sd):
+            return (span[0], span[1], f0, f1, z0, z1, m) if sd in "SN" else (f0, f1, span[0], span[1], z0, z1, m)
+
+        if service:
+            out += [rail(1.0, 1.4, "black"), rail(2.6, 3.0, "black")]
+        else:
+            out.append(rail(2.95, 3.05, "chrome"))
+            if sd == back:
+                c0, c1 = span
+                m0, m1 = (c0 + c1) / 2 - 1.0, (c0 + c1) / 2 + 1.0
+                out.append((m0, m1, f0, f1, 3.4, 6.8, "mirror") if sd in "SN" else (f0, f1, m0, m1, 3.4, 6.8, "mirror"))
+    # the button panel beside the door, on the wall to its right
+    side_wall = {"S": "E", "N": "W", "W": "S", "E": "N"}[door_side]
+    p0, p1, q0, q1 = walls[side_wall]
+    if side_wall in "SN":
+        y_ = q1 + 0.02 if side_wall == "S" else q0 - 0.06
+        x_ = a1 - 0.8 if door_side == "E" else a0 + 0.5
+        out.append((x_, x_ + 0.35, *sorted((y_, y_ + 0.04)), 3.6, 5.0, "black_glass"))
+    else:
+        x_ = p1 + 0.02 if side_wall == "W" else p0 - 0.06
+        y_ = b1 - 0.8 if door_side == "N" else b0 + 0.5
+        out.append((*sorted((x_, x_ + 0.04)), y_, y_ + 0.35, 3.6, 5.0, "black_glass"))
+    return out
+
+
+def pool_ladder(b, along_x, deep):
+    """a chrome ladder at the end away from the steps: two rails over the coping and three treads"""
+    out = []
+    if along_x:                                # steps at the low-x end; the ladder on the high-x wall
+        x = b[1] - 0.15
+        cy = (b[2] + b[3]) / 2
+        for y in (cy - 0.8, cy + 0.8):
+            out += [(x - 0.06, x + 0.06, y - 0.06, y + 0.06, -min(deep, 3.5), 2.6, "chrome"),
+                    (x - 0.6, x + 0.06, y - 0.06, y + 0.06, 2.5, 2.62, "chrome")]
+        out += [(x - 0.35, x, cy - 0.8, cy + 0.8, z - 0.05, z, "steel_brushed") for z in (-0.9, -1.9, -2.9) if z > -deep]
+    else:
+        y = b[3] - 0.15
+        cx = (b[0] + b[1]) / 2
+        for x in (cx - 0.8, cx + 0.8):
+            out += [(x - 0.06, x + 0.06, y - 0.06, y + 0.06, -min(deep, 3.5), 2.6, "chrome"),
+                    (x - 0.06, x + 0.06, y - 0.6, y + 0.06, 2.5, 2.62, "chrome")]
+        out += [(cx - 0.8, cx + 0.8, y - 0.35, y, z - 0.05, z, "steel_brushed") for z in (-0.9, -1.9, -2.9) if z > -deep]
+    return out
+
+
 def water_parts(zn, k):
     """a pool: a basin sunk 4.5 ft (raised 1.5 ft on an upper storey) lined with tile, coping round it, three steps
     at one short end and a water plane; a water body or fountain: a shallow basin; a dock: water with a walkable plank
@@ -238,6 +313,7 @@ def water_parts(zn, k):
                     q = (b[0] + t + i * 1.2, b[0] + t + (i + 1) * 1.2, b[2] + t, b[3] - t) if along_x else \
                         (b[0] + t, b[1] - t, b[2] + t + i * 1.2, b[2] + t + (i + 1) * 1.2)
                     out.append((*q, -deep, top, "pooltile"))
+                out += pool_ladder(b, along_x, deep)
             out.append((*b, -0.5, -0.45, "water"))
             if "FOUNTAIN" in (zn.get("label") or "").upper():      # a central jet
                 cx, cy = (b[0] + b[1]) / 2, (b[2] + b[3]) / 2
@@ -775,6 +851,7 @@ def custom(it, path=None, any_fn=False):
 CALLS = dict(kitchen_island=kitchen_island, bar_stool=bar_stool, wall_art=wall_art, bathtub=bathtub, round_rug=round_rug, model=model, bed=bed, nightstand=nightstand, wardrobe=wardrobe, desk=desk, wc2=wc2, vanity=vanity,
              shower2=lambda x, y, rot: shower2(x, y, rot), geyser=lambda x, y, rot: geyser(x, y, rot),
              kitchen_run=kitchen_run, chimney=chimney, wall_cab2=wall_cab2, fridge2=fridge2, washer2=washer2,
+             oven_stack=oven_stack,
              puja_mandir=puja_mandir, sofa=sofa, coffee_table=coffee_table, rug=rug, tv_unit=tv_unit,
              dining_set=dining_set, car=car, plant=plant, outdoor_set=outdoor_set)
 
@@ -1079,9 +1156,8 @@ for k, f in enumerate(floors):
                     (g0 - 0.01, g1 + 0.01, c + dw / 2 + 0.6, c + dw / 2 + 0.75, 3.45, 3.6, "light")]
         mesh_from_boxes(f"lift_door_{k}_{int(x0)}_{int(y0)}", door, coll="furniture")
         if k == 0:
-            cab = [(x0 + 0.2, x1 - 0.2, y0 + 0.2, y1 - 0.2, 0.0, 0.15, "steel"),
-                   (x0 + 0.2, x1 - 0.2, y0 + 0.2, y1 - 0.2, 7.6, 7.75, "steel")]
-            mesh_from_boxes(f"lift_cabin_{int(x0)}_{int(y0)}", cab, coll="furniture")
+            mesh_from_boxes(f"lift_cabin_{int(x0)}_{int(y0)}", lift_cabin(zn, (x0, x1, y0, y1), side),
+                            coll="furniture")
     # lamps (emissive panel + area light for the bake) in roofed rooms
     for zn in f["rooms"]:
         if zn["type"] not in INDOOR and zn["type"] not in ("balcony", "parking", "stair"):

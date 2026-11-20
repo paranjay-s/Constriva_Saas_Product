@@ -622,3 +622,20 @@ error box that can be closed. Stairs, ducts, lifts, open areas and water are not
 
 `server.py` READERS gains "scan" and the review page (`web/edit.js`) says how such a plan was read.
 The scan reader itself is in the gateway (`backend/app/modules/plan3d/scan_reader.py`).
+
+## 56. Room kits: kitchen appliances, lift cabins, pool ladder (PART 2, D)
+
+- Kitchen (references in `docs/reference/appliances/kitchen`): an integrated dishwasher beside the sink
+  (`kitchen_run(dishwasher=)`), a built-in oven under the hob (`oven=True`), and a tall oven and
+  microwave tower (`oven_stack`, also in `catalog.py`) on a free tall wall next to the fridge when one
+  is left. Measured on the saved jobs: the nandu kitchen gets the tower; kitchens whose tall walls
+  are taken by runs and wall cabinets get the oven under the hob. No furniture clash on any job.
+- Lifts: the car on the lowest storey is now a cabin open on the landing side: passenger lifts have
+  teak panels, a mirror on the back wall, a handrail and a lit ceiling panel; a lift whose label says
+  SERVICE, GOODS, FREIGHT, CARGO or DUMB(waiter) gets brushed steel walls with bumper rails at
+  trolley height and a cast-iron floor. Button panel beside the door in both.
+- Pools: a chrome ladder with three treads on the wall away from the steps.
+- Puja (mandir facing into the room) and prayer (niche and rugs turned to the qibla, PLAN3D_QIBLA_BEARING)
+  were already in place and are unchanged.
+- Not done: circular and curved rooms. Plan rooms are rectangles in every reader and in the plan
+  JSON; curved walls need an arc shape in the plan format first (owner decision on the schema).

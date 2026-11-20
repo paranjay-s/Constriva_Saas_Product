@@ -786,9 +786,9 @@ def _doors(r, length, depth, z0, z1, handle_at, front_y, n=None):
         p_box(r, "handle", 0.05, 0.08, 0.7, "chrome", (hx, front_y - 0.1, handle_at - 0.35), bevel=0.015)
 
 
-def kitchen_run(x0, x1, y0, y1, front, sink=None, hob=None, doors=True):
+def kitchen_run(x0, x1, y0, y1, front, sink=None, hob=None, doors=True, dishwasher=None, oven=False):
     """base cabinets + granite top in world feet; front = side the cook stands ('-y','+y','+x','-x').
-    sink / hob = position along the run (world x for runs along x, world y for runs along y)."""
+    sink / hob / dishwasher = position along the run (world x for runs along x, world y for runs along y)."""
     along_x = front in ("-y", "+y")
     L, Dp = (x1 - x0, y1 - y0) if along_x else (y1 - y0, x1 - x0)
     rot = {"-y": 0, "+x": 90, "+y": 180, "-x": 270}[front]
@@ -826,6 +826,20 @@ def kitchen_run(x0, x1, y0, y1, front, sink=None, hob=None, doors=True):
         p_cyl(r, "faucet_base", 0.08, 0.08, 0.1, "chrome", (sx, 0.75, 2.9))
         p_tube(r, "faucet", [(sx, 0.75, 2.95), (sx, 0.75, 3.9)] + arc((sx, 0.45, 3.9), 0.3, 0, 170, 10)[1:] +
                [(sx, 0.15, 3.6)], 0.05, "chrome")
+    if dishwasher is not None:      # integrated dishwasher: steel front proud of the doors, control strip on top
+        dx = local(dishwasher)
+        fy = -Dp / 2 - 0.02
+        p_box(r, "dw_front", 1.95, 0.06, 2.3, "steel_brushed", (dx, fy, 0.38), bevel=0.02)
+        p_box(r, "dw_strip", 1.95, 0.07, 0.22, "black_glass", (dx, fy, 2.5), bevel=0.01)
+        p_box(r, "dw_led", 0.3, 0.01, 0.05, "led", (dx - 0.6, fy - 0.04, 2.58), bevel=0)
+        p_tube(r, "dw_handle", [(dx - 0.7, fy - 0.12, 2.3), (dx + 0.7, fy - 0.12, 2.3)], 0.035, "chrome")
+    if hob is not None and oven:    # a built-in oven under the hob: black glass door, steel handle and knobs strip
+        hx = local(hob)
+        fy = -Dp / 2 - 0.02
+        p_box(r, "oven_front", 2.0, 0.07, 1.95, "black_glass", (hx, fy, 0.45), bevel=0.02)
+        p_box(r, "oven_glass", 1.5, 0.02, 1.0, "glass", (hx, fy - 0.05, 0.8), bevel=0.01)
+        p_box(r, "oven_strip", 2.0, 0.07, 0.3, "steel_brushed", (hx, fy, 2.4), bevel=0.01)
+        p_tube(r, "oven_bar", [(hx - 0.8, fy - 0.14, 2.2), (hx + 0.8, fy - 0.14, 2.2)], 0.04, "chrome")
     if hob is not None:
         hx = local(hob)
         p_box(r, "hob_glass", 2.4, 1.5, 0.08, "black_glass", (hx, 0.05, 2.9), bevel=0.02)
@@ -933,6 +947,26 @@ def fridge2(x, y, rot):
     p_tube(r, "freezer_handle", [(-0.7, -1.25, 1.85), (0.7, -1.25, 1.85)], 0.04, "chrome")
     p_box(r, "fridge_display", 0.45, 0.02, 0.6, "black_glass", (-0.55, -1.13, 4.2), bevel=0.01)
     p_box(r, "fridge_led", 0.25, 0.01, 0.06, "led", (-0.55, -1.145, 4.55), bevel=0)
+    return done(r)
+
+
+def oven_stack(x, y, rot):
+    """tall built-in housing (laminate) with a microwave over an oven and a warming drawer below, in black glass and
+    steel: the oven tower of the reference kitchens (docs/reference/appliances/kitchen)"""
+    r = item("oven_stack", x, y, rot)
+    p_box(r, "tower_body", 2.0, 2.0, 7.2, "laminate_w", (0, 0.0, 0), bevel=0.01)
+    fy = -1.02
+    p_box(r, "warmer", 1.9, 0.06, 0.55, "black_glass", (0, fy, 1.0), bevel=0.02)
+    p_box(r, "oven_door", 1.9, 0.08, 1.95, "black_glass", (0, fy, 1.7), bevel=0.02)
+    p_box(r, "oven_window", 1.4, 0.02, 1.0, "glass", (0, fy - 0.05, 2.1), bevel=0.01)
+    p_box(r, "oven_panel", 1.9, 0.08, 0.3, "steel_brushed", (0, fy, 3.65), bevel=0.01)
+    p_box(r, "oven_display", 0.5, 0.01, 0.12, "led", (0, fy - 0.05, 3.74), bevel=0)
+    p_tube(r, "oven_handle", [(-0.75, fy - 0.15, 3.45), (0.75, fy - 0.15, 3.45)], 0.04, "chrome")
+    p_box(r, "micro_door", 1.9, 0.08, 1.15, "black_glass", (0, fy, 4.2), bevel=0.02)
+    p_box(r, "micro_window", 1.25, 0.02, 0.7, "glass", (-0.2, fy - 0.05, 4.42), bevel=0.01)
+    p_box(r, "micro_panel", 0.35, 0.02, 0.8, "steel_brushed", (0.72, fy - 0.05, 4.37), bevel=0.01)
+    p_tube(r, "micro_handle", [(0.45, fy - 0.15, 4.35), (0.45, fy - 0.15, 5.15)], 0.035, "chrome")
+    _doors(r, 2.0, 2.0, 5.55, 7.15, 5.8, -1.0, n=2)
     return done(r)
 
 

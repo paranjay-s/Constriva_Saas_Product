@@ -5,6 +5,7 @@ CATALOG = {
     "bed": ("Bed", 5.0, 6.6, {}), "nightstand": ("Nightstand", 1.6, 1.5, {}), "wardrobe": ("Wardrobe", 6.0, 2.0, {}),
     "desk": ("Desk", 4.0, 2.0, {}), "sofa": ("Sofa", 7.0, 3.0, {}), "coffee_table": ("Coffee table", 3.6, 2.0, {}),
     "tv_unit": ("TV unit", 5.0, 1.4, {}), "dining_set": ("Dining set", 6.0, 6.4, {}), "fridge2": ("Fridge", 3.0, 2.4, {}),
+    "oven_stack": ("Oven tower", 2.0, 2.0, {}),
     "washer2": ("Washing machine", 2.0, 2.0, {}), "wc2": ("WC", 1.5, 2.3, {}), "vanity": ("Basin", 2.6, 1.7, {}),
     "puja_mandir": ("Mandir", 3.6, 1.5, {}), "plant": ("Plant", 1.5, 1.5, {}),
 }
