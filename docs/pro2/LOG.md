@@ -35,3 +35,4 @@ counted at the end of the lines that used them.
 | C2 | 2 scans: scan reader walls + AI names/types | done | 81ac7ca | room types 11-52% -> 32-61%; AI alone 85-92% |
 | C2 | 3 model comparison opus-5-5 vs fable-5-2 | done | 81ac7ca | fable walls 95%/89%, doors 90%, windows 93% vs opus 69/63/65/67; $0.84 vs $0.22 per plan; 33 live calls |
 | C2 | 1 wrong doors and walls on the fresh plan | partial | - | causes listed in SPACE.md/ACCURACY.md (72 dpi hollow walls; AI walls rough); hollow-wall fix reverted after 2 attempts |
+| Finish | suites and build | done | 6eac57f | backend 1365 passed / 1 flaky under load / 4 skipped; frontend 300 passed, tsc and build ok; PlanTo3D unit tests pass |
