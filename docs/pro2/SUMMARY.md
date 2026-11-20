@@ -64,9 +64,12 @@ design purposes only, not for construction" label, plus a colour legend. The pla
 Engineering (default) / Presentation toggle; PDF, PNG and SVG downloads follow it (file names end in
 `-presentation`; the PDF carries the signed building model); DXF, DWG and IFC stay engineering.
 
-The engineering drawing is unchanged: PDF, SVG, PNG and DXF of the five sample plans are byte for byte the
-feat/pro files once the run stamps are blanked (PDF dates and file ID, DXF GUIDs and creation stamps) - 20
-files, tested on every run (`test_fp_engineering_snapshot.py`; 200 repeated PDF exports all matched).
+The engineering drawing is unchanged: PDF, SVG and PNG of the five sample plans are byte for byte the feat/pro
+files once the PDF's dates and file ID are blanked, and each DXF draws exactly the same entities, layers and
+styles as feat/pro's (`test_fp_engineering_snapshot.py`, 20 files, every run; 200 repeated PDF exports all
+matched). DXF is compared entity by entity rather than byte by byte because ezdxf numbers its objects in an
+order that depends on which of its modules a process loaded first: the same feat/pro code writes different
+handles in different test orders. The golden values were computed with feat/pro's own code.
 
 Samples side by side: [2d/presentation/](2d/presentation/) (`*_side_by_side.png`, plus each PDF and PNG).
 
