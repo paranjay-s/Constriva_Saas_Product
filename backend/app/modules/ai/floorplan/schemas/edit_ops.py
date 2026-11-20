@@ -9,6 +9,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.ai.floorplan.schemas.common import PoolLayout, RoomType, Side
+from app.modules.ai.floorplan.schemas.rules import Rule
 from app.modules.ai.floorplan.units import DisplayUnit
 
 Anchor = Literal[
@@ -172,7 +173,37 @@ class SetUnits(_Op):
     unit: DisplayUnit
 
 
+class AddRules(_Op):
+    """Spatial requests as layout rules (schemas/rules.py). The whole plan is re-solved
+    with every rule the plan already has plus these."""
+
+    op: Literal["add_rules"]
+    rules: list[Rule] = Field(min_length=1)
+
+
+class Resolve(_Op):
+    """Lay the whole plan out again ("break the plan", "start over", "re-plan it")."""
+
+    op: Literal["resolve"]
+    reason: str = ""
+
+
+class ChooseOption(_Op):
+    """Take one of the layouts offered when rules conflicted ("use option 2")."""
+
+    op: Literal["choose_option"]
+    n: int = Field(ge=1, le=2)
+
+
+class RemoveRule(_Op):
+    """Drop a rule the plan has ("the pool does not need to touch the bar")."""
+
+    op: Literal["remove_rule"]
+    index: int = Field(ge=1, description="1-based position in the plan's rule list")
+
+
 WHOLE_PLAN_OPS = (SetFacing, RotatePlan, MirrorPlan)
+RESOLVE_OPS = (AddRules, Resolve, RemoveRule)
 
 
 EditOp = Annotated[
@@ -196,7 +227,11 @@ EditOp = Annotated[
     | SetDoorWidth
     | RemoveWindow
     | SetWindowWidth
-    | SetUnits,
+    | SetUnits
+    | AddRules
+    | Resolve
+    | ChooseOption
+    | RemoveRule,
     Field(discriminator="op"),
 ]
 

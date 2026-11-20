@@ -10,6 +10,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.ai.floorplan.schemas.common import Block, PoolLayout, RoomType, Side
+from app.modules.ai.floorplan.schemas.rules import Rule
 from app.modules.ai.floorplan.units import InputUnit
 
 Purpose = Literal["residential", "rental", "commercial", "other"]
@@ -114,6 +115,11 @@ class TextBrief(_Model):
         description="Only setbacks the person states, in metres: 'no setbacks' -> all 0; "
         "'3 m front, 1 m sides' -> front 3, side 1; else null",
     )
+    rules: list[Rule] = Field(
+        default_factory=list,
+        description="Spatial requests as layout rules; name rooms by type or the person's "
+        "label (e.g. 'kitchen', 'BAR')",
+    )
     purpose: Purpose | None = None
     bedrooms: int | None = Field(default=None, ge=0, le=12)
     bathrooms: int | None = Field(default=None, ge=0, le=12)
@@ -147,6 +153,7 @@ class Brief(_Model):
     covered_walkway: bool = False
     built_up_share: float | None = Field(default=None, gt=0.2, lt=1.0)
     setbacks: SetbackRequest | None = None
+    rules: list[Rule] = Field(default_factory=list)
     notes: str = ""
     unknowns: list[str] = Field(default_factory=list)
     conflicts: list[Conflict] = Field(default_factory=list)

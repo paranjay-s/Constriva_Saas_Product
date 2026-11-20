@@ -170,6 +170,26 @@ def test_edit_renames_room_and_bumps_version(api) -> None:
     assert client.get(f"{BASE}/{plan_id}").json()["version"] == 2
 
 
+def test_edit_job_reports_progress_and_saves_the_reply(api) -> None:
+    client, state = api
+    plan_id = _generate(client)
+    plan = client.get(f"{BASE}/{plan_id}").json()
+    bed = next(r for r in plan["plan"]["rooms"] if r["type"] in ("bedroom", "master_bedroom"))
+    state["llm"] = FakeLLM(
+        {"edit_ops": {"ops": [{"op": "rename_room", "id": bed["id"], "label": "GUEST ROOM"}]}}
+    )
+    r = client.post(f"{BASE}/{plan_id}/edit-job", json={"message": "call it guest", "version": 1})
+    assert r.status_code == 202
+    st = _wait(client, r.json()["job_id"])
+    assert st["status"] == "done" and st["plan_id"] == plan_id
+    assert any(e["detail"] == "Reading your request" for e in st["events"])
+    fresh = client.get(f"{BASE}/{plan_id}").json()
+    assert fresh["version"] == 2 and fresh["messages"][-1]["status"] == "ok"
+    assert "Total area" in fresh["messages"][-1]["text"] and fresh["areas"]
+    other = client.post(f"{BASE}/{plan_id}/edit-job", json={"message": "x", "version": 1})
+    assert other.status_code == 409
+
+
 def test_edit_with_outdated_version_is_refused(api) -> None:
     client, state = api
     plan_id = _generate(client)

@@ -39,7 +39,7 @@ from app.modules.ai.floorplan.schemas.api import (
     RevertRequest,
 )
 from app.modules.ai.floorplan.store import PlanStore, StoredPlan, _use_memory, get_store
-from app.modules.ai.llm.client import LLMClient, LLMError, get_llm
+from app.modules.ai.llm.client import LLMClient, LLMError
 
 logger = logging.getLogger("construtiva.ai.floorplan.api")
 router = APIRouter(tags=["floorplans"])
@@ -48,7 +48,9 @@ router = APIRouter(tags=["floorplans"])
 def get_floorplan_llm() -> LLMClient | None:
     """The configured LLM, or None (the form alone is used; chat edits are refused)."""
     try:
-        return get_llm()
+        from app.modules.ai.llm.neutral import get_generator_llm
+
+        return get_generator_llm()
     except LLMError as e:
         logger.warning("floor plan LLM unavailable: %s", e)
         return None
@@ -210,6 +212,30 @@ async def edit_endpoint(
             f"The plan changed (now version {sp.version}). Reload it and try again.",
         )
     return await run_in_threadpool(service.edit, sp, payload, llm, store)
+
+
+@router.post(
+    "/{plan_id}/edit-job", response_model=JobCreated, status_code=status.HTTP_202_ACCEPTED
+)
+async def edit_job_endpoint(
+    plan_id: str,
+    payload: EditRequest,
+    user: User,
+    llm: Llm,
+    store: Store,
+    jobs: Jobs,
+) -> JobCreated:
+    """The chat edit as a job: follow /jobs/{job_id}/events for progress (a full re-solve
+    takes up to FLOORPLAN_FULL_RESOLVE_S), then read the plan; the reply is its newest
+    assistant message."""
+    sp = await run_in_threadpool(_own_plan, store, plan_id, user)
+    if payload.version is not None and payload.version != sp.version:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"The plan changed (now version {sp.version}). Reload it and try again.",
+        )
+    job = jobs.submit(user.id, lambda j: service.run_edit(j, sp, payload, llm, store))
+    return JobCreated(job_id=job.id)
 
 
 @router.post("/{plan_id}/revert", response_model=EditResponse)

@@ -212,7 +212,20 @@ export function FloorplanPage() {
     setThinking('Changing the plan');
     setSignals((s) => ({ ...s, working: true }));
     try {
-      const res = await floorplanApi.edit(plan.id, text, plan.version);
+      const jobId = await floorplanApi.editJob(plan.id, text, plan.version);
+      // follow the job: a full re-solve reports its steps (up to ~30 s)
+      for (;;) {
+        const st = await floorplanApi.job(jobId);
+        if (st.detail) setThinking(st.detail);
+        if (st.status === 'done' || st.status === 'failed') {
+          if (st.status === 'failed') throw new Error(st.error || 'The change could not be made.');
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 700));
+      }
+      const fresh = await floorplanApi.plan(plan.id);
+      const reply = [...fresh.messages].reverse().find((m) => m.role === 'assistant');
+      const res = { plan: fresh, status: reply?.status ?? 'ok' };
       setPlan(res.plan);
       setSignals((s) => ({
         ...s,

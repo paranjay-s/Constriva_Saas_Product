@@ -93,6 +93,7 @@ def run_generation(
         brief=brief,
         notes=list(dict.fromkeys(notes)),
     )
+    sp.model = getattr(llm, "model", "") or ""
     store.create(sp)
     return plan_id, None, []
 
@@ -160,6 +161,7 @@ def _snapshot(sp: StoredPlan, change: str) -> None:
             "program": sp.program.model_dump(mode="json") if sp.program else None,
             "change": change[:200],
             "at": datetime.now(UTC).isoformat(),
+            "model": sp.model,
         }
     )
     sp.history = sp.history[-MAX_HISTORY:]
@@ -207,9 +209,44 @@ def revert(sp: StoredPlan, version: int | None, store: PlanStore) -> tuple[bool,
     return True, f"Back to version {old} (saved as version {sp.version})."
 
 
-def edit(sp: StoredPlan, req: EditRequest, llm: LLMClient | None, store: PlanStore) -> EditResponse:
-    res = edit_plan(sp.plan, sp.program, req.message, llm, allow_reflow=req.allow_reflow)
+def _choose_option(sp: StoredPlan, n: int) -> EditResult:
+    if not 1 <= n <= len(sp.options):
+        msg = (
+            "There is no layout option to choose right now."
+            if not sp.options
+            else f"Choose option 1 to {len(sp.options)}."
+        )
+        return EditResult("no_change", sp.plan, sp.program or RoomProgram(rooms=[]), message=msg)
+    opt = sp.options[n - 1]
+    plan = FloorPlan.model_validate(opt["floorplan"])
+    program = RoomProgram.model_validate(opt["program"])
+    res = EditResult("ok", plan, program, summary=[f"Used option {n}, {opt['label']}."])
+    res.resolved = True
+    return res
+
+
+def edit(
+    sp: StoredPlan,
+    req: EditRequest,
+    llm: LLMClient | None,
+    store: PlanStore,
+    progress=None,
+) -> EditResponse:
+    res = edit_plan(
+        sp.plan, sp.program, req.message, llm, allow_reflow=req.allow_reflow, progress=progress
+    )
     sp.messages.append(ChatMessage(role="user", text=req.message).model_dump())
+    if res.choose is not None:
+        res = _choose_option(sp, res.choose)
+    if res.options:
+        sp.options = [
+            {
+                "label": o.label,
+                "floorplan": o.plan.model_dump(mode="json", by_alias=True),
+                "program": o.program.model_dump(mode="json"),
+            }
+            for o in res.options[:2]
+        ]
     if res.undo is not None:
         done, msg = revert(sp, res.undo.version, store)
         res = EditResult("ok" if done else "no_change", sp.plan, sp.program, message=msg)
@@ -220,6 +257,8 @@ def edit(sp: StoredPlan, req: EditRequest, llm: LLMClient | None, store: PlanSto
     elif res.ok:
         _snapshot(sp, req.message)
         sp.plan, sp.program = res.plan, res.program
+        sp.model = getattr(llm, "model", "") or ""
+        sp.options = []  # offered layouts belong to the version they were offered for
         sp.version += 1
         _sync_brief(sp)
         reply = "Done. " + " ".join(res.summary) if res.summary else "Done."
@@ -267,6 +306,16 @@ def building_for(sp: StoredPlan):
     return build_building(
         sp.plan, version=sp.version, revisions=revisions[-6:], model=getattr(sp, "model", "")
     )
+
+
+def run_edit(
+    job: Job, sp: StoredPlan, req: EditRequest, llm: LLMClient | None, store: PlanStore
+) -> tuple[str | None, str | None, list[str]]:
+    """Job body of a chat edit: progress goes to the chat (a full re-solve takes up to
+    FLOORPLAN_FULL_RESOLVE_S); the reply is the newest assistant message of the plan."""
+    job.emit("layout", "Reading your request")
+    edit(sp, req, llm, store, progress=lambda stage, detail: job.emit(stage, detail))
+    return sp.id, None, []
 
 
 def plan_for_3d(plan_id: str, owner_id: str, store: PlanStore | None = None) -> dict | None:

@@ -72,3 +72,9 @@ Areas
   plot") as a fraction (0.6, 0.7); else null.
 - setbacks: only distances the person states, in metres ("no setbacks" -> front 0,
   side 0, rear 0; "1.5 m setback all round" -> all 1.5); else null.
+- rules: spatial requests as layout rules (kinds touches, door_between, place, zone, size,
+  daylight; see their fields in the schema). Name rooms by type ("kitchen", "pool",
+  "living") or by the person's label ("BAR", "GAMING ROOM"). "Pool and garden at the front,
+  the pool next to the kitchen, living and bar with a door from each" -> place pool front,
+  place garden front, touches {room: "pool", others: ["kitchen", "living", "BAR"],
+  door: true}. Spatial requests are never "unsupported".

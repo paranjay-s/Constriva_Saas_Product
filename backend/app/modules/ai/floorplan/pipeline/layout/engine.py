@@ -62,10 +62,22 @@ def with_spare_garden(program: RoomProgram, plot: Plot) -> RoomProgram:
     return program.model_copy(update={"rooms": [*program.rooms, garden]})
 
 
-def assemble(rooms: list[Room], topo: Topology, plot: Plot, meta: Meta, plan_id: str) -> FloorPlan:
-    """Rooms + topology -> plan with doors, windows and fixtures placed by code."""
+def assemble(
+    rooms: list[Room],
+    topo: Topology,
+    plot: Plot,
+    meta: Meta,
+    plan_id: str,
+    program: RoomProgram | None = None,
+) -> FloorPlan:
+    """Rooms + topology -> plan with doors, windows and fixtures placed by code; the
+    program's rules add the doors they ask for (rules_check.add_rule_doors)."""
     plan = FloorPlan(id=plan_id, meta=meta, plot=plot, rooms=rooms)
     plan = plan.model_copy(update={"doors": place_doors(plan, topo, plot.road_side)})
+    if program is not None and program.rules:
+        from app.modules.ai.floorplan.pipeline.rules_check import add_rule_doors
+
+        plan = add_rule_doors(plan, program)
     plan = plan.model_copy(update={"windows": place_windows(plan)})
     plan = plan.model_copy(update={"fixtures": place_fixtures(plan)})
     return FloorPlan.model_validate(plan.model_dump(by_alias=True))
@@ -107,7 +119,7 @@ def generate_layout(
             attempts.append("compact_rows: not applicable")
         else:
             topo = Topology(root=tpl.root, parent=tpl.parent)
-            res = consider(assemble(tpl.rooms, topo, plot, meta, plan_id), tpl.name)
+            res = consider(assemble(tpl.rooms, topo, plot, meta, plan_id, program), tpl.name)
             if res:
                 return res
 
@@ -137,7 +149,7 @@ def generate_layout(
             continue
         if not exact:
             rooms = fill_holes_with_shafts(fill_gaps(rooms, plot, targets), plot)
-        res = consider(assemble(rooms, topo, plot, meta, plan_id), name)
+        res = consider(assemble(rooms, topo, plot, meta, plan_id, program), name)
         if res:
             return res
 

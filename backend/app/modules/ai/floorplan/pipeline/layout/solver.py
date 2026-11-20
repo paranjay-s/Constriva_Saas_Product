@@ -39,6 +39,7 @@ from app.modules.ai.floorplan.rules import (
 from app.modules.ai.floorplan.schemas.common import DEFAULT_LABEL, is_open
 from app.modules.ai.floorplan.schemas.plan import Plot, Room
 from app.modules.ai.floorplan.schemas.program import RoomProgram
+from app.modules.ai.floorplan.schemas.rules import Daylight, DoorBetween, Place, SizeRule, Touches
 
 AREA_BAND = 0.18
 FLEX_TYPES = AREA_FLEXIBLE_TYPES
@@ -205,6 +206,10 @@ def solve_layout(
     (neighbours that make or take space).
     """
     fixed = fixed or {}
+    size_rules: dict[str, list[SizeRule]] = {}
+    for rl in program.rules:
+        if isinstance(rl, SizeRule):
+            size_rules.setdefault(rl.room, []).append(rl)
     grid = Grid.for_plot(plot.width, plot.depth)
     cell = grid.gx * grid.gy
     road = plot.road_side or "south"
@@ -240,6 +245,13 @@ def solve_layout(
         if area_bounds and r.id in area_bounds:
             lo = max(rule.area_m2, area_bounds[r.id][0]) * 10_000
             hi = area_bounds[r.id][1] * 10_000
+        for sr in size_rules.get(r.id, []):
+            if sr.min_area_m2:
+                lo = max(rule.area_m2 * 10_000, sr.min_area_m2 * 10_000)
+                hi = max(hi, lo)
+            if sr.max_area_m2:
+                hi = sr.max_area_m2 * 10_000
+                lo = min(lo, hi)
         m.Add(b.area >= math.ceil(lo / cell))
         m.Add(b.area <= max(math.ceil(lo / cell), math.floor(hi / cell)))
         k = _aspect(r.type)
@@ -304,6 +316,9 @@ def solve_layout(
                 m.Add(var >= max(1, math.floor(rng[0] / g))).OnlyEnforceIf(flag)
                 m.Add(var <= math.ceil(rng[1] / g)).OnlyEnforceIf(flag)
 
+    objective = []
+    _apply_rules(m, program, boxes, grid, road, bounds, fixed, size_rules, objective)
+
     if is_special(program.pool_layout):
         _pool_layout_rules(m, program, boxes, grid, road)
     else:
@@ -317,7 +332,6 @@ def solve_layout(
                     ]
                 )
 
-    objective = []
     total_area = sum(b.area for b in boxes.values())
     if exact_tiling:
         m.Add(total_area == grid.nx * grid.ny)
@@ -400,6 +414,94 @@ def solve_layout(
             )
         )
     return out
+
+
+W_PLACE = 40  # per grid unit a placed room sits away from its edge
+
+
+def _apply_rules(
+    m: cp_model.CpModel,
+    program: RoomProgram,
+    boxes: dict[str, "_Box"],
+    grid: Grid,
+    road: str,
+    bounds: tuple[int, int, int, int],
+    fixed: dict[str, Room],
+    size_rules: dict[str, list[SizeRule]],
+    objective: list,
+) -> None:
+    """The program's layout rules as hard constraints (schemas/rules.py)."""
+    types = {r.id: r.type for r in program.rooms}
+    one_m = (math.ceil(100 / grid.gx), math.ceil(100 / grid.gy))
+    compass = dict(zip(("front", "rear", "left", "right"), _FRAME_SIDES[road], strict=True))
+
+    def joined(a: str, b: str, door: bool, tag: str) -> None:
+        if a not in boxes or b not in boxes or (a in fixed and b in fixed):
+            return
+        if door:
+            inner = a if not is_open(types[a]) else b
+            need = max(door_span_needed(types[inner]), 100)
+            lx, ly = math.ceil(need / grid.gx), math.ceil(need / grid.gy)
+        else:
+            lx, ly = one_m
+        m.AddBoolOr(_share_wall(m, boxes[a], boxes[b], lx, ly, tag))
+
+    for i, rl in enumerate(program.rules):
+        if isinstance(rl, Touches):
+            for o in rl.others:
+                joined(rl.room, o, rl.door, f"rule{i}_{rl.room}_{o}")
+        elif isinstance(rl, DoorBetween):
+            joined(rl.a, rl.b, True, f"rule{i}_{rl.a}_{rl.b}")
+        elif isinstance(rl, Place) and rl.room in boxes and rl.room not in fixed:
+            b = boxes[rl.room]
+            sx, sy = b.x + b.xe, b.y + b.ye  # twice the centre
+            if rl.side == "centre":
+                m.Add(3 * sx >= 2 * grid.nx)
+                m.Add(3 * sx <= 4 * grid.nx)
+                m.Add(3 * sy >= 2 * grid.ny)
+                m.Add(3 * sy <= 4 * grid.ny)
+                continue
+            side = compass[rl.side]
+            if side == "south":
+                m.Add(sy >= grid.ny + 1)  # centre strictly in that half
+                objective.append(-W_PLACE * (grid.ny - b.ye))
+            elif side == "north":
+                m.Add(sy <= grid.ny - 1)
+                objective.append(-W_PLACE * b.y)
+            elif side == "east":
+                m.Add(sx >= grid.nx + 1)
+                objective.append(-W_PLACE * (grid.nx - b.xe))
+            else:
+                m.Add(sx <= grid.nx - 1)
+                objective.append(-W_PLACE * b.x)
+        elif isinstance(rl, Daylight) and rl.room in boxes and rl.room not in fixed:
+            b = boxes[rl.room]
+            edge_bounds = None if is_open(types[rl.room]) else bounds
+            lits = [
+                _touch_edge(m, b, s, grid, 120, f"rule{i}_day", edge_bounds)
+                for s in ("west", "east", "north", "south")
+            ]
+            for o in program.rooms:
+                if is_open(o.type) and o.id != rl.room:
+                    lits += _share_wall(m, b, boxes[o.id], *one_m, f"rule{i}_day_{o.id}")
+            m.AddBoolOr(lits)
+    for rid, rules in size_rules.items():
+        if rid not in boxes or rid in fixed:
+            continue
+        b = boxes[rid]
+        for sr in rules:
+            if sr.min_width_cm:
+                m.Add(b.w >= math.ceil(sr.min_width_cm / grid.gx))
+                m.Add(b.h >= math.ceil(sr.min_width_cm / grid.gy))
+            if sr.max_width_cm:
+                narrow = m.NewBoolVar(f"maxw_{rid}")
+                m.Add(b.w <= math.floor(sr.max_width_cm / grid.gx)).OnlyEnforceIf(narrow)
+                m.Add(b.h <= math.floor(sr.max_width_cm / grid.gy)).OnlyEnforceIf(narrow.Not())
+            if sr.max_aspect:
+                k = round(sr.max_aspect * 100)
+                gx, gy = round(grid.gx * 10), round(grid.gy * 10)
+                m.Add(100 * b.w * gx <= k * b.h * gy)
+                m.Add(100 * b.h * gy <= k * b.w * gx)
 
 
 # _share_wall(a, b) returns one boolean per side of a where b sits: E, W, S, N

@@ -212,6 +212,7 @@ def parse_brief(form: BriefForm, llm: LLMClient | None = None) -> ParseResult:
         covered_walkway=tb.covered_walkway,
         built_up_share=tb.built_up_share or form.built_up_share,
         setbacks=tb.setbacks,
+        rules=tb.rules,
         notes=tb.notes,
         unknowns=unknowns,
         conflicts=conflicts,

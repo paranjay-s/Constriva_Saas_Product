@@ -74,6 +74,15 @@ export const floorplanApi = {
     ),
 
   /** The user's floor plans (newest first), optionally of one project. */
+  /** The chat edit as a job (a full re-solve can take FLOORPLAN_FULL_RESOLVE_S). */
+  editJob: async (planId: string, message: string, version: number): Promise<string> => {
+    const res = await apiRequest<{ job_id: string }>(`${FLOORPLAN_BASE}/${encodeURIComponent(planId)}/edit-job`, {
+      method: 'POST',
+      body: JSON.stringify({ message, version }),
+    });
+    return res.job_id;
+  },
+
   list: async (projectId?: string): Promise<FloorplanSummary[]> => {
     const q = projectId ? `?project_id=${encodeURIComponent(projectId)}` : '';
     return floorplanSummarySchema.array().parse(await apiRequest(`${FLOORPLAN_BASE}${q}`));

@@ -32,6 +32,7 @@ from app.modules.ai.floorplan.geometry import (
     wall_line,
     window_span,
 )
+from app.modules.ai.floorplan.pipeline.edit_resolve import resolve_edit
 from app.modules.ai.floorplan.pipeline.layout.engine import assemble, generate_layout
 from app.modules.ai.floorplan.pipeline.layout.openings import (
     CLEAR,
@@ -72,9 +73,11 @@ from app.modules.ai.floorplan.rules import (
 )
 from app.modules.ai.floorplan.schemas.common import DEFAULT_LABEL, ZONE_BY_TYPE
 from app.modules.ai.floorplan.schemas.edit_ops import (
+    RESOLVE_OPS,
     WHOLE_PLAN_OPS,
     AddRoom,
     AddWindow,
+    ChooseOption,
     EditOp,
     MoveDoor,
     MoveRoom,
@@ -88,6 +91,7 @@ from app.modules.ai.floorplan.schemas.edit_ops import (
 )
 from app.modules.ai.floorplan.schemas.plan import Door, FloorPlan, Plot, Room, Window
 from app.modules.ai.floorplan.schemas.program import Adjacency, ProgramRoom, RoomProgram
+from app.modules.ai.floorplan.schemas.rules import describe_rule
 from app.modules.ai.floorplan.units import fmt_length, fmt_size
 from app.modules.ai.llm.client import LLMClient, LLMError
 
@@ -160,6 +164,9 @@ class EditResult:
     ops: list[EditOp] = field(default_factory=list)
     moved: list[str] = field(default_factory=list)  # ids of rooms whose geometry changed
     undo: Undo | None = None  # the person asked to go back; the service restores history
+    options: list = field(default_factory=list)  # resolve.Option: layouts offered on conflict
+    resolved: bool = False  # the whole plan was laid out again
+    choose: int | None = None  # the person picked an offered option (service applies it)
 
     @property
     def ok(self) -> bool:
@@ -172,6 +179,10 @@ class EditError(Exception):
     def __init__(self, message: str, alternatives: list[str] | None = None) -> None:
         super().__init__(message)
         self.alternatives = alternatives or []
+
+
+class NoFitError(EditError):
+    """A valid request that does not fit the current layout: the plan is re-solved."""
 
 
 # ======================================================================= the LLM side
@@ -216,8 +227,16 @@ def describe_plan(plan: FloorPlan) -> dict:
     }
 
 
-def interpret_edit(message: str, plan: FloorPlan, llm: LLMClient) -> EditInterpretation:
-    payload = {"plan": describe_plan(plan), "request": message.strip()}
+def interpret_edit(
+    message: str, plan: FloorPlan, llm: LLMClient, program: RoomProgram | None = None
+) -> EditInterpretation:
+    described = describe_plan(plan)
+    if program is not None and program.rules:
+        names = {r.id: r.label for r in plan.rooms}
+        described["rules"] = [
+            f"{i}. {describe_rule(r, names)}" for i, r in enumerate(program.rules, 1)
+        ]
+    payload = {"plan": described, "request": message.strip()}
     return llm.structured(
         system=load_prompt("edit_ops"),
         user=json.dumps(payload, ensure_ascii=False),
@@ -234,6 +253,7 @@ def edit_plan(
     *,
     allow_reflow: bool = True,
     time_limit_s: float = 5.0,
+    progress=None,
 ) -> EditResult:
     program = program or program_from_plan(plan)
     if llm is None:
@@ -241,7 +261,7 @@ def edit_plan(
             "failed", plan, program, message="Chat edits need the AI, which is not configured."
         )
     try:
-        interp = interpret_edit(message, plan, llm)
+        interp = interpret_edit(message, plan, llm, program)
     except LLMError as e:
         logger.warning("edit: LLM failed: %s", e)
         return EditResult(
@@ -251,13 +271,16 @@ def edit_plan(
             message="The request could not be understood just now. Please try again.",
         )
     warnings = (
-        ["Not supported in this tool: " + "; ".join(interp.unsupported)]
+        ["Not part of the floor plan, so not changed: " + "; ".join(interp.unsupported)]
         if interp.unsupported
         else []
     )
     undo = next((o for o in interp.ops if isinstance(o, Undo)), None)
     if undo is not None:
         return EditResult("no_change", plan, program, undo=undo, warnings=warnings)
+    choose = next((o for o in interp.ops if isinstance(o, ChooseOption)), None)
+    if choose is not None:
+        return EditResult("no_change", plan, program, choose=choose.n, warnings=warnings)
     if not interp.ops and interp.info and not interp.question:
         return EditResult("info", plan, program, message=report(plan, interp.info))
     if not interp.ops:
@@ -272,6 +295,7 @@ def edit_plan(
         interp.ops,
         allow_reflow=allow_reflow or interp.allow_reflow,
         time_limit_s=time_limit_s,
+        progress=progress,
     )
     res.warnings = warnings + res.warnings
     return res
@@ -288,11 +312,22 @@ def apply_edit(
     allow_reflow: bool = True,
     time_limit_s: float = 5.0,
     seed: int = 0,
+    progress=None,
 ) -> EditResult:
     program = program or program_from_plan(plan)
     if not ops:
         return EditResult("no_change", plan, program, message="No changes were requested.")
     ops = [_explicit_resize(op, plan) for op in ops]
+    if any(isinstance(o, RESOLVE_OPS) for o in ops):
+        return _with_simple_ops(
+            resolve_edit(
+                plan,
+                program,
+                [o for o in ops if isinstance(o, RESOLVE_OPS + LAYOUT_OPS)],
+                progress=progress,
+            ),
+            [o for o in ops if not isinstance(o, RESOLVE_OPS + LAYOUT_OPS)],
+        )
     try:
         if any(isinstance(o, SetPlot) for o in ops):
             if len(ops) > 1:
@@ -336,6 +371,18 @@ def apply_edit(
                 new_plan, new_program, note = _apply_simple(new_plan, new_program, op)
             notes.append(note)
     except EditError as e:
+        layout_ops = [o for o in ops if isinstance(o, LAYOUT_OPS)]
+        if layout_ops and isinstance(e, NoFitError):
+            # it does not fit the current layout: lay the whole plan out again with the
+            # request as rules (never "not possible" for a spatial request)
+            res = resolve_edit(
+                plan,
+                program,
+                layout_ops,
+                why=f"That did not fit the current layout ({e}), so I re-planned the house",
+                progress=progress,
+            )
+            return _with_simple_ops(res, [o for o in ops if not isinstance(o, LAYOUT_OPS)])
         return EditResult(
             "impossible", plan, program, message=str(e), alternatives=e.alternatives, ops=ops
         )
@@ -351,6 +398,25 @@ def apply_edit(
         )
     summary = summarize(plan, new_plan, notes)
     return EditResult("ok", new_plan, new_program, summary=summary, ops=ops, moved=moved)
+
+
+def _with_simple_ops(res: EditResult, ops: list[EditOp]) -> EditResult:
+    """Renames, doors, windows and the like, applied on top of a re-solved plan."""
+    if not res.ok or not ops:
+        return res
+    plan, program, notes = res.plan, res.program, []
+    for op in ops:
+        try:
+            if isinstance(op, TOOL_OPS):
+                plan, program, note = apply_tool(plan, program, op)
+            else:
+                plan, program, note = _apply_simple(plan, program, op)
+            notes.append(note)
+        except (ToolError, EditError) as e:
+            res.warnings.append(str(e))
+    res.plan, res.program = plan, program
+    res.summary += notes
+    return res
 
 
 def _whole_plan(plan: FloorPlan, program: RoomProgram, op: EditOp) -> EditResult:
@@ -497,7 +563,7 @@ def _relayout(
         return fallback, _program_after(new_program, fallback, moved), notes, moved
 
     reason = "; ".join(last.feedback()[:2]) if last else "the rooms could not be arranged that way"
-    raise EditError(
+    raise NoFitError(
         f"That change does not fit without breaking the plan ({reason}).",
         _layout_alternatives(ops, plan, allow_reflow),
     )
@@ -730,7 +796,7 @@ def _solve_step(
         return None
     rooms = fill_gaps(rooms, plan.plot, targets, keep=set(work.sizes))
     rooms = fill_holes_with_shafts(rooms, plan.plot)
-    cand = assemble(rooms, topo, plan.plot, plan.meta, plan.id)
+    cand = assemble(rooms, topo, plan.plot, plan.meta, plan.id, step_program)
     cand = _keep_locked_openings(plan, cand, set(fixed) - set(work.forced))
     actual = {r.id: r.area_m2 for r in cand.rooms}
     check_program = step_program.model_copy(

@@ -100,6 +100,11 @@ def validate(plan: FloorPlan, program: RoomProgram | None = None) -> ValidationR
     if program is not None:
         _check_program(plan, program, rep)
         _check_pool_layout(plan, program, rep)
+        if program.rules:
+            from app.modules.ai.floorplan.pipeline.rules_check import rule_problems
+
+            for message, ids in rule_problems(plan, program):
+                rep.add("RULE", message, *ids)
     _check_wet_cluster(plan, rep)
     _check_shafts(plan, rep)
     _check_coverage(plan, rep)

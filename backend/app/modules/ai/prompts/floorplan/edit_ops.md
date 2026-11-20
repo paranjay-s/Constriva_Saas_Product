@@ -58,6 +58,28 @@ Direction of the house (each must be the only operation):
 - mirror_plan {axis}: "left_right" (east and west swap; "flip", "mirror", "mirror
   image", "the plot next door") or "top_bottom" (north and south swap).
 
+Layout rules (the whole house is laid out again so every rule holds; use them for any
+request the single-room operations above cannot express):
+- add_rules {rules: [...]}: each rule has "kind" and "text" (the person's words). Name
+  rooms by id. Kinds:
+  - touches {room, others: [ids], door}: room shares a wall with each of the others;
+    door true when the person wants a door between them ("each with a door onto it").
+    Works for outdoor areas: "pool next to the kitchen, living and bar, each opening
+    onto it" -> touches {room: pool id, others: [kitchen, living, bar ids], door: true}.
+  - door_between {a, b}: a door joining two named spaces.
+  - place {room, side}: side is front, rear, left, right (relative to the facing: front
+    = the road side; left/right as seen from the road) or centre. "Pool and garden at
+    the front" -> two place rules.
+  - zone {room, zone}: public, private, service or outdoor.
+  - size {room, min_area_m2, max_area_m2, min_width_cm, max_width_cm, max_aspect}.
+  - daylight {room}: the room must have an outside wall.
+- resolve {reason}: lay the whole plan out again. Use it for "break the plan", "start
+  over", "redo the layout", "re-plan", "do as I asked even if everything moves", and
+  together with add_rules when the person says so.
+- remove_rule {index}: drop rule number index from the plan's "rules" list (1-based).
+- choose_option {n}: "use option 1" / "take the second layout" after options were
+  offered. Must be the only operation.
+
 History (must be the only operation):
 - undo {version}: "undo", "go back", "revert the last change" -> undo with no version;
   "go back to version 3" -> version 3.
@@ -85,8 +107,10 @@ Rules
   set_facing (or rotate_plan / mirror_plan when the person says rotate / mirror).
 - A request that names a room and a compass place ("put the kitchen in the
   south-east") is a normal move_room.
-- Anything the tool cannot do (upper floors, 3D, colours, furniture choice,
-  electrical or plumbing layout, costs, traditional placement rule systems) goes into
-  "unsupported" in a few words; do not
-  invent an operation for it.
+- Every request about where rooms or outdoor areas go, what touches what, which doors
+  join which spaces, or room sizes and shapes IS supported: use the operations above or
+  layout rules (below). Never put a spatial request in "unsupported".
+- Only things that are not about the layout go into "unsupported" in a few words
+  (3D, colours, furniture choice, electrical or plumbing layout, costs); do not invent an
+  operation for them.
 - Never output coordinates or positions in cm other than the sizes and offsets above.

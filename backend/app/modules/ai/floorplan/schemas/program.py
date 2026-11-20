@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.modules.ai.floorplan.schemas.common import Block, PoolLayout, RoomType, Side, Zone
+from app.modules.ai.floorplan.schemas.rules import Rule
 
 
 class _Model(BaseModel):
@@ -43,4 +44,7 @@ class RoomProgram(_Model):
     pool_axis: Literal["front_back", "side_by_side"] | None = Field(
         default=None,
         description="Two-block villa: blocks in front of/behind the pool, or left/right of it",
+    )
+    rules: list[Rule] = Field(
+        default_factory=list, description="Hard layout rules, room ids resolved (rules.py)"
     )

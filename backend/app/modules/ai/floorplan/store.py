@@ -50,6 +50,9 @@ class StoredPlan:
     version: int = 1
     saved: bool = False
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    model: str = ""  # the AI model that made the current version ("" = no AI involved)
+    # layouts offered when rules conflicted: {"label", "floorplan", "program"}
+    options: list[dict] = field(default_factory=list)
 
     def metadata(self) -> dict:
         return {
@@ -62,6 +65,8 @@ class StoredPlan:
             "notes": self.notes,
             "messages": self.messages[-MAX_MESSAGES:],
             "history": self.history[-MAX_HISTORY:],
+            "model": self.model,
+            "options": self.options[:2],
             "created_at": self.created_at,
             "updated_at": datetime.now(UTC).isoformat(),
         }
@@ -85,6 +90,8 @@ class StoredPlan:
             version=int(meta.get("version") or 1),
             saved=True,
             created_at=meta.get("created_at") or "",
+            model=str(meta.get("model") or ""),
+            options=list(meta.get("options") or []),
         )
 
 
