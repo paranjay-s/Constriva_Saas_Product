@@ -19,8 +19,9 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 
 def record(text: str) -> list[dict]:
-    from app.modules.ai.floorplan.pipeline.layout import engine
     from golden import plan_for
+
+    from app.modules.ai.floorplan.pipeline.layout import engine
 
     calls: list[dict] = []
     real = engine.solve_layout

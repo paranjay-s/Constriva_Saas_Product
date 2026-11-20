@@ -22,10 +22,12 @@ def main() -> None:
     limit = float(args[args.index("--time") + 1]) if "--time" in args else 20.0
     from app.modules.ai.floorplan.pipeline.brief_parser import parse_brief
     from app.modules.ai.floorplan.pipeline.generate import (
-        meta_from_brief, plot_from_brief, with_daylight, built_up_target)
+        plot_from_brief,
+        with_daylight,
+    )
+    from app.modules.ai.floorplan.pipeline.layout.engine import with_spare_garden
     from app.modules.ai.floorplan.pipeline.layout.solver import solve_layout
     from app.modules.ai.floorplan.pipeline.layout.topology import build_topology
-    from app.modules.ai.floorplan.pipeline.layout.engine import with_spare_garden
     from app.modules.ai.floorplan.pipeline.room_program import build_program
     from app.modules.ai.floorplan.schemas.brief import BriefForm
     from app.modules.ai.floorplan.schemas.plan import Setbacks
@@ -43,7 +45,8 @@ def main() -> None:
           f"{(x1-x0)*(y1-y0)/1e4:.0f} m2; built-up target {plot.built_up_m2}; "
           f"brief built_up_m2={brief.plot.built_up_m2} share={brief.built_up_share}")
     print(f"program: {len(prog.rooms)} rooms, enclosed {enclosed:.0f} m2, open {openm2:.0f} m2, "
-          f"sum {enclosed + openm2:.0f} m2; rules {len(prog.rules)}; adjacency {len(prog.adjacency)}")
+          f"sum {enclosed + openm2:.0f} m2; rules {len(prog.rules)}; "
+          f"adjacency {len(prog.adjacency)}")
     for r in prog.rules:
         print("   rule:", r.model_dump(exclude={'text'}))
 

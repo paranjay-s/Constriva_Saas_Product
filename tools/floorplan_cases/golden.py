@@ -28,5 +28,6 @@ def plan_for(text: str):
 
 if __name__ == "__main__":
     res = plan_for(Path(sys.argv[1]).read_text().strip())
-    Path(sys.argv[2]).write_text(json.dumps(res.plan.model_dump(mode="json"), indent=1, sort_keys=True))
+    data = json.dumps(res.plan.model_dump(mode="json"), indent=1, sort_keys=True)
+    Path(sys.argv[2]).write_text(data)
     print(res.status, res.method, res.attempts)
