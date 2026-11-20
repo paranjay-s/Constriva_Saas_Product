@@ -29,3 +29,5 @@ counted at the end of the lines that used them.
 | C1 | 2 heights, FOV toggle, lens, furniture, finishes, light, mirrors | done | fddcac2 | taller living/majlis as a separate height not done |
 | C1 | 3 before/after three rooms Low and High | done | b37f2f2 | render 15.8 min so far |
 | C2 | 4 drawing-only round trip to 98% doors and windows | partial | 03734b8 | doors 85.2% (was 82.6%), windows 96.4% (was 91.5%), walls 99.9%; 98% not met; missed doors sit at wall ends beside cross walls; swing-door attempt x2 reverted; engineering drawing unchanged |
+| C3 | 2 design details in the room kits | done | 1ba08c5 | chandelier hanging fixed in a later commit |
+| C3 | 4 reference vs Low vs High sheets | done | 3a12afa | sheets on disk only |
