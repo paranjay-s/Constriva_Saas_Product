@@ -46,6 +46,8 @@ class Plan3dSettings(BaseSettings):
     ai_polish: bool = False
     # Scans: the OpenCV + OCR reader before the AI reader (scan_reader.py); no AI calls
     scan_reader: bool = True
+    # Scans read by the scan reader: room names and types from the AI reader (one cached call)
+    scan_ai_names: bool = True
     # the AI gap-filler: one call per read plan fills what the readers missed (gapfill.py)
     ai_gapfill: bool = False
     # the creator agent: designs a library asset for an area no kit serves (creator.py)

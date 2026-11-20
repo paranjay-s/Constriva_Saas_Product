@@ -105,7 +105,9 @@ async def _read_elsewhere(
         pdf = await client.source_pdf(job_id)
         scanned = await run_in_threadpool(scan_read, pdf)
         if scanned is not None:
-            await client.import_plan(job_id, scanned[0], "scan", scanned[1])
+            plan, notice = scanned
+            plan, notice = await run_in_threadpool(_ai_names, plan, notice, pdf, name, ai)
+            await client.import_plan(job_id, plan, "scan", notice)
             return
         try:
             plan_json = await run_in_threadpool(ai, pdf)
@@ -164,6 +166,27 @@ def scan_read(pdf: bytes) -> tuple[dict[str, Any], str] | None:
         else ""
     )
     return res.plan, f"{SCAN_NOTICE} {' '.join(res.notes[-2:])}{off}"
+
+
+def _ai_names(
+    plan: dict[str, Any], notice: str, pdf: bytes, name: str, ai: AiReader
+) -> tuple[dict[str, Any], str]:
+    """Scans: room names and types from the AI reader, walls from the scan (scan_names.py).
+    PLAN3D_SCAN_AI_NAMES=false keeps the scan reader's own names. Any AI failure keeps them too."""
+    from app.modules.plan3d.scan_names import name_scan_rooms
+    from app.modules.plan3d.settings import get_settings
+
+    if not get_settings().scan_ai_names:
+        return plan, notice
+    try:
+        ai_plan = planjson_to_planto3d(ai(pdf), source_name=name, reader="ai").plan
+    except Exception:  # no AI, no plan on the page, a reader bug: the scan's own names stay
+        logger.info("Scan room names: the AI reader gave nothing, the scan's names are kept")
+        return plan, notice
+    plan, named = name_scan_rooms(plan, ai_plan)
+    if named:
+        notice = f"{notice} Room names and types: AI reader ({named} rooms); walls: scan."
+    return plan, notice
 
 
 def stored_plan(stored: dict[str, Any], name: str) -> ConvertResult:

@@ -241,7 +241,7 @@ def test_open_in_3d_needs_the_users_own_plan(client, planto3d, plans):
     assert not any(r.url.path == "/api/upload" for r in planto3d.requests)
 
 
-def test_a_scan_the_scan_reader_reads_skips_the_ai_reader(
+def test_a_scan_the_scan_reader_reads_keeps_its_walls_and_asks_the_ai_for_names(
     client, planto3d, ai_reads, monkeypatch
 ):
     planto3d.detector_fails = True
@@ -253,7 +253,29 @@ def test_a_scan_the_scan_reader_reads_skips_the_ai_reader(
     (imported,) = planto3d.imports
     assert imported["reader"] == "scan" and imported["plan"] == plan
     _, calls = ai_reads
-    assert calls == []  # no AI call
+    assert len(calls) == 1  # the AI reads the room names and types (C2.2)
+
+
+def test_a_scan_reading_gets_room_types_from_the_ai_but_keeps_its_walls() -> None:
+    from app.modules.plan3d.scan_names import name_scan_rooms
+
+    scan = {"floors": [{"walls": [[0, 30, 0, 0.5]], "rooms": [
+        {"type": "multipurpose", "label": "BED 12'-0\" x10'-0\"", "rects": [[0, 12, 0, 10]]},
+        {"type": "multipurpose", "label": "", "rects": [[12, 20, 0, 10]]},
+        {"type": "multipurpose", "label": "DINING", "rects": [[0, 20, 10, 22]]},
+    ]}]}
+    # the AI's reading: another scale and origin, rougher rectangles
+    ai = {"floors": [{"walls": [[9, 9, 9, 9]], "rooms": [
+        {"type": "dining", "label": "DINING", "rects": [[100, 140, 50, 74]]},
+        {"type": "bedroom", "label": "BED", "rects": [[100, 124, 30, 50]]},
+        {"type": "toilet", "label": "TOILET", "rects": [[124, 140, 30, 50]]},
+    ]}]}
+    plan, named = name_scan_rooms(scan, ai)
+    rooms = plan["floors"][0]["rooms"]
+    assert named == 3
+    assert [r["type"] for r in rooms] == ["bedroom", "toilet", "dining"]
+    assert rooms[1]["label"] == "TOILET" and rooms[0]["label"].startswith("BED 12")
+    assert plan["floors"][0]["walls"] == [[0, 30, 0, 0.5]]  # geometry stays the scan's
 
 
 def test_a_scan_reading_with_too_few_named_rooms_goes_to_the_ai_reader(

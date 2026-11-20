@@ -79,6 +79,9 @@ def main():
     ap.add_argument("--dump", help="write each plan's reading here (<id>.det.json), for overlays")
     ap.add_argument("--fit", action="store_true", help="apply the server's size fit after reading (full pipeline)")
     ap.add_argument("--scan", action="store_true", help="try the OpenCV + OCR scan reader before the AI")
+    ap.add_argument("--scan-names", action="store_true",
+                    help="with --scan: room names and types from the AI reading (cached, or within --ai), "
+                         "walls from the scan, as the gateway does (plan3d/scan_names.py)")
     ap.add_argument("--out", default=str(ROOT / "docs/overnight/accuracy.md"))
     a = ap.parse_args()
     d = Path(a.plans)
@@ -102,6 +105,13 @@ def main():
                         if r.get("label"))
             if res.plan and named >= 2:
                 det, reader = res.plan, "scan"
+                if a.scan_names and (cached(pdf) or fresh < a.ai):
+                    fresh += 0 if cached(pdf) else 1
+                    ai_plan = ai_read(pdf)
+                    if ai_plan:
+                        from app.modules.plan3d.scan_names import name_scan_rooms
+
+                        det, _ = name_scan_rooms(det, ai_plan)
         if det is None and not a.from_dump:
             reader = "ai"
             if cached(pdf):
