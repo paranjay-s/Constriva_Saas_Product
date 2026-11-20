@@ -48,9 +48,10 @@ several times faster; `scripts/benchmark_high.sh`). Unreal gives no measured sti
 a GPU and the Unreal seat subscription for a company above USD 1 M revenue. It stays behind
 `PLAN3D_RENDERER=unreal`.
 
-Estimates for an NVIDIA T4 (16 GB, the common cloud GPU), from public Cycles benchmark ratios (T4 OptiX about
-1.5-2x an M1 Pro on Metal): a room still 55-75 s, an elevation 12-18 s, a 15-room villa about 20 minutes for the
-evening set. Not measured; run `scripts/benchmark_high.sh` on the server.
+Rough estimates for an NVIDIA T4 (16 GB, the common cloud GPU), assuming it renders Cycles 1.5-2x as fast as this
+M1 Pro on Metal (an assumption, not a measurement or a looked-up benchmark): a room still 55-75 s, an elevation
+12-18 s, a 15-room villa about 20 minutes for the evening set. Run `scripts/benchmark_high.sh` on the server for
+real numbers.
 
 ## Sources
 
