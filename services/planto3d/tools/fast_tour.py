@@ -67,19 +67,35 @@ def frames_of(shot):
     depth = None
     if os.path.exists(dp):
         d = np.load(dp).astype(np.float32)
-        ys = (np.arange(H) * d.shape[0] / H).astype(int)
-        xs = (np.arange(W) * d.shape[1] / W).astype(int)
-        depth = d[ys][:, xs]
-        depth = np.where(np.isfinite(depth) & (depth > 0), depth, np.nanmax(depth[np.isfinite(depth)]) if np.isfinite(depth).any() else 10.0)
+        fin = np.isfinite(d) & (d > 0)
+        far = float(np.max(d[fin])) if fin.any() else 10.0
+        inv = np.where(fin, 1.0 / np.maximum(d, 0.05), 1.0 / (far * 4))   # the sky: far away
+        # bilinear up to the picture, then soft: steps in depth would tear the picture apart at edges
+        gy = np.linspace(0, inv.shape[0] - 1, H)
+        gx = np.linspace(0, inv.shape[1] - 1, W)
+        y0, x0 = np.floor(gy).astype(int), np.floor(gx).astype(int)
+        y1, x1 = np.minimum(y0 + 1, inv.shape[0] - 1), np.minimum(x0 + 1, inv.shape[1] - 1)
+        wy, wx = (gy - y0)[:, None], (gx - x0)[None, :]
+        up = (inv[y0][:, x0] * (1 - wy) * (1 - wx) + inv[y0][:, x1] * (1 - wy) * wx +
+              inv[y1][:, x0] * wy * (1 - wx) + inv[y1][:, x1] * wy * wx)
+        for _ in range(3):                                      # box blurs, radius 1 % of the width
+            r = max(1, W // 100)
+            c = np.cumsum(np.pad(up, ((0, 0), (r + 1, r)), mode="edge"), axis=1)
+            up = (c[:, 2 * r + 1:] - c[:, :-2 * r - 1]) / (2 * r + 1)
+            c = np.cumsum(np.pad(up, ((r + 1, r), (0, 0)), mode="edge"), axis=0)
+            up = (c[2 * r + 1:] - c[:-2 * r - 1]) / (2 * r + 1)
+        depth = 1.0 / np.maximum(up, 1e-4)
     n = int(SEC * FPS)
     yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
     cx, cy = (W - 1) / 2, (H - 1) / 2
     med = float(np.median(depth)) if depth is not None else 1.0
+    if depth is not None:          # a narrow range: parallax without bending straight edges near the sky
+        depth = np.clip(depth, 0.7 * med, 1.6 * med)
     for i in range(n):
         u = i / max(1, n - 1)
         s = 0.5 - 0.5 * math.cos(math.pi * u)                  # ease in and out
-        if depth is not None:                                  # forward by 9 % of the median depth
-            dz = 0.09 * med * s
+        if depth is not None:                                  # forward by 6 % of the median depth
+            dz = 0.06 * med * s
             f = np.clip((depth - dz) / depth, 0.6, 1.0)        # near things grow faster than far ones
         else:
             f = np.full((H, W), 1.0 / (1.0 + 0.07 * s), np.float32)

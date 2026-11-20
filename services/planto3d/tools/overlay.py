@@ -27,6 +27,8 @@ def load(path, size=None):
 # ------------------------------------------------------------------ titles, rendered by Blender's text
 def title_images(texts, tmp_dir):
     sc = bpy.context.scene
+    for o in list(bpy.data.objects):           # the default scene's cube, light and camera
+        bpy.data.objects.remove(o)
     sc.render.engine = "BLENDER_WORKBENCH"
     sc.display.shading.light = "FLAT"
     sc.display.shading.color_type = "SINGLE"
