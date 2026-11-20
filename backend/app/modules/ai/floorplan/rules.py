@@ -41,6 +41,16 @@ MIN_ROOM: dict[str, MinSize] = {
     "pool": MinSize(30.0, 420),  # water at least 3 x 6 m plus a walkway around it
     "deck": MinSize(4.0, 180),
     "shaft": MinSize(0.0, 0),
+    "majlis": MinSize(10.5, 300),
+    "prayer": MinSize(4.0, 180),
+    "puja": MinSize(2.5, 150),
+    "bar": MinSize(6.0, 210),
+    "gym": MinSize(9.0, 270),
+    "driver_room": MinSize(5.5, 210),
+    "lift": MinSize(2.2, 140),
+    "lawn": MinSize(0.0, 100),
+    "driveway": MinSize(0.0, 300),
+    "dock": MinSize(0.0, 300),
     "other": MinSize(0.0, 0),
 }
 
@@ -71,6 +81,16 @@ TYPICAL_ROOM_M2: dict[str, float] = {
     "pool": 40.0,
     "deck": 9.0,
     "shaft": 1.0,
+    "majlis": 24.0,
+    "prayer": 7.0,
+    "puja": 5.0,
+    "bar": 10.0,
+    "gym": 14.0,
+    "driver_room": 9.0,
+    "lift": 2.8,
+    "lawn": 30.0,
+    "driveway": 25.0,
+    "dock": 30.0,
     "other": 6.0,
 }
 
@@ -88,7 +108,7 @@ OPENING_END_CLEARANCE_CM = 12  # keep openings clear of the perpendicular wall a
 # Spaces that absorb leftover plot area. Only their minimum size is checked, and they are
 # left out of the total-area comparison with the program.
 AREA_FLEXIBLE_TYPES = frozenset(
-    {"lobby", "passage", "garden", "courtyard", "parking", "balcony", "shaft"}
+    {"lobby", "passage", "garden", "lawn", "courtyard", "parking", "driveway", "balcony", "shaft"}
 )
 # Swimming pool: the room is water plus a paved walkway; the walkway is this wide (cm),
 # narrower only on a small pool room. Pool and deck targets are capped as a share
@@ -119,3 +139,25 @@ ROOM_AREA_TOLERANCE = 0.25  # each room within +/-25 % of its program target
 TOTAL_AREA_TOLERANCE = 0.15  # sum of rooms within +/-15 % of the program total
 MIN_PLOT_COVERAGE = 0.90  # below this, unused plot area is reported as a warning
 OVERLAP_EPS_CM2 = 1.0
+
+
+# ---------------------------------------------------------------- building model (mm)
+# Values from the Dubai Building Code 2021 Part K (docs/pro/2d/RULES.md), to be confirmed
+# against the Dubai Building Code by an engineer.
+DOOR_HEIGHT_MM = 2100
+MAIN_DOOR_HEIGHT_MM = 2400
+STAIR_MAX_RISER_MM = 180  # K.5.5.2.3: 100-180 mm
+STAIR_MIN_RISER_MM = 100
+STAIR_TREAD_MM = 290  # K.5.5.2.3: going at least 280 mm
+STAIR_MIN_TREAD_MM = 280
+STAIR_MIN_WIDTH_MM = 1000  # K.5.5.2.2
+STAIR_HEADROOM_MM = 2300  # K.5.5.2.10
+# window height and sill (mm) by room type; openable sill at least 900 mm (K.5.4.2)
+WINDOW_SPEC_MM: dict[str, tuple[int, int]] = {
+    "default": (1500, 900),
+    "bath": (600, 1500),
+    "toilet": (600, 1500),
+    "utility": (900, 1200),
+    "store": (600, 1500),
+    "kitchen": (1200, 1050),
+}

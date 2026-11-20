@@ -40,7 +40,7 @@ from app.modules.ai.llm.client import LLMClient, LLMError
 
 logger = logging.getLogger("construtiva.ai.floorplan")
 
-OPEN_TYPES = ("garden", "courtyard", "parking", "balcony", "pool", "deck")
+OPEN_TYPES = ("garden", "lawn", "courtyard", "parking", "driveway", "dock", "balcony", "pool", "deck")
 
 
 class DraftRoom(BaseModel):

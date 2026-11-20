@@ -131,6 +131,14 @@ async def _read_elsewhere(
         _reading.pop(job_id, None)
 
 
-def stored_plan(plan_json: dict[str, Any], name: str) -> ConvertResult:
-    """A generated plan for PlanTo3D (the generator measures openings from a wall's start)."""
-    return planjson_to_planto3d(plan_json, source_name=name, reader="generator")
+def stored_plan(stored: dict[str, Any], name: str) -> ConvertResult:
+    """A generated plan for PlanTo3D.
+
+    Plans of the floor plan generator carry their building model's own PlanTo3D plan
+    (`planto3d`, made from the model without reading a drawing: every wall, opening,
+    room, stair flight and site area exactly). Older stored plans only have the legacy
+    PlanJSON (openings measured from a wall's start), which is converted."""
+    direct = stored.get("planto3d")
+    if isinstance(direct, dict) and direct.get("floors"):
+        return ConvertResult(dict(direct, source=name))
+    return planjson_to_planto3d(stored["plan_json"], source_name=name, reader="generator")

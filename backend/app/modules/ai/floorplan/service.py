@@ -230,6 +230,27 @@ def edit(sp: StoredPlan, req: EditRequest, llm: LLMClient | None, store: PlanSto
     )
 
 
+def building_for(sp: StoredPlan):
+    """The building model of a stored plan's current version, with its revision list
+    (one line per kept version) and the AI model that made each version."""
+    from app.modules.ai.floorplan.model.build import build_building
+    from app.modules.ai.floorplan.model.building import Revision
+
+    # history[i] is version history[i].version, kept when the message history[i].change
+    # made the next version; so each version's description is the previous entry's change
+    versions = [(h["version"], (h.get("at") or "")[:10], h.get("model", "")) for h in sp.history]
+    now = datetime.now(UTC).strftime("%Y-%m-%d")
+    versions.append((sp.version, now, getattr(sp, "model", "") or ""))
+    changes = ["First issue"] + [(h.get("change") or "Revision")[:80] for h in sp.history]
+    revisions = [
+        Revision(rev=f"V{v}", date=d, description=c, model=m)
+        for (v, d, m), c in zip(versions, changes, strict=True)
+    ]
+    return build_building(
+        sp.plan, version=sp.version, revisions=revisions[-6:], model=getattr(sp, "model", "")
+    )
+
+
 def plan_for_3d(plan_id: str, owner_id: str, store: PlanStore | None = None) -> dict | None:
     """A generated plan, for the 3D builder: its name, version, PlanJSON and the PDF export
     the review page shows behind it. None unless the plan exists and is the user's."""
@@ -243,12 +264,17 @@ def plan_for_3d(plan_id: str, owner_id: str, store: PlanStore | None = None) -> 
         return None
     if sp is None or not owner_id or sp.owner_id != owner_id:
         return None
+    from app.modules.ai.floorplan.model.planto3d import to_planto3d
+
+    building = building_for(sp)
     return {
         "id": sp.id,
         "name": sp.name,
         "version": sp.version,
         "project_id": sp.project_id,
         "plan_json": to_legacy_plan_json(sp.plan),
+        "planto3d": to_planto3d(building, source_name=f"{sp.name}.pdf"),
+        "building": building.to_json_dict(),
         "pdf": export_plan(sp.plan, "pdf", version=sp.version).data,
     }
 

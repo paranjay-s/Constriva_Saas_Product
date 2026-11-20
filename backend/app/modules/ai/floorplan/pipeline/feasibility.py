@@ -28,6 +28,16 @@ OPTIONAL_TYPES = (
     "store",
     "balcony",
     "dress",
+    "majlis",
+    "prayer",
+    "puja",
+    "bar",
+    "gym",
+    "driver_room",
+    "lift",
+    "lawn",
+    "driveway",
+    "dock",
 )
 MIN_PLOT_SIDE_CM = 300 + 2 * WALL_EXTERIOR_CM
 

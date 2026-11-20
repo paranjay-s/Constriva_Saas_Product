@@ -12,8 +12,19 @@ from app.modules.ai.floorplan.schemas.program import ProgramRoom, RoomProgram
 
 CIRCULATION = ("lobby", "passage")
 HUBS = ("family_hall", "living")
-PRIVATE_LEAF = ("bedroom", "master_bedroom", "study", "store", "bath", "toilet", "maid_room")
-OPEN_EDGE = ("garden", "parking", "balcony", "pool")  # reached from outside, no door
+PRIVATE_LEAF = (
+    "bedroom",
+    "master_bedroom",
+    "study",
+    "store",
+    "bath",
+    "toilet",
+    "maid_room",
+    "prayer",
+    "puja",
+    "gym",
+)
+OPEN_EDGE = ("garden", "lawn", "parking", "driveway", "dock", "balcony", "pool")  # reached from outside, no door
 
 ENTRANCE_DOOR_CM = 100
 
@@ -92,7 +103,7 @@ def build_topology(program: RoomProgram) -> Topology:
             p = private_hub
         elif r.type == "kitchen":
             p = (dining or hub or foyer or corridor or program.rooms[0]).id
-        elif r.type in ("utility", "maid_room"):
+        elif r.type in ("utility", "maid_room", "driver_room"):
             p = (kitchen or corridor or hub or program.rooms[0]).id
         elif r.type == "dining":
             p = public_hub

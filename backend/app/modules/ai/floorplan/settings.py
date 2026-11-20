@@ -12,6 +12,21 @@
     FLOORPLAN_STORE            "memory" keeps plans in memory instead of the Supabase
                                `plans` table (default: Supabase when it is configured)
 
+Building model, areas and drawing (pro run; values from docs/pro/2d/RULES.md, to be
+confirmed against the Dubai Building Code by an engineer):
+    FLOORPLAN_WALL_EXTERIOR_MM    200
+    FLOORPLAN_WALL_INTERIOR_MM    150 (between rooms)
+    FLOORPLAN_WALL_PARTITION_MM   100 (inside a suite: bath, dress, store, WC)
+    FLOORPLAN_STOREY_HEIGHT_MM    3300 floor to floor (2.7 m clear + slab and finishes)
+    FLOORPLAN_SETBACK_FRONT_M     3.0  road side
+    FLOORPLAN_SETBACK_SIDE_M      1.5  left and right (DBC Table K.1 says 3 m)
+    FLOORPLAN_SETBACK_REAR_M      1.5  (DBC Table K.1 says 3 m)
+    FLOORPLAN_BUILT_UP_SHARE      0.70 built-up share of the plot when only the plot is known
+    FLOORPLAN_BUILT_UP_MIN        0.65 / FLOORPLAN_BUILT_UP_MAX 0.75: the band kept unless asked
+    FLOORPLAN_FULL_RESOLVE_S      30   time budget of a full re-solve ("start over")
+    FLOORPLAN_SHEET               A3 (or A1)
+    FLOORPLAN_FURNITURE           true: draw one minimal furniture set per room
+
 The API key is never stored here; it is read from the existing app settings
 (GEMINI_API_KEY / LLM_API_KEY) at call time.
 """
@@ -38,6 +53,20 @@ class FloorplanSettings(BaseSettings):
     solver_time_s: float = 8.0
     max_attempts: int = 3
     store: str = ""  # "memory" or "" (Supabase when configured)
+
+    wall_exterior_mm: int = 200
+    wall_interior_mm: int = 150
+    wall_partition_mm: int = 100
+    storey_height_mm: int = 3300
+    setback_front_m: float = 3.0
+    setback_side_m: float = 1.5
+    setback_rear_m: float = 1.5
+    built_up_share: float = 0.70
+    built_up_min: float = 0.65
+    built_up_max: float = 0.75
+    full_resolve_s: float = 30.0
+    sheet: str = "A3"
+    furniture: bool = True
 
 
 @lru_cache

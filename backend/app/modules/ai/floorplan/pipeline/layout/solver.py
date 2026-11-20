@@ -53,6 +53,10 @@ HABITABLE = {
     "kitchen",
     "study",
     "maid_room",
+    "majlis",
+    "driver_room",
+    "gym",
+    "bar",
 }
 SMALL = {"bath", "toilet", "store", "dress", "utility", "foyer"}
 
@@ -610,8 +614,17 @@ def fill_holes_with_shafts(rooms: list[Room], plot: Plot) -> list[Room]:
     return rooms + join_outdoor(rooms, shafts)
 
 
-OUTDOOR_TYPES = ("garden", "pool", "deck", "courtyard", "parking")
-JOIN_PRIORITY = {"garden": 0, "pool": 1, "deck": 2, "courtyard": 3, "parking": 4}
+OUTDOOR_TYPES = ("garden", "lawn", "pool", "deck", "courtyard", "parking", "driveway", "dock")
+JOIN_PRIORITY = {
+    "garden": 0,
+    "lawn": 0,
+    "pool": 1,
+    "deck": 2,
+    "courtyard": 3,
+    "parking": 4,
+    "driveway": 4,
+    "dock": 5,
+}
 JOIN_MIN_EDGE_CM = 30
 
 

@@ -188,6 +188,8 @@ def test_a_pdf_of_the_owners_generated_plan_uses_the_stored_plan(client, planto3
     (imported,) = planto3d.imports
     assert imported["reader"] == "stored" and '"Villa" (version 3)' in imported["notice"]
     assert imported["plan"]["floors"][0]["walls"]
+    # made from the building model, not by re-reading the drawing or the legacy PlanJSON
+    assert imported["plan"]["reader"] == "model" and imported["plan"]["plan_id"] == PLAN_ID
     assert client.get(f"{API}/jobs/{job_id}").json()["reader"] == "stored"
 
 

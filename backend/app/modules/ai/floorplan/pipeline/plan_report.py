@@ -28,6 +28,10 @@ HABITABLE = (
     "kitchen",
     "study",
     "maid_room",
+    "majlis",
+    "driver_room",
+    "gym",
+    "bar",
 )
 
 

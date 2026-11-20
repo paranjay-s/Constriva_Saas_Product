@@ -172,7 +172,7 @@ async def _start(
             "The plan could not be saved to your account. Please try again in a moment.",
         ) from e
     if stored is not None:
-        converted = fallback.stored_plan(stored["plan_json"], name)
+        converted = fallback.stored_plan(stored, name)
         try:
             if converted.usable:
                 notice = fallback.STORED_NOTICE.format(

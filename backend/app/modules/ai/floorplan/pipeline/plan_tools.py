@@ -446,6 +446,10 @@ def remove_window(plan: FloorPlan, program: RoomProgram, op: RemoveWindow) -> Re
         "kitchen",
         "study",
         "maid_room",
+        "majlis",
+        "driver_room",
+        "gym",
+        "bar",
     )
     if habitable and not any(w.room == room.id for w in new.windows):
         note += (

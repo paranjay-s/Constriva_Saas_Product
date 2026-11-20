@@ -61,7 +61,18 @@ MAIN_TYPES = {
     "study",
     "toilet",
 }
-OPEN_TYPES = {"garden", "courtyard", "parking", "balcony", "pool", "deck", "shaft"}
+OPEN_TYPES = {
+    "garden",
+    "lawn",
+    "courtyard",
+    "parking",
+    "driveway",
+    "dock",
+    "balcony",
+    "pool",
+    "deck",
+    "shaft",
+}
 BEDROOMS = ("master_bedroom", "bedroom")
 
 
