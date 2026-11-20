@@ -1,0 +1,1126 @@
+[
+ {
+  "plan": "rt01",
+  "error": "No valid plan could be made for this brief. Main problems: the rooms could not be arranged on the plot. Inside the setbacks (3 m front, 1.5 m sides, 1.5 m rear) the house can use 66 m\u00b2 of the plot. Tr"
+ },
+ {
+  "plan": "rt02",
+  "error": "No valid plan could be made for this brief. Main problems: the rooms could not be arranged on the plot. Inside the setbacks (3 m front, 1.5 m sides, 1.5 m rear) the house can use 94 m\u00b2 of the plot. Tr"
+ },
+ {
+  "plan": "rt03",
+  "sq_ft": 2403,
+  "coverage": 0.5111,
+  "seconds_generate": 8.6,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 0.9999,
+    "precision": 1.0,
+    "truth": 19,
+    "read": 37
+   },
+   "doors": {
+    "recall": 0.9,
+    "precision": 1.0,
+    "truth": 10,
+    "read": 9
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 10,
+    "read": 10
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 10,
+    "read": 10
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 0.9797,
+    "truth": 19,
+    "read": 45
+   },
+   "doors": {
+    "recall": 0.9,
+    "precision": 0.5294,
+    "truth": 10,
+    "read": 17
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 10,
+    "read": 10
+   },
+   "rooms": {
+    "recall": 0.9,
+    "precision": 0.6429,
+    "truth": 10,
+    "read": 14
+   },
+   "room_types": 0.7
+  }
+ },
+ {
+  "plan": "rt04",
+  "sq_ft": 2804,
+  "coverage": 0.5253,
+  "seconds_generate": 9.3,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 0.9999,
+    "precision": 1.0,
+    "truth": 19,
+    "read": 36
+   },
+   "doors": {
+    "recall": 0.8,
+    "precision": 0.8889,
+    "truth": 10,
+    "read": 9
+   },
+   "windows": {
+    "recall": 0.9,
+    "precision": 1.0,
+    "truth": 10,
+    "read": 9
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 10,
+    "read": 10
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 0.9855,
+    "truth": 19,
+    "read": 46
+   },
+   "doors": {
+    "recall": 0.7,
+    "precision": 0.4375,
+    "truth": 10,
+    "read": 16
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 10,
+    "read": 10
+   },
+   "rooms": {
+    "recall": 0.9,
+    "precision": 0.75,
+    "truth": 10,
+    "read": 12
+   },
+   "room_types": 0.7
+  }
+ },
+ {
+  "plan": "rt05",
+  "sq_ft": 3148,
+  "coverage": 0.5605,
+  "seconds_generate": 9.3,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 0.9999,
+    "precision": 1.0,
+    "truth": 19,
+    "read": 39
+   },
+   "doors": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 11,
+    "read": 11
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 11,
+    "read": 11
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 11,
+    "read": 11
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 0.9819,
+    "truth": 19,
+    "read": 53
+   },
+   "doors": {
+    "recall": 0.3636,
+    "precision": 0.4,
+    "truth": 11,
+    "read": 10
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 0.9167,
+    "truth": 11,
+    "read": 12
+   },
+   "rooms": {
+    "recall": 0.5455,
+    "precision": 0.6667,
+    "truth": 11,
+    "read": 9
+   },
+   "room_types": 0.5455
+  }
+ },
+ {
+  "plan": "rt06",
+  "sq_ft": 4005,
+  "coverage": 0.5845,
+  "seconds_generate": 14.3,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 0.9985,
+    "precision": 1.0,
+    "truth": 23,
+    "read": 39
+   },
+   "doors": {
+    "recall": 0.9,
+    "precision": 0.9,
+    "truth": 10,
+    "read": 10
+   },
+   "windows": {
+    "recall": 0.9091,
+    "precision": 1.0,
+    "truth": 11,
+    "read": 10
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 10,
+    "read": 10
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 0.9999,
+    "precision": 0.9978,
+    "truth": 23,
+    "read": 56
+   },
+   "doors": {
+    "recall": 0.8,
+    "precision": 0.4706,
+    "truth": 10,
+    "read": 17
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 0.7857,
+    "truth": 11,
+    "read": 14
+   },
+   "rooms": {
+    "recall": 0.9,
+    "precision": 1.0,
+    "truth": 10,
+    "read": 9
+   },
+   "room_types": 0.9
+  }
+ },
+ {
+  "plan": "rt07",
+  "sq_ft": 4506,
+  "coverage": 0.5781,
+  "seconds_generate": 8.3,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 0.9987,
+    "precision": 1.0,
+    "truth": 24,
+    "read": 46
+   },
+   "doors": {
+    "recall": 0.8462,
+    "precision": 0.8462,
+    "truth": 13,
+    "read": 13
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 13,
+    "read": 13
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 0.9286,
+    "truth": 13,
+    "read": 14
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 0.8862,
+    "truth": 24,
+    "read": 59
+   },
+   "doors": {
+    "recall": 0.7692,
+    "precision": 0.4762,
+    "truth": 13,
+    "read": 21
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 0.8667,
+    "truth": 13,
+    "read": 15
+   },
+   "rooms": {
+    "recall": 0.7692,
+    "precision": 0.7692,
+    "truth": 13,
+    "read": 13
+   },
+   "room_types": 0.6923
+  }
+ },
+ {
+  "plan": "rt08",
+  "sq_ft": 4949,
+  "coverage": 0.619,
+  "seconds_generate": 14.3,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 25,
+    "read": 48
+   },
+   "doors": {
+    "recall": 0.7692,
+    "precision": 0.8333,
+    "truth": 13,
+    "read": 12
+   },
+   "windows": {
+    "recall": 0.9231,
+    "precision": 1.0,
+    "truth": 13,
+    "read": 12
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 0.9286,
+    "truth": 13,
+    "read": 14
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 0.9685,
+    "truth": 25,
+    "read": 66
+   },
+   "doors": {
+    "recall": 0.9231,
+    "precision": 0.5455,
+    "truth": 13,
+    "read": 22
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 13,
+    "read": 13
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 0.9286,
+    "truth": 13,
+    "read": 14
+   },
+   "room_types": 0.8462
+  }
+ },
+ {
+  "plan": "rt09",
+  "sq_ft": 5407,
+  "coverage": 0.6276,
+  "seconds_generate": 14.3,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 30,
+    "read": 51
+   },
+   "doors": {
+    "recall": 0.8571,
+    "precision": 0.9231,
+    "truth": 14,
+    "read": 13
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 13,
+    "read": 13
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 14,
+    "read": 14
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 0.9642,
+    "truth": 30,
+    "read": 65
+   },
+   "doors": {
+    "recall": 0.4286,
+    "precision": 0.6,
+    "truth": 14,
+    "read": 10
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 13,
+    "read": 13
+   },
+   "rooms": {
+    "recall": 0.5714,
+    "precision": 1.0,
+    "truth": 14,
+    "read": 8
+   },
+   "room_types": 0.4286
+  }
+ },
+ {
+  "plan": "rt10",
+  "sq_ft": 6008,
+  "coverage": 0.6535,
+  "seconds_generate": 8.4,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 0.9989,
+    "precision": 1.0,
+    "truth": 26,
+    "read": 52
+   },
+   "doors": {
+    "recall": 0.8571,
+    "precision": 1.0,
+    "truth": 14,
+    "read": 12
+   },
+   "windows": {
+    "recall": 0.9333,
+    "precision": 1.0,
+    "truth": 15,
+    "read": 14
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 14,
+    "read": 14
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 0.5605,
+    "precision": 0.5568,
+    "truth": 26,
+    "read": 61
+   },
+   "doors": {
+    "recall": 0.1429,
+    "precision": 0.1333,
+    "truth": 14,
+    "read": 15
+   },
+   "windows": {
+    "recall": 0.0667,
+    "precision": 0.0714,
+    "truth": 15,
+    "read": 14
+   },
+   "rooms": {
+    "recall": 0.5714,
+    "precision": 1.0,
+    "truth": 14,
+    "read": 8
+   },
+   "room_types": 0.5
+  }
+ },
+ {
+  "plan": "rt11",
+  "sq_ft": 6500,
+  "coverage": 0.6526,
+  "seconds_generate": 14.4,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 0.9981,
+    "precision": 1.0,
+    "truth": 29,
+    "read": 56
+   },
+   "doors": {
+    "recall": 0.8,
+    "precision": 0.9231,
+    "truth": 15,
+    "read": 13
+   },
+   "windows": {
+    "recall": 0.9375,
+    "precision": 1.0,
+    "truth": 16,
+    "read": 15
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 15,
+    "read": 15
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 0.9447,
+    "truth": 29,
+    "read": 68
+   },
+   "doors": {
+    "recall": 0.7333,
+    "precision": 0.6875,
+    "truth": 15,
+    "read": 16
+   },
+   "windows": {
+    "recall": 0.625,
+    "precision": 0.8333,
+    "truth": 16,
+    "read": 12
+   },
+   "rooms": {
+    "recall": 0.4667,
+    "precision": 0.7778,
+    "truth": 15,
+    "read": 9
+   },
+   "room_types": 0.4
+  }
+ },
+ {
+  "plan": "rt12",
+  "sq_ft": 7009,
+  "coverage": 0.6782,
+  "seconds_generate": 8.4,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 0.2741,
+    "precision": 0.317,
+    "truth": 27,
+    "read": 52
+   },
+   "doors": {
+    "recall": 0.0667,
+    "precision": 0.0714,
+    "truth": 15,
+    "read": 14
+   },
+   "windows": {
+    "recall": 0.2,
+    "precision": 0.2,
+    "truth": 15,
+    "read": 15
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 0.9375,
+    "truth": 15,
+    "read": 16
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 0.4109,
+    "precision": 0.5125,
+    "truth": 27,
+    "read": 65
+   },
+   "doors": {
+    "recall": 0.0667,
+    "precision": 0.0625,
+    "truth": 15,
+    "read": 16
+   },
+   "windows": {
+    "recall": 0.0,
+    "precision": 0.0,
+    "truth": 15,
+    "read": 11
+   },
+   "rooms": {
+    "recall": 0.6667,
+    "precision": 0.9091,
+    "truth": 15,
+    "read": 11
+   },
+   "room_types": 0.2667
+  }
+ },
+ {
+  "plan": "rt13",
+  "sq_ft": 7710,
+  "coverage": 0.6798,
+  "seconds_generate": 8.4,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 0.998,
+    "precision": 1.0,
+    "truth": 30,
+    "read": 56
+   },
+   "doors": {
+    "recall": 0.7647,
+    "precision": 1.0,
+    "truth": 17,
+    "read": 13
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 15,
+    "read": 15
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 17,
+    "read": 17
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 0.8534,
+    "truth": 30,
+    "read": 77
+   },
+   "doors": {
+    "recall": 0.8824,
+    "precision": 0.625,
+    "truth": 17,
+    "read": 24
+   },
+   "windows": {
+    "recall": 0.8,
+    "precision": 1.0,
+    "truth": 15,
+    "read": 12
+   },
+   "rooms": {
+    "recall": 0.8235,
+    "precision": 1.0,
+    "truth": 17,
+    "read": 14
+   },
+   "room_types": 0.7059
+  }
+ },
+ {
+  "plan": "rt14",
+  "sq_ft": 8252,
+  "coverage": 0.6497,
+  "seconds_generate": 14.4,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 0.9989,
+    "precision": 1.0,
+    "truth": 24,
+    "read": 49
+   },
+   "doors": {
+    "recall": 0.8667,
+    "precision": 1.0,
+    "truth": 15,
+    "read": 13
+   },
+   "windows": {
+    "recall": 0.9231,
+    "precision": 1.0,
+    "truth": 13,
+    "read": 12
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 15,
+    "read": 15
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 0.5007,
+    "precision": 0.4676,
+    "truth": 24,
+    "read": 69
+   },
+   "doors": {
+    "recall": 0.0667,
+    "precision": 0.0588,
+    "truth": 15,
+    "read": 17
+   },
+   "windows": {
+    "recall": 0.0,
+    "precision": 0.0,
+    "truth": 13,
+    "read": 9
+   },
+   "rooms": {
+    "recall": 0.6,
+    "precision": 1.0,
+    "truth": 15,
+    "read": 9
+   },
+   "room_types": 0.5333
+  }
+ },
+ {
+  "plan": "rt15",
+  "sq_ft": 8812,
+  "coverage": 0.683,
+  "seconds_generate": 8.4,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 0.9996,
+    "precision": 1.0,
+    "truth": 31,
+    "read": 57
+   },
+   "doors": {
+    "recall": 0.9412,
+    "precision": 0.8421,
+    "truth": 17,
+    "read": 19
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 15,
+    "read": 15
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 0.8947,
+    "truth": 17,
+    "read": 19
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 0.5941,
+    "precision": 0.6153,
+    "truth": 31,
+    "read": 78
+   },
+   "doors": {
+    "recall": 0.0,
+    "precision": 0.0,
+    "truth": 17,
+    "read": 14
+   },
+   "windows": {
+    "recall": 0.0,
+    "precision": 0.0,
+    "truth": 15,
+    "read": 11
+   },
+   "rooms": {
+    "recall": 0.4118,
+    "precision": 0.875,
+    "truth": 17,
+    "read": 8
+   },
+   "room_types": 0.2941
+  }
+ },
+ {
+  "plan": "rt16",
+  "sq_ft": 9613,
+  "coverage": 0.6814,
+  "seconds_generate": 14.4,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 0.9992,
+    "precision": 1.0,
+    "truth": 35,
+    "read": 63
+   },
+   "doors": {
+    "recall": 0.8824,
+    "precision": 1.0,
+    "truth": 17,
+    "read": 15
+   },
+   "windows": {
+    "recall": 0.9474,
+    "precision": 1.0,
+    "truth": 19,
+    "read": 18
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 17,
+    "read": 17
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 0.4399,
+    "truth": 35,
+    "read": 132
+   },
+   "doors": {
+    "recall": 0.5882,
+    "precision": 0.3571,
+    "truth": 17,
+    "read": 28
+   },
+   "windows": {
+    "recall": 0.6316,
+    "precision": 0.8571,
+    "truth": 19,
+    "read": 14
+   },
+   "rooms": {
+    "recall": 0.6471,
+    "precision": 1.0,
+    "truth": 17,
+    "read": 11
+   },
+   "room_types": 0.4118
+  }
+ },
+ {
+  "plan": "rt17",
+  "sq_ft": 10814,
+  "coverage": 0.7041,
+  "seconds_generate": 14.5,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 30,
+    "read": 64
+   },
+   "doors": {
+    "recall": 1.0,
+    "precision": 0.8571,
+    "truth": 18,
+    "read": 21
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 18,
+    "read": 18
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 0.8571,
+    "truth": 18,
+    "read": 21
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 0.6224,
+    "precision": 0.1748,
+    "truth": 30,
+    "read": 117
+   },
+   "doors": {
+    "recall": 0.0556,
+    "precision": 0.0476,
+    "truth": 18,
+    "read": 21
+   },
+   "windows": {
+    "recall": 0.0,
+    "precision": 0.0,
+    "truth": 18,
+    "read": 14
+   },
+   "rooms": {
+    "recall": 0.5556,
+    "precision": 0.8333,
+    "truth": 18,
+    "read": 12
+   },
+   "room_types": 0.5
+  }
+ },
+ {
+  "plan": "rt18",
+  "sq_ft": 2003,
+  "coverage": 0.5457,
+  "seconds_generate": 8.2,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 10,
+    "read": 20
+   },
+   "doors": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 5,
+    "read": 5
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 7,
+    "read": 7
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 5,
+    "read": 5
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 0.9485,
+    "truth": 10,
+    "read": 23
+   },
+   "doors": {
+    "recall": 0.2,
+    "precision": 1.0,
+    "truth": 5,
+    "read": 1
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 7,
+    "read": 7
+   },
+   "rooms": {
+    "recall": 0.2,
+    "precision": 1.0,
+    "truth": 5,
+    "read": 1
+   },
+   "room_types": 0.0
+  }
+ },
+ {
+  "plan": "rt19",
+  "sq_ft": 5049,
+  "coverage": 0.6225,
+  "seconds_generate": 14.3,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 0.999,
+    "precision": 1.0,
+    "truth": 18,
+    "read": 33
+   },
+   "doors": {
+    "recall": 0.6667,
+    "precision": 1.0,
+    "truth": 9,
+    "read": 6
+   },
+   "windows": {
+    "recall": 0.8889,
+    "precision": 1.0,
+    "truth": 9,
+    "read": 8
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 9,
+    "read": 9
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 1.0,
+    "precision": 0.8601,
+    "truth": 18,
+    "read": 60
+   },
+   "doors": {
+    "recall": 0.5556,
+    "precision": 0.2941,
+    "truth": 9,
+    "read": 17
+   },
+   "windows": {
+    "recall": 1.0,
+    "precision": 0.8182,
+    "truth": 9,
+    "read": 11
+   },
+   "rooms": {
+    "recall": 0.7778,
+    "precision": 1.0,
+    "truth": 9,
+    "read": 7
+   },
+   "room_types": 0.5556
+  }
+ },
+ {
+  "plan": "rt20",
+  "sq_ft": 12016,
+  "coverage": 0.7056,
+  "seconds_generate": 14.5,
+  "exact_3d": true,
+  "exact_boq": true,
+  "detector": {
+   "walls": {
+    "recall": 0.9999,
+    "precision": 1.0,
+    "truth": 38,
+    "read": 74
+   },
+   "doors": {
+    "recall": 0.95,
+    "precision": 1.0,
+    "truth": 20,
+    "read": 19
+   },
+   "windows": {
+    "recall": 0.9048,
+    "precision": 1.0,
+    "truth": 21,
+    "read": 19
+   },
+   "rooms": {
+    "recall": 1.0,
+    "precision": 1.0,
+    "truth": 20,
+    "read": 20
+   },
+   "room_types": 1.0
+  },
+  "opencv": {
+   "walls": {
+    "recall": 0.5838,
+    "precision": 0.2193,
+    "truth": 38,
+    "read": 126
+   },
+   "doors": {
+    "recall": 0.0,
+    "precision": 0.0,
+    "truth": 20,
+    "read": 29
+   },
+   "windows": {
+    "recall": 0.0476,
+    "precision": 0.0667,
+    "truth": 21,
+    "read": 15
+   },
+   "rooms": {
+    "recall": 0.5,
+    "precision": 1.0,
+    "truth": 20,
+    "read": 10
+   },
+   "room_types": 0.45
+  }
+ }
+]

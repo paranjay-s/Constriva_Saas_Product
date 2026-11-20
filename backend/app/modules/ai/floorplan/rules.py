@@ -15,20 +15,22 @@ class MinSize(NamedTuple):
     short_side_cm: int
 
 
-# Minimum clear size per room type (measured on wall centre lines).
+# Minimum size per room type, measured on wall centre lines. Living spaces follow the Dubai
+# Building Code K.5.3.1 Table K.2 (10.5 m2 and 3.0 m net, inside the walls): on centre lines
+# that is about 3.2 m and 11.5 m2 with the walls' halves (to be confirmed by an engineer).
 MIN_ROOM: dict[str, MinSize] = {
-    "master_bedroom": MinSize(12.0, 300),
-    "bedroom": MinSize(9.5, 270),
-    "living": MinSize(12.0, 300),
-    "family_hall": MinSize(12.0, 300),
-    "dining": MinSize(7.5, 240),
-    "kitchen": MinSize(5.5, 180),
+    "master_bedroom": MinSize(12.0, 320),
+    "bedroom": MinSize(11.5, 320),
+    "living": MinSize(12.0, 320),
+    "family_hall": MinSize(12.0, 320),
+    "dining": MinSize(11.5, 320),
+    "kitchen": MinSize(6.0, 200),
     "bath": MinSize(2.8, 120),
     "toilet": MinSize(1.2, 90),
     "dress": MinSize(2.5, 120),
     "store": MinSize(1.5, 100),
-    "maid_room": MinSize(6.0, 210),
-    "study": MinSize(6.0, 210),
+    "maid_room": MinSize(6.2, 230),
+    "study": MinSize(11.5, 320),
     "lobby": MinSize(0.0, 100),
     "passage": MinSize(0.0, 100),
     "foyer": MinSize(2.5, 120),
@@ -41,12 +43,12 @@ MIN_ROOM: dict[str, MinSize] = {
     "pool": MinSize(30.0, 420),  # water at least 3 x 6 m plus a walkway around it
     "deck": MinSize(4.0, 180),
     "shaft": MinSize(0.0, 0),
-    "majlis": MinSize(10.5, 300),
+    "majlis": MinSize(11.5, 320),
     "prayer": MinSize(4.0, 180),
     "puja": MinSize(2.5, 150),
     "bar": MinSize(6.0, 210),
     "gym": MinSize(9.0, 270),
-    "driver_room": MinSize(5.5, 210),
+    "driver_room": MinSize(6.2, 230),
     "lift": MinSize(2.2, 140),
     "lawn": MinSize(0.0, 100),
     "driveway": MinSize(0.0, 300),

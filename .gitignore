@@ -50,3 +50,7 @@ docs/pro/**/*.jpg
 docs/pro/**/*.mp4
 docs/pro/**/*.exr
 docs/pro/**/*.blend
+# 2D samples: the contact sheet embeds client reference drawings, and the nandu sample
+# names a client; both stay on disk only (docs/pro/2d/samples/)
+docs/pro/2d/samples/contact_sheet.*
+docs/pro/2d/samples/nandu.*

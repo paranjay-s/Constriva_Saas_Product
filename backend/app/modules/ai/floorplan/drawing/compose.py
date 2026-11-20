@@ -642,9 +642,22 @@ class _Composer:
         for o in self.st.openings:
             if o.kind != "door" or room_id not in o.rooms:
                 continue
-            g = self._opening_box(self.st.wall(o.wall), o).buffer(o.width)
-            x0, y0 = self.P(g.bounds[0], g.bounds[1])
-            x1, y1 = self.P(g.bounds[2], g.bounds[3])
+            # the swing: a square of the leaf's size on the side the door opens into
+            w = self.st.wall(o.wall)
+            b = self._opening_box(w, o)
+            into = Polygon(next(r.polygon for r in self.st.rooms if r.id == room_id))
+            c = into.representative_point()
+            bx0, by0, bx1, by1 = b.bounds
+            if w.horizontal:
+                down = c.y > (by0 + by1) / 2
+                g = (bx0, by1, bx1, by1 + o.width) if down else (bx0, by0 - o.width, bx1, by0)
+            else:
+                right = c.x > (bx0 + bx1) / 2
+                g = (bx1, by0, bx1 + o.width, by1) if right else (bx0 - o.width, by0, bx0, by1)
+            if o.rooms[0] != room_id and o.operation != "sliding":
+                continue  # it swings into the other room
+            x0, y0 = self.P(g[0], g[1])
+            x1, y1 = self.P(g[2], g[3])
             out.append((x0, y0, x1, y1))
         for s in self.st.stairs:
             if s.room == room_id:

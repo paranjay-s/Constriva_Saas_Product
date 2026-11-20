@@ -183,9 +183,7 @@ def place_windows(plan: FloorPlan) -> list[Window]:
         pref, count = spec
         # glazing at least GLAZING_SHARE of the floor (DBC K.5.4.2.1) at WINDOW_HEIGHT_CM tall
         share = GLAZING_SHARE.get(room.type)
-        if share:
-            need = share * room.area_m2 * 10_000 / WINDOW_HEIGHT_CM
-            pref = int(max(pref, min(MAX_WINDOW_CM, need / max(1, count) + 10)))
+        need = share * room.area_m2 * 10_000 / WINDOW_HEIGHT_CM + 10 if share else 0.0
         candidates: list[tuple[float, str, Interval]] = []
         for wall in SIDES:
             horizontal = wall in ("north", "south")
@@ -200,7 +198,11 @@ def place_windows(plan: FloorPlan) -> list[Window]:
         for length, wall, (lo, _hi) in candidates:
             if len(used_walls) >= count or wall in used_walls:
                 continue
-            width = int(min(pref, length - 2 * (CLEAR + 5)))
+            # what the glazing rule still needs, on this wall (at least the usual size)
+            want = max(pref, min(MAX_WINDOW_CM, need)) if need > 0 else pref
+            width = int(min(want, length - 2 * (CLEAR + 5)))
+            if need > 0 and width >= 50:
+                need -= width
             if width < 50:
                 continue
             offset = int(lo + (length - width) / 2) - _wall_start(room, wall)

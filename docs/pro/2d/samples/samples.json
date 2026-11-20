@@ -1,0 +1,143 @@
+[
+ {
+  "plan": "villa-1500",
+  "seconds": 0.0,
+  "areas": [
+   "Total area 1,502 sq ft (605 sq ft built-up + 897 sq ft exterior)",
+   "Total area 139.5 m\u00b2 (56.2 m\u00b2 built-up + 83.3 m\u00b2 exterior), coverage 40%",
+   "Built-up 605 sq ft gross / 520 sq ft net (inside the walls)"
+  ],
+  "coverage": 0.4028,
+  "rooms": 5,
+  "critical": [],
+  "warnings": [
+   "TOILET: the WC centre is less than 400 mm from a side wall",
+   "coverage is 40.3% of the plot (aim 65%-75%)",
+   "setbacks (sides, rear) are below the 3 m of DBC Table K.1 for a standalone villa (allowed only under local relaxations)"
+  ],
+  "files": {
+   "pdf": "villa-1500.pdf",
+   "dxf": "villa-1500.dxf",
+   "dwg": "villa-1500.dwg",
+   "ifc": "villa-1500.ifc",
+   "png": "villa-1500.png",
+   "svg": "villa-1500.svg"
+  },
+  "notes": [
+   "Spare plot area is shown as a GARDEN."
+  ]
+ },
+ {
+  "plan": "villa-3000",
+  "seconds": 8.1,
+  "areas": [
+   "Total area 3,004 sq ft (1,644 sq ft built-up + 1,360 sq ft exterior)",
+   "Total area 279.1 m\u00b2 (152.8 m\u00b2 built-up + 126.3 m\u00b2 exterior), coverage 55%",
+   "Built-up 1,644 sq ft gross / 1,453 sq ft net (inside the walls)"
+  ],
+  "coverage": 0.5474,
+  "rooms": 12,
+  "critical": [],
+  "warnings": [
+   "KITCHEN: work triangle legs 1.4, 2.3, 0.9 m (each 1.2-2.7 m, total 4.0-7.9 m)",
+   "coverage is 54.7% of the plot (aim 65%-75%)",
+   "setbacks (sides, rear) are below the 3 m of DBC Table K.1 for a standalone villa (allowed only under local relaxations)"
+  ],
+  "files": {
+   "pdf": "villa-3000.pdf",
+   "dxf": "villa-3000.dxf",
+   "dwg": "villa-3000.dwg",
+   "ifc": "villa-3000.ifc",
+   "png": "villa-3000.png",
+   "svg": "villa-3000.svg"
+  },
+  "notes": [
+   "Spare plot area is shown as a GARDEN."
+  ]
+ },
+ {
+  "plan": "villa-5000",
+  "seconds": 8.1,
+  "areas": [
+   "Total area 5,007 sq ft (3,079 sq ft built-up + 1,927 sq ft exterior)",
+   "Total area 465.1 m\u00b2 (286.1 m\u00b2 built-up + 179.1 m\u00b2 exterior), coverage 62%",
+   "Built-up 3,079 sq ft gross / 2,785 sq ft net (inside the walls)"
+  ],
+  "coverage": 0.615,
+  "rooms": 15,
+  "critical": [],
+  "warnings": [
+   "BATH has no window: it needs a mechanical extract fan to outside",
+   "KITCHEN: work triangle legs 1.4, 1.0, 2.4 m (each 1.2-2.7 m, total 4.0-7.9 m)",
+   "coverage is 61.5% of the plot (aim 65%-75%)",
+   "setbacks (sides, rear) are below the 3 m of DBC Table K.1 for a standalone villa (allowed only under local relaxations)"
+  ],
+  "files": {
+   "pdf": "villa-5000.pdf",
+   "dxf": "villa-5000.dxf",
+   "dwg": "villa-5000.dwg",
+   "ifc": "villa-5000.ifc",
+   "png": "villa-5000.png",
+   "svg": "villa-5000.svg"
+  },
+  "notes": [
+   "Spare plot area is shown as a GARDEN."
+  ]
+ },
+ {
+  "plan": "villa-8000",
+  "seconds": 14.2,
+  "areas": [
+   "Total area 8,010 sq ft (5,297 sq ft built-up + 2,714 sq ft exterior)",
+   "Total area 744.2 m\u00b2 (492.1 m\u00b2 built-up + 252.1 m\u00b2 exterior), coverage 66%",
+   "Built-up 5,297 sq ft gross / 4,881 sq ft net (inside the walls)"
+  ],
+  "coverage": 0.6612,
+  "rooms": 20,
+  "critical": [],
+  "warnings": [
+   "BED ROOM has 2.48 m\u00b2 of window, 10% of its floor needs 2.50 m\u00b2",
+   "BATH has no window: it needs a mechanical extract fan to outside",
+   "LIVING has 6.08 m\u00b2 of window, 10% of its floor needs 6.21 m\u00b2",
+   "KITCHEN: work triangle legs 1.4, 3.7, 3.2 m (each 1.2-2.7 m, total 4.0-7.9 m)",
+   "setbacks (sides, rear) are below the 3 m of DBC Table K.1 for a standalone villa (allowed only under local relaxations)"
+  ],
+  "files": {
+   "pdf": "villa-8000.pdf",
+   "dxf": "villa-8000.dxf",
+   "dwg": "villa-8000.dwg",
+   "ifc": "villa-8000.ifc",
+   "png": "villa-8000.png",
+   "svg": "villa-8000.svg"
+  },
+  "notes": [
+   "Spare plot area is shown as a GARDEN."
+  ]
+ },
+ {
+  "plan": "nandu",
+  "seconds": 14.1,
+  "areas": [
+   "Total area 5,001 sq ft (3,192 sq ft built-up + 1,809 sq ft exterior)",
+   "Total area 464.6 m\u00b2 (296.6 m\u00b2 built-up + 168.1 m\u00b2 exterior), coverage 64%",
+   "Built-up 3,192 sq ft gross / 2,902 sq ft net (inside the walls)"
+  ],
+  "coverage": 0.6383,
+  "rooms": 13,
+  "critical": [],
+  "warnings": [
+   "KITCHEN: work triangle legs 1.4, 2.9, 3.4 m (each 1.2-2.7 m, total 4.0-7.9 m)",
+   "coverage is 63.8% of the plot (aim 65%-75%)",
+   "setbacks (sides, rear) are below the 3 m of DBC Table K.1 for a standalone villa (allowed only under local relaxations)"
+  ],
+  "files": {
+   "pdf": "nandu.pdf",
+   "dxf": "nandu.dxf",
+   "dwg": "nandu.dwg",
+   "ifc": "nandu.ifc",
+   "png": "nandu.png",
+   "svg": "nandu.svg"
+  },
+  "notes": []
+ }
+]

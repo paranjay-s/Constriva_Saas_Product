@@ -424,10 +424,14 @@ def _check_program(plan: FloorPlan, program: RoomProgram, rep: ValidationReport)
     target = sum(p.target_area_m2 for p in fixed_size)
     actual = sum(by_id[p.id].area_m2 for p in fixed_size if p.id in by_id)
     if target and abs(actual - target) / target > TOTAL_AREA_TOLERANCE:
+        # rooms sized up to a built-up target that the plot cannot quite hold: each room is
+        # still above its minimum, so a smaller house is a coverage warning, not a failure
+        short_of_target = actual < target and plan.plot.built_up_m2 is not None
         rep.add(
             "TOTAL_AREA_MISMATCH",
             f"program rooms total {actual:.1f} m2, target {target:.1f} m2 "
             f"(+/-{TOTAL_AREA_TOLERANCE:.0%})",
+            warning=short_of_target,
         )
 
 
