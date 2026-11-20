@@ -14,6 +14,7 @@ python3 tests/test_scale.py
 python3 tests/test_lanes.py
 python3 tests/test_north.py
 python3 tests/test_space.py
+python3 tests/test_curves.py
 python3 tests/test_assets.py
 python3 tests/test_reader.py
 python3 tests/test_rooms.py

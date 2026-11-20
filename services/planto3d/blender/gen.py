@@ -18,6 +18,7 @@ os.makedirs(JOB, exist_ok=True)
 import bpy  # noqa: E402
 from lib import *  # noqa: E402,F401
 import lib  # noqa: E402
+import curves  # noqa: E402
 import furnish  # noqa: E402
 from catalog import CATALOG  # noqa: E402
 from mathutils import Vector  # noqa: E402
@@ -988,6 +989,17 @@ for k, f in enumerate(floors):
             wb.append((*r, c[5], top))
     wb = disjoint(subtract_all(wb, cuts))
     mesh_from_boxes(f"walls_{k}", [(*b, "wall") for b in wb])
+    for i, a in enumerate(f.get("arcs", [])):    # curved walls (C3.1): the band between the faces, full height
+        ring_band(f"arc_wall_{k}_{i}", *a["c"], a["r"] - a["t"] / 2, a["r"] + a["t"] / 2, a["a0"], a["a1"], 0, H, "wall")
+    for zn in f["rooms"]:                         # round rooms: the floor, skirting and a lit cove follow the circle
+        if not zn.get("circle"):
+            continue
+        cx_, cy_, rr = zn["circle"]
+        disc(f"round_floor_{k}_{int(cx_)}_{int(cy_)}", cx_, cy_, rr + 0.02, 0.005, FLOOR_MAT.get(zn["type"], "tile"))
+        ring_band(f"round_skirting_{k}_{int(cx_)}", cx_, cy_, rr - 0.04, rr, 0, 360, 0, 0.33, "ceiling")
+        ring_band(f"round_cove_{k}_{int(cx_)}", cx_, cy_, rr - 1.0, rr, 0, 360, H - 0.75, H - 0.55, "ceiling")
+        ring_band(f"round_cove_light_{k}_{int(cx_)}", cx_, cy_, rr - 0.95, rr - 0.85, 0, 360, H - 0.56, H - 0.5,
+                  "light", coll="furniture")
     if k == 0:          # a stone plinth along the outside faces of the ground storey's outer walls (not at doors)
         clad = plinth_boxes(f, cuts)
         if clad:
@@ -1209,7 +1221,9 @@ for k, f in enumerate(floors):
     META_FLOORS.append(dict(
         name=f.get("name", f"Floor {k}"), z=round(z * F_, 3), height=round(H * F_, 3),
         colliders=[m(b) for b in subtract_all([(*w[:4], 0, 1) for w in f["walls"]] + sills,
-                                              [(c[0], c[1], c[2], c[3], 0, 1) for c in cuts if c[4] < 1])] + [m(b) for b in guards] + [m(b) for b in closed],
+                                              [(c[0], c[1], c[2], c[3], 0, 1) for c in cuts if c[4] < 1])] + [m(b) for b in guards] + [m(b) for b in closed]
+        + [m(b) for a in f.get("arcs", []) for b in curves.arc_blocks(*a["c"], a["r"] - a["t"] / 2,
+                                                                       a["r"] + a["t"] / 2, a["a0"], a["a1"], 0.4)],
         # solid furniture, for the guided tour's route (web/tour.js) to go round
         furniture=[m(it["box"]) for it in items if it.get("solid", True) and it["box"][1] > it["box"][0]],
         # an upper storey can be walked on only where its slab is; the ground storey everywhere

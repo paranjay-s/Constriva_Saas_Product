@@ -9,7 +9,7 @@ Output units are FEET; per floor, origin = lower-left of the walls, +x right, +y
 import json, math, re, sys
 from collections import defaultdict
 
-import rooms, vector
+import curves, rooms, vector
 
 VOCAB_PHRASES = rooms.VOCAB["phrases"]
 
@@ -1221,6 +1221,11 @@ def in_poly(x, y, poly):
 
 def detect_floor(f, T, s, phr, lines, hatch, A, zone_lines, cuts=(), fills=()):
     b, walls = f["bbox"], f["walls"]
+    # curved walls: two concentric arcs a wall's thickness apart (curves.py); they are not door swings
+    curved = [c for c in curves.curved_walls(A, T, s) if inside(c[:2], b, c[3] + T)]
+    used_r = [(c[0], c[1], c[2], c[3]) for c in curved]
+    A = [a for a in A if not any(math.dist(a[:2], u[:2]) < 0.3 * T and u[2] - 0.1 * T <= a[2] <= u[3] + 0.1 * T
+                                 for u in used_r)]
     ops = [o for o in openings(walls, lines, A, T, s, zone_lines) if inside(((o["rect"][0] + o["rect"][1]) / 2,
                                                                   (o["rect"][2] + o["rect"][3]) / 2), b)]
     # one opening per gap (found from both of its ends)
@@ -1247,7 +1252,10 @@ def detect_floor(f, T, s, phr, lines, hatch, A, zone_lines, cuts=(), fills=()):
         ops = [o for o in ops if not inside(((o["rect"][0] + o["rect"][1]) / 2, (o["rect"][2] + o["rect"][3]) / 2), sb)]
     border = [(b[0] - T, b[0], b[2] - T, b[3] + T), (b[1], b[1] + T, b[2] - T, b[3] + T),
               (b[0] - T, b[1] + T, b[2] - T, b[2]), (b[0] - T, b[1] + T, b[3], b[3] + T)]
-    F = flood_rooms(walls, [o["rect"] for o in ops if o["type"] != "opening"] + border, (b[0] - T, b[1] + T, b[2] - T, b[3] + T), max(T / 3, 0.5))
+    cell = max(T / 3, 0.5)
+    arc_cells = [q for c in curved for q in curves.arc_blocks(c[0], c[1], c[2], c[3], *curves.angle_span(c[0], c[1], c[4]), cell)]
+    F = flood_rooms(walls, [o["rect"] for o in ops if o["type"] != "opening"] + border + arc_cells,
+                    (b[0] - T, b[1] + T, b[2] - T, b[3] + T), cell)
     names = [p for p in phr if inside((p["cx"], p["cy"]), b)]
     rooms, zone_of = [], {}        # zone_of[cell] = room index (open plans are split per name label)
     C, ox, oy = F["cell"], F["ox"], F["oy"]
@@ -1366,13 +1374,28 @@ def detect_floor(f, T, s, phr, lines, hatch, A, zone_lines, cuts=(), fills=()):
             d["double"] = len(o["leaves"]) > 1 or lf["radius"] < 0.62 * ((o["rect"][1] - o["rect"][0]) if o["axis"] == "h" else (o["rect"][3] - o["rect"][2]))
         ops_out.append(d)
     doors_through(ops_out, [R(w) for w, _ in out_walls])
+    arcs_out = []
+    for cx, cy, r_in, r_out, pts in curved:      # page angles (y down) -> plan angles (y up)
+        a0, a1 = curves.angle_span(cx, cy, pts)
+        c = P(cx, cy)
+        b0, b1 = (0.0, 360.0) if a1 - a0 >= 359.9 else ((360 - a1) % 360, (360 - a1) % 360 + (a1 - a0))
+        arcs_out.append(dict(c=list(c), r=round((r_in + r_out) / 2 / s, 3), t=round((r_out - r_in) / s, 3),
+                             a0=round(b0, 2), a1=round(b1, 2)))
+    rooms_out = []
+    for r in rooms:
+        d = dict({k: v for k, v in r.items() if k != "_at"}, rects=[R(q) for q in r["rects"]],
+                 **({"label_at": list(P(*r["_at"]))} if r.get("_at") else {}))
+        circle = curves.round_room(d["rects"], arcs_out)
+        if circle:
+            d["circle"] = circle
+        rooms_out.append(d)
     return mark_spiral(dict(
         _x=b[0], title=title, origin_pt=[X0, Y1], size=[round((b[1] - b[0]) / s, 2), round((b[3] - b[2]) / s, 2)],
         walls=[R(w) + [1 if low else 0] for w, low in out_walls],
         openings=ops_out,
         # label_at: where the room's name is written (plan feet): the size fit measures the room from there
-        rooms=[dict({k: v for k, v in r.items() if k != "_at"}, rects=[R(q) for q in r["rects"]],
-                    **({"label_at": list(P(*r["_at"]))} if r.get("_at") else {})) for r in rooms],
+        rooms=rooms_out,
+        **({"arcs": arcs_out} if arcs_out else {}),
         stairs=[dict(rect=R(fl["rect"]), axis=fl["axis"], steps=fl["n"], up=fl["up"],
                      words=[(t, *P(x, y)) for t, x, y in fl["words"]]) for fl in flights],
         labels=[dict(text=p["text"], at=P(p["cx"], p["cy"])) for p in names],

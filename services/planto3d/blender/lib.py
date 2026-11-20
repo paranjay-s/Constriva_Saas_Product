@@ -174,6 +174,51 @@ def collection(name):
     return COLL[name]
 
 
+def ring_band(name, cx, cy, r_in, r_out, a0, a1, z0, z1, mat, coll="arch"):
+    """a curved band in feet (a curved wall, skirting, a cove): the ring sector between r_in and r_out from angle a0
+    to a1 (degrees, plan axes), from z0 to z1. A whole circle (360 degrees) closes on itself."""
+    import curves
+    quads = curves.sector_quads(cx, cy, r_in, r_out, a0, a1)
+    bm = bmesh.new()
+    V = lambda p, z: bm.verts.new((p[0] * F, p[1] * F, z * F))
+    full = a1 - a0 >= 359.9
+    for i, (pi0, po0, po1, pi1) in enumerate(quads):
+        b = [V(pi0, z0), V(po0, z0), V(po1, z0), V(pi1, z0)]
+        t = [V(pi0, z1), V(po0, z1), V(po1, z1), V(pi1, z1)]
+        bm.faces.new((b[3], b[2], b[1], b[0]))          # bottom
+        bm.faces.new((t[0], t[1], t[2], t[3]))          # top
+        bm.faces.new((b[1], b[2], t[2], t[1]))          # outer face
+        bm.faces.new((b[3], b[0], t[0], t[3]))          # inner face
+        if not full and i == 0:
+            bm.faces.new((b[0], b[1], t[1], t[0]))      # start cap
+        if not full and i == len(quads) - 1:
+            bm.faces.new((b[2], b[3], t[3], t[2]))      # end cap
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(MATS[mat])
+    ob = bpy.data.objects.new(name, me)
+    collection(coll).objects.link(ob)
+    return ob
+
+
+def disc(name, cx, cy, r, z, mat, coll="arch", up=True):
+    """a flat disc in feet at height z (a round room's floor or ceiling)"""
+    import curves
+    pts = curves.arc_points(cx, cy, r, 0, 360)[:-1]
+    bm = bmesh.new()
+    vs = [bm.verts.new((x * F, y * F, z * F)) for x, y in pts]
+    bm.faces.new(vs if up else list(reversed(vs)))
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    me.materials.append(MATS[mat])
+    ob = bpy.data.objects.new(name, me)
+    collection(coll).objects.link(ob)
+    return ob
+
+
 def spiral_stair(name, rect, z0, rise, steps=None, turn=0.85, coll="arch"):
     """a spiral (helical) stair in feet: wedge treads round a central column inside rect, climbing `rise` from z0 in
     `turn` revolutions, with a helical handrail at the outer edge. -> the objects (treads, column, rail)"""

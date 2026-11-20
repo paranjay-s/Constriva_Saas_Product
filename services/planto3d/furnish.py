@@ -892,10 +892,45 @@ def declutter(R):
             R.items = [x for x in R.items if x is not drop]
 
 
+def round_room(z):
+    """a round room (curves.py): furniture arranged round the centre, never against the curved wall: a round rug
+    and a coffee table with two sofas facing each other (living, majlis), a round dining table (dining), the bed
+    (bedroom), and a plant on the diagonals where the circle leaves room"""
+    cx, cy, r = z["circle"]
+    label = z.get("label") or z["type"]
+    items = []
+
+    def add(fn, box, *args, solid=True, **kw):
+        items.append(dict(fn=fn, args=list(args), kw=kw, box=box, solid=solid, room=label))
+
+    t = z["type"]
+    if r < 4.0:
+        return items
+    add("round_rug", (cx - 0.7 * r, cx + 0.7 * r, cy - 0.7 * r, cy + 0.7 * r), cx, cy, round(0.7 * r, 2), solid=False)
+    if t in ("living", "majlis", "room", "multipurpose") and r >= 6.0:
+        add("coffee_table", (cx - 1.8, cx + 1.8, cy - 1.0, cy + 1.0), cx, cy, 0)
+        for side in (-1, 1):
+            y = cy + side * 3.4
+            add("sofa", (cx - 3.5, cx + 3.5, y - 1.5, y + 1.5), cx, y, 0 if side > 0 else 180, w=7.0)
+    elif t == "dining" and r >= 5.5:
+        add("dining_set", (cx - 4.6, cx + 4.6, cy - 3.2, cy + 3.2), cx, cy, 0, w=6.0, d=3.2, seats=6)
+    elif t == "bedroom" and r >= 6.0:
+        add("bed", (cx - 2.5, cx + 2.5, cy - 3.3, cy + 3.3), cx, cy, 0, w=5.0, l=6.6, panel=0)
+    for ang in (45, 135, 225, 315):           # plants on the diagonals, clear of the wall and the middle
+        px = cx + 0.78 * r * math.cos(math.radians(ang))
+        py = cy + 0.78 * r * math.sin(math.radians(ang))
+        if 0.78 * r - 1.0 > 0.7 * r * 0.75:
+            add("plant", (px - 0.8, px + 0.8, py - 0.8, py + 0.8), px, py, 0)
+    return items
+
+
 def furnish_floor(floor):
     """-> list of items {fn, args, kw, box, solid, room} for one floor"""
     out = []
     for z in floor["rooms"]:
+        if z.get("circle") and z["rects"]:
+            out += round_room(z)
+            continue
         if z["type"] not in RULES or not z["rects"]:
             continue
         R = Room(z, floor)

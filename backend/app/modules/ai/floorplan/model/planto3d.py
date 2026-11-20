@@ -13,6 +13,7 @@ Every wall, opening, room and flight of the model is in the result with its posi
 size to within 0.001 ft; tests/floorplan/test_fp_building.py checks that.
 """
 
+import math
 from typing import Any
 
 from shapely.geometry import LineString, Polygon
@@ -224,7 +225,23 @@ def _floor(b: Building, st: Storey) -> dict[str, Any]:
                 "centre_line_mm": [x0, y0, x1, y1],
             }
         )
+        if r.circle:  # a round room (C3.1): row slices of the disc, the exact circle beside them
+            cx, cy, rr = r.circle
+            c = P(cx, cy)
+            room = rooms[-1]
+            room["circle"] = [c[0], c[1], _ft(rr)]
+            room["rects"] = _disc_rects(c[0], c[1], rr / MM_PER_FT)
+            room["area"] = round(math.pi * (rr / MM_PER_FT) ** 2, 1)
         labels.append({"text": r.name, "at": P((x0 + x1) / 2, (y0 + y1) / 2)})
+    arcs = []
+    for a in st.arcs:  # curved walls; model angles turn towards south, plan angles towards up
+        c = P(*a.center)
+        full = a.end_deg - a.start_deg >= 359.9
+        a0 = 0.0 if full else (360 - a.end_deg) % 360
+        a1 = 360.0 if full else a0 + (a.end_deg - a.start_deg)
+        arcs.append(
+            {"c": list(c), "r": _ft(a.radius), "t": _ft(a.thickness), "a0": a0, "a1": a1}
+        )
     if st.index == 0:
         for e in b.site.elements:
             if e.kind in ("boundary_wall", "gate", "plot"):
@@ -262,7 +279,10 @@ def _floor(b: Building, st: Storey) -> dict[str, Any]:
                 else:
                     sy = f.y if f.up == 1 else f.y + f.h
                     entry["words"] = [["UP", *P(f.x + f.w / 2, sy)]]
+            if s.shape == "spiral":
+                entry["shape"] = "spiral"
             stairs.append(entry)
+    extra = {"arcs": arcs} if arcs else {}
     return {
         "title": st.name.upper(),
         "name": st.name.title(),
@@ -275,7 +295,22 @@ def _floor(b: Building, st: Storey) -> dict[str, Any]:
         "rooms": rooms,
         "stairs": stairs,
         "labels": labels,
+        **extra,
     }
+
+
+def _disc_rects(cx: float, cy: float, r: float, h: float = 0.5) -> list[list[float]]:
+    """a disc (feet) as row slices, each as wide as the disc at its narrower edge
+    (services/planto3d/curves.py disc_rects)"""
+    out, y = [], cy - r
+    while y < cy + r - 1e-6:
+        y1 = min(cy + r, y + h)
+        edge = max(abs(y - cy), abs(y1 - cy))
+        half = math.sqrt(max(0.0, r * r - edge * edge))
+        if half > 0.05:
+            out.append([round(cx - half, 3), round(cx + half, 3), round(y, 3), round(y1, 3)])
+        y = y1
+    return out
 
 
 def to_planto3d(b: Building, *, source_name: str = "") -> dict[str, Any]:

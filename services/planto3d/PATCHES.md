@@ -694,3 +694,23 @@ rectangle, measured with `tools/space_check.py`); what changes is how the space 
 - `tools/still_shots.py`: room stills use 18-24 mm full-frame lenses (was 16-24), level cameras (verticals
   straight), from the corner along the room's longest diagonal.
 - `tests/test_space.py` (in run_all.sh).
+
+## 60. Curved walls and round rooms (feat/pro_2, C3.1)
+
+- `curves.py` (pure Python): arc points, ring sectors, disc slices, curved walls from concentric arc pairs, a
+  curve's span from its pieces, round-room recognition. Plan format: `floor.arcs = [{c, r, t, a0, a1}]` (feet,
+  degrees anticlockwise, a1 > a0) and `room.circle = [cx, cy, r]`, the room's `rects` staying as row slices of
+  the disc so every rectangle-based step (furniture, walker, review page) keeps working.
+- `vector.py`: a circle or long arc drawn as many short straight pieces (closed rings too) is read back as arcs of
+  at most 80 degrees (`circle_pieces`).
+- `detect.py`: two concentric arcs 0.5-2.5 wall thicknesses apart with a radius of at least 3 ft are a curved
+  wall (a door swing is a single arc); they block the room flood fill, are left out of the door logic and are
+  written to `floor.arcs`; a room filling a whole circle gets `circle`.
+- `blender/lib.py` `ring_band`, `disc`; `blender/gen.py`: curved walls at full height, and in round rooms a disc
+  floor, a skirting ring and a lit cove ring at the ceiling; curved walls are colliders for the walker.
+- `furnish.py` `round_room`: furniture round the centre (round rug, coffee table and two facing sofas, a round
+  dining table, a bed in the middle) and plants on the diagonals, never against the curved wall.
+- Spiral stairs were already built (`lib.spiral_stair`, `shape: "spiral"`); the 2D generator's building model
+  now carries them too.
+- `tests/test_curves.py` (in run_all.sh); the drawing -> detector round trip is
+  `backend/tests/floorplan/test_fp_curves.py`.

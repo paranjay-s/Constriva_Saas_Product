@@ -140,6 +140,22 @@ class Opening(_M):
     main_entrance: bool = False
 
 
+class ArcWall(_M):
+    """A curved wall (C3.1): its centre line is an arc of `radius` round `center`, from angle
+    `start_deg` to `end_deg` (degrees in the model's axes: from +x towards +y, i.e. clockwise on
+    the drawing, y growing south; end > start, a full circle is 0..360). No openings."""
+
+    id: str
+    center: Pt
+    radius: int
+    thickness: int
+    start_deg: float = 0.0
+    end_deg: float = 360.0
+    kind: WallKind = "interior"
+    height: int = 3000
+    rooms: list[str] = Field(default_factory=list)
+
+
 class Room(_M):
     id: str
     name: str
@@ -151,6 +167,8 @@ class Room(_M):
     net_area_m2: float = 0.0
     gross_area_m2: float = 0.0
     part_of: str | None = None
+    # a round room: centre and inside radius (mm); its polygon is the circle as a polygon
+    circle: tuple[int, int, int] | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 class Fixture(_M):
@@ -188,6 +206,11 @@ class Stair(_M):
     headroom: int
     landing: tuple[int, int, int, int] | None = None  # x, y, w, h
     flights: list[Flight]
+    # a spiral stair (C3.1) climbs round a column in its room's square; its flights are then
+    # the room's square, travelled round
+    shape: Literal["straight", "spiral"] = Field(
+        default="straight", exclude_if=lambda v: v == "straight"
+    )
 
 
 class SiteElement(_M):
@@ -230,6 +253,7 @@ class Storey(_M):
     rooms: list[Room] = Field(default_factory=list)
     fixtures: list[Fixture] = Field(default_factory=list)
     stairs: list[Stair] = Field(default_factory=list)
+    arcs: list[ArcWall] = Field(default_factory=list, exclude_if=lambda v: not v)
 
     def wall(self, wall_id: str) -> Wall:
         return next(w for w in self.walls if w.id == wall_id)

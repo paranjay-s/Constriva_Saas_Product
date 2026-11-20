@@ -102,6 +102,36 @@ def polyline_arc(pts):
     return ((ax, ay), (ax + k * t0[0], ay + k * t0[1]), (cx - k * t1[0], cy - k * t1[1]), (cx, cy))
 
 
+def circle_pieces(pts, most=80.0):
+    """a polyline of short pieces lying on one circle (a ring the exporter flattened, curved walls) -> the same
+    points cut into runs of at most `most` degrees (each then reads as one arc), else []"""
+    if len(pts) < 12:
+        return []
+    n = len(pts)
+    a, b, c = pts[0], pts[n // 3], pts[2 * n // 3]
+    d = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]))
+    if abs(d) < 1e-9:
+        return []
+    a2, b2, c2 = a[0] ** 2 + a[1] ** 2, b[0] ** 2 + b[1] ** 2, c[0] ** 2 + c[1] ** 2
+    ox = (a2 * (b[1] - c[1]) + b2 * (c[1] - a[1]) + c2 * (a[1] - b[1])) / d
+    oy = (a2 * (c[0] - b[0]) + b2 * (a[0] - c[0]) + c2 * (b[0] - a[0])) / d
+    r = math.dist(a, (ox, oy))
+    if r < 1 or any(abs(math.dist(p, (ox, oy)) - r) > 0.02 * r for p in pts):
+        return []
+    out, run, swept = [], [pts[0]], 0.0
+    for p, q in zip(pts, pts[1:]):
+        step = abs(math.atan2((p[0] - ox) * (q[1] - oy) - (p[1] - oy) * (q[0] - ox),
+                              (p[0] - ox) * (q[0] - ox) + (p[1] - oy) * (q[1] - oy)))
+        run.append(q)
+        swept += math.degrees(step)
+        if swept >= most:
+            out.append(run)
+            run, swept = [q], 0.0
+    if len(run) >= 8:
+        out.append(run)
+    return out
+
+
 def page_count(pdf):
     out = subprocess.run(["pdfinfo", pdf], capture_output=True, text=True, timeout=60).stdout
     return int(re.search(r"Pages:\s+(\d+)", out).group(1))
@@ -177,10 +207,17 @@ def read_page(pdf, page=1):
         toks = re.findall(rf"[MLCZHVQmlczhvq]|[SsTtAa]|{NUM}", el.get("d", ""))
         i, cmd, cur, start, poly, polys, bent = 0, None, (0, 0), (0, 0), [], [], False
 
-        def flat_arc(poly):     # an open subpath of straight pieces only: maybe an arc the exporter flattened
-            arc = stroke and not bent and polyline_arc(poly)
+        def flat_arc(poly):     # a subpath of straight pieces only: maybe an arc the exporter flattened
+            if not stroke or bent:
+                return
+            arc = polyline_arc(poly)
             if arc:
                 curves.append((*arc, stroke, sw))
+                return
+            for piece in circle_pieces(poly):      # a whole circle or a long arc: in pieces of 90 deg or less
+                arc = polyline_arc(piece)
+                if arc:
+                    curves.append((*arc, stroke, sw))
 
         def bez(p1, p2, p3):
             if stroke:
@@ -198,6 +235,7 @@ def read_page(pdf, page=1):
                         add_seg(tf(*cur), tf(*start), stroke, sw, box)
                     cur = start
                     if poly:
+                        flat_arc(poly + [poly[0]] if poly[-1] != poly[0] else poly)   # a closed ring
                         polys.append(poly)
                     poly = []
                     continue

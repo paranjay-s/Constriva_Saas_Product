@@ -82,12 +82,17 @@ def main():
             print(r)
     labelled = [r for r in rows if r["diff"] is not None]
     within = sum(r["diff"] <= 0.05 for r in labelled)
+    ceiling = (meta or {}).get("ceiling_m") or H * M
+    doors = (meta or {}).get("door_head_m") or 7.0 * M
     print(f"\nlabelled rooms {len(labelled)}, within 5 % of their label {within}; "
-          f"floor to ceiling {H:g} ft = {H * M:.2f} m; eye {meta['eye'] if meta else 1.6} m")
-    for aspect in (16 / 9, 4 / 3):
-        v = 70
-        hfov = 2 * math.degrees(math.atan(math.tan(math.radians(v / 2)) * aspect))
-        print(f"walkthrough: vertical FOV {v} deg -> horizontal {hfov:.0f} deg at {aspect:.2f}:1")
+          f"floor to ceiling {ceiling:.2f} m; doors {doors:.2f} m; eye {meta['eye'] if meta else 1.6} m")
+    if meta and meta.get("fov_h"):
+        print(f"walkthrough: horizontal FOV {meta['fov_h']:g} deg on every window shape (Wide view; 65 normal)")
+    else:
+        for aspect in (16 / 9, 4 / 3):
+            v = 70
+            hfov = 2 * math.degrees(math.atan(math.tan(math.radians(v / 2)) * aspect))
+            print(f"walkthrough: vertical FOV {v} deg -> horizontal {hfov:.0f} deg at {aspect:.2f}:1")
 
 
 if __name__ == "__main__":

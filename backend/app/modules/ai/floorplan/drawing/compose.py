@@ -364,6 +364,16 @@ class _Composer:
         inner = unary_union([rects[w.id] for w in st.walls if w.kind != "exterior"]).difference(ext)
         self.add_poly(inner.difference(cut), GREY["wall_int"], "A-WALL-PATT", INK, self.pen("wide"))
         self.add_poly(ext.difference(cut), GREY["wall_ext"], "A-WALL", INK, self.pen("thick"))
+        for a in st.arcs:  # curved walls (C3.1): the band between the two faces, filled the same
+            band = arc_band(a)
+            ext_kind = a.kind == "exterior"
+            self.add_poly(
+                band,
+                GREY["wall_ext" if ext_kind else "wall_int"],
+                "A-WALL" if ext_kind else "A-WALL-PATT",
+                INK,
+                self.pen("thick" if ext_kind else "wide"),
+            )
 
     def _opening_box(self, w: Wall, o: Opening, extra: float = 0.0):
         h = w.thickness / 2 + extra
@@ -465,8 +475,36 @@ class _Composer:
             self.sheet.add(Area([[self.P(*tip), self.P(*l1), self.P(*l2)]], INK, "A-ANNO-SYMB"))
 
     # ---------------------------------------------------------------- stairs
+    def spiral(self, s) -> None:
+        """a spiral stair: the outer circle, the column, radial treads and the walking line
+        round to an arrow with UP (C3.1)"""
+        room = next((r for r in self.st.rooms if r.id == s.room), None)
+        if room is None:
+            return
+        xs, ys = [p[0] for p in room.polygon], [p[1] for p in room.polygon]
+        cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+        r = min(max(xs) - min(xs), max(ys) - min(ys)) / 2 - 50
+        col = 150
+        outer = Polygon(_arc_pts(cx, cy, r, 0, 360))
+        pen = self.pen("normal")
+        self.sheet.add(Line(self.ring(outer.exterior.coords), pen, "A-FLOR-STRS", INK, None, True))
+        self.sheet.add(Circle(self.P(cx, cy), col / self.scale, pen, "A-FLOR-STRS", INK))
+        n = max(10, s.risers)
+        for k in range(n):
+            a = math.radians(360 * 0.85 * k / n)
+            p0 = self.P(cx + col * math.cos(a), cy + col * math.sin(a))
+            p1 = self.P(cx + r * math.cos(a), cy + r * math.sin(a))
+            self.sheet.add(Line([p0, p1], self.pen("thin"), "A-FLOR-STRS", INK))
+        walk = _arc_pts(cx, cy, (r + col) / 2, 0, 360 * 0.85)
+        self.sheet.add(Line([self.P(x, y) for x, y in walk], self.pen("thin"), "A-FLOR-STRS", INK))
+        ex, ey = walk[-1]
+        self.text(*self.P(ex, ey), "UP", self.txt("small"), "A-FLOR-STRS", True)
+
     def stairs(self) -> None:
         for s in self.st.stairs:
+            if s.shape == "spiral":
+                self.spiral(s)
+                continue
             for i, f in enumerate(s.flights):
                 r = box(f.x, f.y, f.x + f.w, f.y + f.h)
                 self.sheet.add(
@@ -1382,6 +1420,25 @@ class _Composer:
         self.footer()
         self.title_strip()
         return self.sheet
+
+
+def _arc_pts(cx: float, cy: float, r: float, a0: float, a1: float, step: float = 4.0):
+    n = max(2, int(abs(a1 - a0) / step) + 1)
+    return [
+        (cx + r * math.cos(math.radians(a0 + (a1 - a0) * k / (n - 1))),
+         cy + r * math.sin(math.radians(a0 + (a1 - a0) * k / (n - 1))))
+        for k in range(n)
+    ]
+
+
+def arc_band(a):
+    """a curved wall's outline (mm): the band between its two faces"""
+    r_in, r_out = a.radius - a.thickness / 2, a.radius + a.thickness / 2
+    if a.end_deg - a.start_deg >= 359.9:
+        return Polygon(_arc_pts(*a.center, r_out, 0, 360), [_arc_pts(*a.center, r_in, 0, 360)])
+    pts = _arc_pts(*a.center, r_out, a.start_deg, a.end_deg)
+    pts += list(reversed(_arc_pts(*a.center, r_in, a.start_deg, a.end_deg)))
+    return Polygon(pts)
 
 
 def _overlap(a, b) -> bool:
