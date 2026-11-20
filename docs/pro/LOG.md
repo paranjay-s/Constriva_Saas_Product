@@ -15,3 +15,6 @@ Started 2026-11-20 on branch `feat/pro` (from `feat/merged` d08ad48).
 | 1 | 7 CAD drawing, muted, A3/A1 | done | eb888f2 | old svg_renderer kept only for the old DXF until task 8 |
 | 1 | 8 PDF/SVG/PNG, DXF, IFC, DWG, signed model | done | 6dd1058 | DWG writer is the ODA converter (licence: owner decision); 518 tests pass |
 | 1 | 9 Engineering checks, RULES.md | done | adaa7e9 | nandu brief: 0 critical, warnings for glazing, triangle, coverage 64.5%, DBC setbacks |
+| 1 | 10 Round trip 3D/BOQ, 20 plans | partial | 6ec246b | exact with model 18/18; drawing-only detector doors 82.6%, windows 91.5%, OpenCV and AI below 98%; AI run rate-limited (about 32 live calls used) |
+| 1 | 11 Samples 1,500-8,000 sq ft + nandu | done | 6ec246b | 1,500 sq ft sample is 1 bedroom (2 do not fit the default setbacks); nandu and contact sheet kept local (client content) |
+| 1 | 12 All suites and build | done | 0289d48 | backend 1239 passed / 3 skipped; frontend 294 passed; build ok. Live nandu chat test blocked by HTTP 429 (deterministic test passes) |
