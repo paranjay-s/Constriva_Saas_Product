@@ -61,3 +61,17 @@ Cloned into `tools/vendor-eval/` (git-ignored) to read code and licences; nothin
 | art-programmer/FloorplanTransformation | MIT code; data and weights under other terms | ideas only (junction graph, integer-programming clean-up) |
 | RapidAI/RapidOCR | Apache-2.0 | the shipped OCR (installed from PyPI) |
 | mindee/doctr | Apache-2.0 | evaluated as the alternative OCR; not installed |
+
+## PART 2: High quality (E) and PART 3
+
+| Item | Version | Licence | Shipped | Use |
+|---|---|---|---|---|
+| Style handover ("Lantern house", docs/reference/style) | 2026-11 | the owner's team; ported with permission given in the brief | ported code in `services/planto3d/blender/look.py` | sky, materials, render settings and finishing of High stills |
+| Blender (Cycles, EEVEE, glTF and USD exporters) | 5.3 | GPL-2.0+ | separate process only (already used) | stills, tours, engine export |
+| Unreal Engine | 5.8 (already installed) | Epic EULA: no royalty on rendered stills/video; seat subscription above USD 1 M revenue outside games | no (optional renderer, `PLAN3D_RENDERER=unreal`) | prototype in `tools/unreal/HouseProto` |
+| Pixel Streaming 2 (Unreal plugin) | with UE 5.8 | Epic EULA | no (disabled) | documented in deploy-3d.md |
+| Twinmotion | n/a | free under USD 1 M revenue, paid seat above | no (research only) | REALTIME_ENGINES.md |
+| ffmpeg (libx264) | system | LGPL/GPL build | separate process (already used) | tours and the fast tour |
+| Chrome for Testing | 158 | BSD-style (Chromium) | no (local screenshots of the walkthrough for F only, in the scratchpad) | Low pictures in the comparison sheets |
+| cwebp (libwebp, Homebrew) | system | BSD-3-Clause | no (local re-encoding of one landing image) | PART 3 image compression |
+| ODA File Converter (optional in the backend image) | 27.x | proprietary freeware | only if the owner allows (`ODA_DEB_URL`) | DWG export (from PART 1) |
