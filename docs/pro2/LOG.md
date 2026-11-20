@@ -16,3 +16,4 @@ counted at the end of the lines that used them.
 | A2 | 2 view toggle, downloads follow it, presentation PDF signed | done | f3fb60c | |
 | A2 | 3 engineering snapshot byte-identical (PDF, SVG, PNG, DXF) | done | ef0faba+f3fb60c | 20 files, run stamps blanked |
 | A2 | 4 side-by-side samples | done | f3fb60c | docs/pro2/2d/presentation |
+| A1 | 8 tests: both briefs, golden working brief, 50 random briefs | done | 8be4942 | 50/50 plans; first pass 42, weighted 5, b 1, fallback 2 |
