@@ -62,3 +62,6 @@ tools/unreal/HouseProto/DerivedDataCache/
 tools/unreal/HouseProto/Content/
 tools/unreal/HouseProto/Binaries/
 tools/unreal/HouseProto/Config/DefaultInput.ini
+
+# reference vs Low vs High sheets carry the owner's reference pictures: on disk only
+docs/pro2/3d/compare/*.jpg
