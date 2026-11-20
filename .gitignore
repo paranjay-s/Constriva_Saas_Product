@@ -42,3 +42,11 @@ docs/run3/**/*.blend
 
 # merge test screenshots (kept local: docs/merge/REPORT.md lists them)
 docs/merge/screens/
+
+# pro run: outside repositories cloned for evaluation only; large raster samples stay local
+tools/vendor-eval/
+docs/pro/**/*.png
+docs/pro/**/*.jpg
+docs/pro/**/*.mp4
+docs/pro/**/*.exr
+docs/pro/**/*.blend
