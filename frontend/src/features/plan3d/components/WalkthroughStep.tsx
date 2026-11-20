@@ -33,7 +33,8 @@ interface WalkthroughStepProps {
   onTourStarted?: (job: Plan3dJob) => void;
 }
 
-const TOUR_NAMES = { high: "High (720p)", ultra: "Ultra (1080p)" } as const;
+const TOUR_NAMES = { high: "High (1080p)", ultra: "Ultra (1080p, path traced)" } as const;
+const STILL_NAMES = { evening: "Evening", day: "Daylight" } as const;
 
 export function WalkthroughStep({
   job,
@@ -47,7 +48,7 @@ export function WalkthroughStep({
   const embed = useEmbedAccess(jobId, frame);
   const box = useRef<HTMLDivElement>(null);
   const onPage = useRef(true);
-  const [busy, setBusy] = useState<"export" | "delete" | "tour" | "share" | null>(null);
+  const [busy, setBusy] = useState<"export" | "delete" | "tour" | "stills" | "share" | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,6 +136,20 @@ export function WalkthroughStep({
       setBusy(null);
     }
   };
+
+  const renderStills = async (mode: "evening" | "day") => {
+    setBusy("stills");
+    setError(null);
+    try {
+      const next = await plan3dApi.stills(jobId, mode);
+      onTourStarted?.(next);
+    } catch (e) {
+      setError(`The stills could not be started. ${plan3dErrorText(e)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+  const filesUrl = embed.access?.files_url ?? null;
 
   const downloadTour = async (file: string) => {
     setError(null);
@@ -318,6 +333,70 @@ export function WalkthroughStep({
             </Button>
           ),
         )}
+      </div>
+      <div className="flex flex-col gap-2" aria-label="Stills" role="group">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-mono text-xs text-[#a3afbf]">Photoreal stills</span>
+          {(["evening", "day"] as const).map((m) =>
+            job.stills[m] ? null : (
+              <Button
+                key={m}
+                variant="ghost"
+                size="sm"
+                onClick={() => void renderStills(m)}
+                disabled={busy !== null}
+              >
+                Render {STILL_NAMES[m].toLowerCase()} stills
+              </Button>
+            ),
+          )}
+        </div>
+        {(["evening", "day"] as const).map((m) => {
+          const set = job.stills[m];
+          if (!set) return null;
+          return (
+            <div key={m} className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-[#a3afbf]">
+                <span>
+                  {STILL_NAMES[m]}: {set.files.length} stills
+                  {set.per_still ? `, ${Math.round(set.per_still)} s each` : ""}
+                </span>
+                {set.tour && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => void downloadTour(set.tour ?? "")}
+                    leftIcon={<IconDownload className="h-3.5 w-3.5" aria-hidden="true" />}
+                  >
+                    Fast tour (1080p)
+                  </Button>
+                )}
+              </div>
+              {filesUrl && (
+                <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label={`${STILL_NAMES[m]} stills`}>
+                  {set.files.map((f) => (
+                    <li key={f.name}>
+                      <a
+                        href={jobFileUrl(filesUrl, f.file)}
+                        download
+                        className="block overflow-hidden rounded-md border border-white/10"
+                        title={`Download ${f.title}`}
+                      >
+                        <img
+                          src={jobFileUrl(filesUrl, f.file)}
+                          alt={f.title}
+                          loading="lazy"
+                          className="aspect-video w-full object-cover"
+                        />
+                        <span className="block truncate px-2 py-1 text-xs text-[#d6dde6]">{f.title}</span>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })}
       </div>
       {busy === "export" && (
         <StatusNote>

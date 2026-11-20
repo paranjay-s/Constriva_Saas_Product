@@ -62,6 +62,22 @@ export const plan3dJobSchema = z.looseObject({
   preview: z.boolean().optional().default(false),
   /** Rendered video tours of the built house, by quality. */
   tours: z.record(z.string(), z.looseObject({ file: z.string(), seconds: z.number().nullable() })).optional().default({}),
+  /** High stills by look (evening, day): the pictures, the fast tour made from them, and their times. */
+  stills: z
+    .record(
+      z.string(),
+      z.looseObject({
+        files: z.array(z.looseObject({ name: z.string(), title: z.string(), file: z.string() })),
+        tour: z.string().nullable().optional(),
+        seconds: z.number().nullable().optional(),
+        per_still: z.number().nullable().optional(),
+      }),
+    )
+    .optional()
+    .default({}),
+  /** While stills or a tour render: pictures done and to do. */
+  frames_done: z.number().nullable().optional(),
+  frames_total: z.number().nullable().optional(),
   created_at: z.string().nullable(),
   /** Who read the plan: detector, ai (our AI plan reader), stored (the floor plan generator),
    *  trace (nothing could be read: traced by hand); empty until it is read. */

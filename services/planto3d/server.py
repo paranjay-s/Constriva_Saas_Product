@@ -58,7 +58,7 @@ plan_lock = threading.Lock()    # an import and a build of the same job check th
 TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json",
          ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".glb": "model/gltf-binary",
          ".wasm": "application/wasm", ".svg": "image/svg+xml", ".pdf": "application/pdf", ".hdr": "application/octet-stream",
-         ".zip": "application/zip"}
+         ".zip": "application/zip", ".mp4": "video/mp4"}
 CORS = sys.argv[sys.argv.index("--cors") + 1] if "--cors" in sys.argv else None
 
 
@@ -380,7 +380,7 @@ def run_blender(jid, quality, out, t0, base=0, share=100):
 # High: EEVEE at 1280x720; Ultra: Cycles at 1920x1080, 64 samples. Rendered in chunks of about CHUNK_S seconds each
 # (frames already on disk are skipped, so a stopped tour resumes), with TOUR_COOL_S seconds between chunks, then joined
 # by ffmpeg into tour_<quality>.mp4
-TOURS = {"high": dict(engine="eevee", res="1280x720"), "ultra": dict(engine="cycles", res="1920x1080", samples=64)}
+TOURS = {"high": dict(engine="eevee", res="1920x1080"), "ultra": dict(engine="cycles", res="1920x1080", samples=64)}
 CHUNK_S = float(os.environ.get("PLAN3D_TOUR_CHUNK_S", 480))
 TOUR_COOL_S = float(os.environ.get("PLAN3D_TOUR_COOL_S", 30))
 NODE = os.environ.get("NODE") or shutil.which("node") or "node"
@@ -391,11 +391,16 @@ def chunk_frames(sec_per_frame, chunk_s=CHUNK_S, least=10, most=900):
     return max(least, min(most, int(chunk_s / max(sec_per_frame, 0.01))))
 
 
-def run_tour(jid, quality, seconds=None, res=None):
+def status_started(jid):
+    return float((read_status(jid) or {}).get("started") or time.time())
+
+
+def run_tour(jid, quality, seconds=None, res=None, mode="evening"):
     d = jdir(jid)
     q = TOURS[quality]
     res = res or q["res"]
-    out = os.path.join(d, f"tour_{quality}")
+    tag = quality if mode == "evening" else f"{quality}_day"
+    out = os.path.join(d, f"tour_{tag}")
     os.makedirs(os.path.join(out, "frames"), exist_ok=True)
     tour = os.path.join(out, "tour.json")
     cmd = [NODE, os.path.join(HERE, "tools", "tour_cinema.mjs"), os.path.join(d, "meta.json"), tour]
@@ -415,6 +420,8 @@ def run_tour(jid, quality, seconds=None, res=None):
                  "--start", str(start), "--end", str(end), "--res", res, "--engine", q["engine"]]
             if q.get("samples"):
                 c += ["--samples", str(q["samples"])]
+            if mode == "day":
+                c += ["--daylight", "--meta", os.path.join(d, "meta.json")]
             t0, done0 = time.time(), len([f for f in os.listdir(os.path.join(out, "frames")) if f.endswith(".jpg")])
             pr = subprocess.run(c, capture_output=True, text=True, timeout=max(600, CHUNK_S * 3))
             log.write(pr.stdout[-4000:])
@@ -428,16 +435,101 @@ def run_tour(jid, quality, seconds=None, res=None):
                 raise RuntimeError("the tour could not be rendered - see build.log")
             per = (time.time() - t0) / max(1, done - done0)
             start = end + 1
-            status(jid, progress=min(99, int(100 * done / max(1, n or done))),
-                   message=f"Rendering the tour: {done} of {n} frames")
+            status(jid, progress=min(98, int(100 * done / max(1, n or done))),
+                   message=f"Rendering the tour: {done} of {n} frames", frames_done=done, frames_total=n,
+                   eta_total=round(time.time() - status_started(jid) + per * max(0, (n or done) - done)))
             if n is not None and start < n and TOUR_COOL_S:
                 time.sleep(TOUR_COOL_S)            # let the machine cool between chunks
-    mp4 = os.path.join(d, f"tour_{quality}.mp4")
-    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-framerate", str(t.get("fps", 30)), "-pattern_type", "glob",
-                    "-i", os.path.join(out, "frames", "f_*.jpg"), "-c:v", "libx264", "-pix_fmt", "yuv420p", mp4],
-                   check=True, timeout=1800)
+    mp4 = os.path.join(d, f"tour_{tag}.mp4")
+    status(jid, progress=99, message="Joining the tour with room titles and the minimap")
+    try:                                    # titles and minimap on every frame (tools/tour_join.py)
+        subprocess.run([BLENDER, "-b", "--factory-startup", "-P", os.path.join(HERE, "tools", "tour_join.py"), "--",
+                        os.path.join(out, "frames"), os.path.join(out, "timeline.json"), os.path.join(d, "meta.json"),
+                        mp4, "--fps", str(t.get("fps", 30)), "--label", "Evening" if mode == "evening" else "Daylight"],
+                       check=True, capture_output=True, timeout=3600)
+    except (subprocess.SubprocessError, OSError):     # plain join if the overlay step fails
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-framerate", str(t.get("fps", 30)), "-pattern_type",
+                        "glob", "-i", os.path.join(out, "frames", "f_*.jpg"), "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                        mp4], check=True, timeout=1800)
     shutil.rmtree(os.path.join(out, "frames"), ignore_errors=True)
     return os.path.basename(mp4), len(keys)
+
+
+# ------------------------------------------------------------------ High stills and the fast tour (PATCHES 57)
+# Photoreal stills of every room and four elevations (blender/cinema.py --shots --look lantern, Cycles), then a
+# 1080p fast tour made from them (tools/shot_depth.py + tools/fast_tour.py). Modes: evening (the default look) and
+# day. STILL_COOL_S seconds between stills (laptops: 120); STILL_SAMPLES samples; one still never runs longer than
+# STILL_LIMIT_S (Cycles' time limit).
+STILL_MODES = ("evening", "day")
+STILL_COOL_S = float(os.environ.get("PLAN3D_STILL_COOL_S", 0))
+STILL_SAMPLES = int(os.environ.get("PLAN3D_STILL_SAMPLES", 96))
+STILL_LIMIT_S = int(os.environ.get("PLAN3D_STILL_LIMIT_S", 480))
+STILL_RES = os.environ.get("PLAN3D_STILL_RES", "1920x1080")
+
+
+def run_stills(jid, mode, rooms=None):
+    """-> {"files": [{name, title, file, seconds}], "tour": "tour_fast_<mode>.mp4" or None, "seconds": total}"""
+    d = jdir(jid)
+    out = os.path.join(d, f"stills_{mode}")
+    os.makedirs(out, exist_ok=True)
+    shots, tour = os.path.join(out, "shots.json"), os.path.join(out, "tour.json")
+    cmd = [sys.executable, os.path.join(HERE, "tools", "still_shots.py"), os.path.join(d, "meta.json"),
+           os.path.join(d, "plan.json"), shots, tour]
+    if rooms:
+        cmd += ["--rooms", str(int(rooms))]
+    subprocess.run(cmd, check=True, capture_output=True, timeout=60)
+    with open(shots) as fh:
+        plan_shots = json.load(fh)
+    n = len(plan_shots)
+    blend = os.path.join(d, "house_baked.blend") if os.path.exists(os.path.join(d, "house_baked.blend")) else os.path.join(d, "house.blend")
+    c = [BLENDER, "-b", blend, "-P", os.path.join(HERE, "blender", "cinema.py"), "--", tour, out, "--shots", shots,
+         "--look", "lantern", "--meta", os.path.join(d, "meta.json"), "--res", STILL_RES, "--samples", str(STILL_SAMPLES),
+         "--time-limit", str(STILL_LIMIT_S), "--cool", str(int(STILL_COOL_S))]
+    if mode == "day":
+        c.append("--daylight")
+    t0, times, files = time.time(), [], []
+    titles = {s["name"]: s.get("title") or s["name"] for s in plan_shots}
+    done0 = len([s for s in plan_shots if os.path.exists(os.path.join(out, s["name"] + ".jpg"))])
+    with open(os.path.join(d, "build.log"), "a") as log:
+        pr = subprocess.Popen(c, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        for line in pr.stdout:
+            log.write(line)
+            m = re.match(r"SHOT (\S+) ([\d.]+)s", line)
+            if m:
+                times.append(float(m.group(2)))
+                k = done0 + len(times)
+                per = sum(times) / len(times) + STILL_COOL_S
+                status(jid, progress=min(90, int(90 * k / n)), message=f"Rendering stills: {k} of {n}",
+                       frames_done=k, frames_total=n, eta_total=round(time.time() - t0 + per * (n - k) + 60),
+                       started=t0)
+        pr.wait()
+    for s in plan_shots:
+        f = os.path.join(out, s["name"] + ".jpg")
+        if os.path.exists(f):
+            files.append(dict(name=s["name"], title=titles[s["name"]], file=f"stills_{mode}/{s['name']}.jpg"))
+            png = os.path.join(out, s["name"] + ".png")
+            if os.path.exists(png):
+                os.remove(png)                      # the 16-bit master: the finished JPEG is what is kept
+    if not files:
+        raise RuntimeError("no still could be rendered - see build.log")
+    status(jid, progress=92, message="Making the fast tour from the stills")
+    film = None
+    try:
+        subprocess.run([BLENDER, "-b", blend, "-P", os.path.join(HERE, "tools", "shot_depth.py"), "--", shots, out,
+                        "--res", STILL_RES], check=True, capture_output=True, timeout=900)
+        film = f"tour_fast_{mode}.mp4"
+        subprocess.run([BLENDER, "-b", "--factory-startup", "-P", os.path.join(HERE, "tools", "fast_tour.py"), "--",
+                        out, shots, os.path.join(d, "meta.json"), os.path.join(d, film), "--res", STILL_RES,
+                        "--label", "Evening" if mode == "evening" else "Daylight"],
+                       check=True, capture_output=True, timeout=1800)
+    except (subprocess.SubprocessError, OSError) as e:
+        print("fast tour failed:", e, flush=True)
+        film = None
+    info = dict(files=files, tour=film, seconds=round(time.time() - t0),
+                per_still=round(sum(times) / len(times), 1) if times else None)
+    with open(os.path.join(out, "stills.json"), "w") as fh:
+        json.dump(info, fh, indent=1)
+    return info
 
 
 def support(jid, k, segments):
@@ -667,14 +759,31 @@ def builder():
             finally:
                 builds.task_done()
             continue
+        if isinstance(quality, tuple) and quality[0] == "stills":     # ("stills", mode, rooms): High stills + fast tour
+            _, mode, rooms = quality
+            try:
+                t0 = time.time()
+                status(jid, stage="building", progress=1, message="Rendering stills", started=t0, eta_total=600)
+                info = run_stills(jid, mode, rooms)
+                st = read_status(jid) or {}
+                stills = dict(st.get("stills") or {}, **{mode: info})
+                status(jid, stage="done", progress=100, message="Ready", stills=stills)
+            except Exception as e:
+                traceback.print_exc()
+                status(jid, stage="done", progress=100, message=f"The stills could not be rendered: {str(e)[:200]}")
+            finally:
+                builds.task_done()
+            continue
         if isinstance(quality, tuple):         # ("tour", quality, seconds, res): a rendered tour of a built house
-            _, tq, secs, res = quality
+            _, tq, secs, res, *rest = quality
+            tmode = rest[0] if rest else "evening"
             try:
                 t0 = time.time()
                 status(jid, stage="building", progress=1, message="Rendering the tour", started=t0)
-                f, _ = run_tour(jid, tq, secs, res)
+                f, _ = run_tour(jid, tq, secs, res, tmode)
                 st = read_status(jid) or {}
-                tours = dict(st.get("tours") or {}, **{tq: dict(file=f, seconds=round(time.time() - t0))})
+                key = tq if tmode == "evening" else f"{tq}_day"
+                tours = dict(st.get("tours") or {}, **{key: dict(file=f, seconds=round(time.time() - t0))})
                 status(jid, stage="done", progress=100, message="Ready", tours=tours)
             except Exception as e:
                 traceback.print_exc()
@@ -1206,11 +1315,27 @@ class H(BaseHTTPRequestHandler):
                     return self.send(200, {"coverage": support(m.group(1), int(req_s.get("floor", 0)), req_s.get("segments") or [])})
                 except (OSError, ValueError, KeyError, IndexError) as e:
                     return self.send(400, {"error": str(e)[:200]})
-            m = re.match(r"^/api/jobs/([a-f0-9]{12})/(plan|build|export|tour)$", p)
+            m = re.match(r"^/api/jobs/([a-f0-9]{12})/(plan|build|export|tour|stills)$", p)
             if m and os.path.isdir(jdir(m.group(1))):
                 jid, what = m.groups()
                 if what == "export":
                     return self.send(200, {"url": export_blend(jid)})
+                if what == "stills":               # High stills and the fast tour: {mode: evening|day, rooms?}
+                    req_s2 = json.loads(self.body() or b"{}")
+                    mode = req_s2.get("mode", "evening")
+                    if mode not in STILL_MODES:
+                        return self.send(400, {"error": f"mode must be one of {', '.join(STILL_MODES)}"})
+                    rooms = req_s2.get("rooms")
+                    rooms = int(rooms) if isinstance(rooms, int) and 1 <= rooms <= 60 else None
+                    with plan_lock:
+                        st = read_status(jid) or {}
+                        if st.get("stage") != "done":
+                            return self.send(409, {"error": "build the house first"})
+                        status(jid, stage="queued", progress=0, message=f"Waiting for the 3D builder ({builds.qsize()} ahead)")
+                        with lock:
+                            waiting.append(jid)
+                    builds.put((jid, ("stills", mode, rooms)), "heavy")
+                    return self.send(200, {"ok": True})
                 if what == "tour":                 # a rendered video tour of the built house: {quality, seconds?, res?}
                     req_t = json.loads(self.body() or b"{}")
                     tq = req_t.get("quality")
@@ -1220,6 +1345,9 @@ class H(BaseHTTPRequestHandler):
                     secs = float(secs) if isinstance(secs, (int, float)) and 1 <= secs <= 600 else None
                     res = req_t.get("res")
                     res = res if isinstance(res, str) and re.match(r"^\d{3,4}x\d{3,4}$", res) else None
+                    tmode = req_t.get("mode", "evening")
+                    if tmode not in STILL_MODES:
+                        return self.send(400, {"error": f"mode must be one of {', '.join(STILL_MODES)}"})
                     with plan_lock:
                         st = read_status(jid) or {}
                         if st.get("stage") != "done":
@@ -1227,7 +1355,7 @@ class H(BaseHTTPRequestHandler):
                         status(jid, stage="queued", progress=0, message=f"Waiting for the 3D builder ({builds.qsize()} ahead)")
                         with lock:
                             waiting.append(jid)
-                    builds.put((jid, ("tour", tq, secs, res)), "heavy")
+                    builds.put((jid, ("tour", tq, secs, res, tmode)), "heavy")
                     return self.send(200, {"ok": True})
                 body = self.body()
                 with plan_lock:

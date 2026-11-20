@@ -116,8 +116,15 @@ class FakePlanTo3D:
                 return httpx.Response(200, json={"ok": True})
             if parts[3] == "export":
                 return httpx.Response(200, json={"url": f"/jobs/{parts[2]}/house_blender.zip"})
+            if parts[3] == "stills":
+                mode = json.loads(self.bodies[-1])["mode"]
+                if job.get("stage") != "done":
+                    return httpx.Response(409, json={"error": "build the house first"})
+                job.update(stage="queued", progress=0, asked_stills=mode)
+                return httpx.Response(200, json={"ok": True})
             if parts[3] == "tour":
                 quality = json.loads(self.bodies[-1])["quality"]
+                job["asked_tour_mode"] = json.loads(self.bodies[-1]).get("mode")
                 if job.get("stage") != "done":
                     return httpx.Response(409, json={"error": "build the house first"})
                 job.update(stage="queued", progress=0, asked_tour=quality)
@@ -632,7 +639,8 @@ def test_the_page_proxy_is_the_only_gateway_route_without_bearer_auth():
         if not any(d.call is get_current_user for d in route.dependant.dependencies)
     )
     assert open_routes == ["/embed/{token}/{path:path}"]
-    assert len(router.routes) == 18  # + POST /creator (admins), POST and DELETE /jobs/{id}/share
+    # + POST /creator (admins), POST and DELETE /jobs/{id}/share, POST /jobs/{id}/stills
+    assert len(router.routes) == 19
 
 
 def test_embed_tokens_are_redacted_from_logs_and_responses_are_private(client, planto3d):
@@ -687,6 +695,7 @@ def test_a_video_tour_of_a_built_house(client, planto3d):
     r = client.post(f"{API}/jobs/{job_id}/tour", json={"quality": "ultra"})
     assert r.status_code == 200, r.text
     assert r.json()["stage"] == "queued" and planto3d.jobs[job_id]["asked_tour"] == "ultra"
+    assert planto3d.jobs[job_id]["asked_tour_mode"] == "evening"  # the default look
     assert client.post(f"{API}/jobs/{job_id}/tour", json={"quality": "cinema"}).status_code == 422
     # a finished tour is listed with the job
     planto3d.jobs[job_id].update(
@@ -694,6 +703,45 @@ def test_a_video_tour_of_a_built_house(client, planto3d):
     )
     body = client.get(f"{API}/jobs/{job_id}").json()
     assert body["tours"] == {"ultra": {"file": "tour_ultra.mp4", "seconds": 600}}
+
+
+def test_high_stills_of_a_built_house_with_progress_and_the_fast_tour(client, planto3d):
+    job_id = upload(client)
+    assert client.post(f"{API}/jobs/{job_id}/stills", json={"mode": "day"}).status_code == 409
+    planto3d.jobs[job_id].update(stage="done", quality="high", progress=100)
+    r = client.post(f"{API}/jobs/{job_id}/stills", json={})
+    assert r.status_code == 200, r.text
+    assert planto3d.jobs[job_id]["asked_stills"] == "evening"  # the default look
+    assert client.post(f"{API}/jobs/{job_id}/stills", json={"mode": "noon"}).status_code == 422
+    # while rendering: stills done of how many, and the time left
+    planto3d.jobs[job_id].update(
+        stage="building", progress=40, frames_done=7, frames_total=17, eta_left=600
+    )
+    body = client.get(f"{API}/jobs/{job_id}").json()
+    assert (body["frames_done"], body["frames_total"], body["eta_left"]) == (7, 17, 600)
+    files = [{"name": "room_living", "title": "Living", "file": "stills_evening/room_living.jpg"}]
+    planto3d.jobs[job_id].update(
+        stage="done",
+        stills={
+            "evening": {
+                "files": files,
+                "tour": "tour_fast_evening.mp4",
+                "seconds": 900,
+                "per_still": 62.5,
+            },
+            "bogus": {},
+        },
+    )
+    body = client.get(f"{API}/jobs/{job_id}").json()
+    assert body["stills"] == {
+        "evening": {
+            "files": files,
+            "tour": "tour_fast_evening.mp4",
+            "seconds": 900,
+            "per_still": 62.5,
+        }
+    }
+    assert body["frames_done"] is None  # only while building
 
 
 # ------------------------------------------------------------------ share links

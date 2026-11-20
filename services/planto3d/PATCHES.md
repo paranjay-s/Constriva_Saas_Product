@@ -639,3 +639,25 @@ The scan reader itself is in the gateway (`backend/app/modules/plan3d/scan_reade
   were already in place and are unchanged.
 - Not done: circular and curved rooms. Plan rooms are rectangles in every reader and in the plan
   JSON; curved walls need an arc shape in the plan format first (owner decision on the schema).
+
+## 57. High: the style handover's look, stills of every room and four elevations, fast tour, UAE front (PART 2, E)
+
+- `blender/look.py`: ported from `docs/reference/style/villa_look_handover` (its scripts in `scripts/history`
+  were not run): the evening sky with the band of last light, limestone, paving, plaster, water and glass
+  materials swapped in by name, the facade wall washers (3800 K), Cycles as the handover set it (adaptive 0.02,
+  OpenImageDenoise, 8 bounces, clamp 6, Blackman-Harris, AgX Medium High Contrast) and post.py's finishing
+  (bloom, S-curve, vignette, grain, sharpening) in NumPy. The handover's texture-cache gotcha is handled
+  (`_cache.clear()` on every apply). Daylight: Blender's sky texture and a sun at the house's sun bearing.
+- `blender/cinema.py`: `--look lantern`, `--daylight` (also for EEVEE tours), level cameras with lens shift
+  for shots, per-shot exposure, resumable shots, `--cool S` between stills, `--ac-only` (waits while on battery).
+- `tools/still_shots.py`: a camera per room (corner by the door, out of furniture, level, 16-24 mm) and the
+  front, rear, left and right elevations (named by compass too).
+- `tools/shot_depth.py`, `tools/fast_tour.py`, `tools/overlay.py`: depth by ray casting (no render), then a
+  1080p film from the stills with parallax push-ins, crossfades, room titles (rendered by Blender's text: the
+  ffmpeg build has no text filter) and a minimap with the room lit.
+- `tools/tour_join.py`: rendered tours get the same titles and minimap; High tours are 1080p (were 720p);
+  `mode: day` renders a daylight tour; frames done, frames to do and time left are in the status.
+- `server.py`: `POST /api/jobs/<id>/stills {mode}` (heavy lane) renders the stills, the depth maps and the fast
+  tour; `status.stills[mode]` lists them with seconds per still. `.mp4` is served as video/mp4.
+- `blender/gen.py`: the modern UAE front: slim bronze fins at every window of the road-facing side and a
+  cantilevered entrance canopy with a downlight over the main door (`PLAN3D_FRONT_STYLE=plain` turns it off).

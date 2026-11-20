@@ -4,6 +4,10 @@ heat locks on the GPU and CPU.  Resumable: frames already on disk are skipped.
 
 blender -b JOB/house.blend -P blender/cinema.py -- TOUR.json OUTDIR [--stills t1,t2,..] [--shots SHOTS.json] [--save OUT.blend] [--frames]
         [--start F] [--end F] [--res 1920x1080] [--engine eevee|cycles] [--samples N]
+        [--look lantern] [--daylight] [--meta JOB/meta.json]
+--look lantern: the style handover's look (blender/look.py, PATCHES 57): its evening sky, stone, paving, water and
+glass, Cycles as it set it, and post.py's finishing on every still (written as JPEG beside a 16-bit PNG master).
+--daylight: a clear day instead of the evening (sky texture and a sun at meta.json's sun bearing; lamps dimmed).
 TOUR.json: {"fps": 30, "eye": 5.1, "speed": 1.9, "keys": [{"p": [x, y, z], "t": [x, y, z], "hold": s, "room": "..."}]}
 (feet; 'hold' = seconds spent turning from the previous target to this one without moving)"""
 import bmesh, bpy, glob, json, math, os, subprocess, sys, time
@@ -253,6 +257,21 @@ for x, y, top in PALMS:
           spot_size=math.radians(55), spot_blend=0.9)
 
 
+# ------------------------------------------------------------------ the style handover's look (--look lantern)
+LOOK = "--look" in argv and argv[argv.index("--look") + 1] == "lantern"
+DAY = "--daylight" in argv
+if LOOK or DAY:                                 # --daylight also works for EEVEE tours (the look's sky and sun)
+    sys.path.insert(0, HERE)
+    import look
+    META = json.load(open(argv[argv.index("--meta") + 1])) if "--meta" in argv else {}
+    swapped = look.apply(sc, "day" if DAY else "evening", float(META.get("sun_bearing") or 200.0),
+                         float(META.get("north_deg") or 0.0), META.get("bounds"))
+    print("LOOK", "day" if DAY else "evening", "materials:", ", ".join(swapped), flush=True)
+    if DAY:                                     # daylight does the work: lamps at a third, no coves
+        for o in sc.objects:
+            if o.type == "LIGHT" and o.data.type != "SUN":
+                o.data.energy *= 0.0 if o.name.startswith("cove") else 0.33
+
 # ------------------------------------------------------------------ renderer
 eng = [e.identifier for e in bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items]
 sc.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in eng else "BLENDER_EEVEE"
@@ -289,11 +308,14 @@ def soften_sky(k):
     wn.links.new(mix.outputs["Shader"], out.inputs["Surface"])
 
 
-if not ("--engine" in argv and argv[argv.index("--engine") + 1] == "cycles"):
+CYCLES = LOOK or ("--engine" in argv and argv[argv.index("--engine") + 1] == "cycles")
+if not CYCLES:
     soften_sky(TOUR.get("sky_diffuse", 0.8))
 
 # --engine cycles: path tracing on the GPU (Metal / CUDA / OptiX when there is one), --samples per pixel, denoised
-if "--engine" in argv and argv[argv.index("--engine") + 1] == "cycles":
+if LOOK:
+    print("DEVICE", look.cycles(sc, opt("--samples", 96), opt("--time-limit", 480)), flush=True)
+elif CYCLES:
     sc.render.engine = "CYCLES"
     cy = sc.cycles
     prefs = bpy.context.preferences.addons["cycles"].preferences
@@ -316,9 +338,10 @@ sc.render.resolution_percentage = 100
 sc.render.fps = FPS
 sc.view_settings.view_transform = "AgX"
 sc.view_settings.look = "AgX - Medium High Contrast"
-sc.view_settings.exposure = TOUR.get("exposure", 0.9)
-sc.render.image_settings.file_format = "JPEG"
-sc.render.image_settings.quality = 94
+sc.view_settings.exposure = TOUR.get("exposure", 0.9 if not LOOK else (0.4 if DAY else 0.6))
+if not LOOK:
+    sc.render.image_settings.file_format = "JPEG"
+    sc.render.image_settings.quality = 94
 cam = bpy.data.objects.new("tourcam", bpy.data.cameras.new("tourcam"))
 sc.collection.objects.link(cam)
 cam.data.lens, cam.data.sensor_width = TOUR.get("lens", 18), 36
@@ -356,7 +379,19 @@ def temps():
     return g, min(reads, default=c)
 
 
+def on_ac():
+    """False only when macOS says it is running on battery (elsewhere: always True)"""
+    try:
+        return "Battery Power" not in subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True,
+                                                     timeout=5).stdout
+    except Exception:
+        return True
+
+
 def render_to(path):
+    while "--ac-only" in argv and not on_ac():  # laptops: never render on battery
+        print("WAITING FOR AC POWER", flush=True)
+        time.sleep(30)
     g, c = temps()
     if g >= GPU_HOT or c >= CPU_HOT:
         print(f"HEAT LOCK gpu {g}C cpu {c}C - cooling to gpu {GPU_OK}C / cpu {CPU_OK}C", flush=True)
@@ -364,6 +399,12 @@ def render_to(path):
             time.sleep(5)
             g, c = temps()
         print(f"resume gpu {g}C cpu {c}C", flush=True)
+    if LOOK:                                    # a 16-bit master, then the handover's finishing to JPEG
+        master = os.path.splitext(path)[0] + ".png"
+        sc.render.filepath = master
+        bpy.ops.render.render(write_still=True)
+        look.finish(master, path, seed=abs(hash(os.path.basename(path))) % 1000)
+        return g, c
     sc.render.filepath = path
     bpy.ops.render.render(write_still=True)
     return g, c
@@ -380,17 +421,28 @@ if "--stills" in argv:
         g, c = render_to(os.path.join(OUT, f"still_{t:06.1f}.jpg"))
         print(f"STILL {t:.1f}s {room_at(t)} {time.time() - t0:.1f}s gpu {g}C cpu {c}C", flush=True)
 
+SHOT_N = [0]
 if "--shots" in argv:                           # stills from fixed cameras: [{"name", "p": [x,y,z], "t": [x,y,z], "lens"}] (feet)
     for sh in json.load(open(argv[argv.index("--shots") + 1])):
         cam.location = Vector(sh["p"]) * F
-        cam.rotation_euler = ((Vector(sh["t"]) - Vector(sh["p"])) * F).to_track_quat("-Z", "Y").to_euler()
+        aim = (Vector(sh["t"]) - Vector(sh["p"])) * F
+        if sh.get("level"):                     # level: verticals stay straight; framing by lens shift instead
+            aim.z = 0.0
+        cam.rotation_euler = aim.to_track_quat("-Z", "Y").to_euler()
         cam.data.lens = sh.get("lens", 18)
+        cam.data.shift_y = sh.get("shift_y", 0.0)
+        sc.view_settings.exposure = TOUR.get("exposure", 0.9 if not LOOK else (0.4 if DAY else 0.6)) + sh.get("ev", 0.0)
         if "--save" in argv:                    # keep each view as a named camera in the saved scene
             c = cam.copy(); c.data = cam.data.copy(); c.name = c.data.name = "view_" + sh["name"]
             sc.collection.objects.link(c)
             continue
+        if os.path.exists(os.path.join(OUT, sh["name"] + ".jpg")):      # resumable: done shots are skipped
+            continue
+        if SHOT_N[0] and opt("--cool", 0):      # a pause between stills (laptops: let it cool)
+            time.sleep(opt("--cool", 0))
         t0 = time.time()
         g, c = render_to(os.path.join(OUT, sh["name"] + ".jpg"))
+        SHOT_N[0] += 1
         print(f"SHOT {sh['name']} {time.time() - t0:.1f}s gpu {g}C cpu {c}C", flush=True)
 
 if "--save" in argv:                            # self-contained .blend: lights, cameras, every texture packed inside

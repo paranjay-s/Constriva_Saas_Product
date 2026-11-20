@@ -102,9 +102,15 @@ class Plan3dClient:
         )
         return str(body["type"])
 
-    async def tour(self, job_id: str, quality: str) -> None:
+    async def tour(self, job_id: str, quality: str, mode: str = "evening") -> None:
         """Queue a rendered video tour of the built house (PlanTo3D blender/cinema.py)."""
-        await self._json("POST", f"/api/jobs/{job_id}/tour", json={"quality": quality})
+        await self._json(
+            "POST", f"/api/jobs/{job_id}/tour", json={"quality": quality, "mode": mode}
+        )
+
+    async def stills(self, job_id: str, mode: str) -> None:
+        """Queue High stills of every room and four elevations, and the fast tour made from them."""
+        await self._json("POST", f"/api/jobs/{job_id}/stills", json={"mode": mode})
 
     async def support(self, job_id: str, floor: int, segments: list[list[float]]) -> list[float]:
         """How much of each proposed wall (plan feet) the drawing shows: 0-1 each."""

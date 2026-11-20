@@ -58,7 +58,10 @@ export function embedOrigin(): string {
 
 /** The URL of one file of a job (e.g. the packed Blender file) under its `files_url`. */
 export function jobFileUrl(filesUrl: string, file: string): string {
-  return embedUrl(`${filesUrl}/${encodeURIComponent(file)}`);
+  // a file in a folder of the job (stills_evening/room.jpg) keeps its slashes; anything with ".." is one
+  // encoded name, so it can never climb out of the job's folder
+  const path = file.includes('..') ? encodeURIComponent(file) : file.split('/').map(encodeURIComponent).join('/');
+  return embedUrl(`${filesUrl}/${path}`);
 }
 
 /** Start a download by following a link; the server answers with an attachment. */
@@ -119,10 +122,16 @@ export const plan3dApi = {
       await apiRequest(`${jobPath(jobId)}/build`, { method: 'POST', body: JSON.stringify({ quality }) }),
     ),
 
-  /** Render a video tour of the built house (High: 720p, Ultra: 1080p). The answer is the job, now queued. */
-  tour: async (jobId: string, quality: 'high' | 'ultra'): Promise<Plan3dJob> =>
+  /** Render High stills of every room and four elevations, then the fast tour (evening or day). The job, queued. */
+  stills: async (jobId: string, mode: 'evening' | 'day'): Promise<Plan3dJob> =>
     plan3dJobSchema.parse(
-      await apiRequest(`${jobPath(jobId)}/tour`, { method: 'POST', body: JSON.stringify({ quality }) }),
+      await apiRequest(`${jobPath(jobId)}/stills`, { method: 'POST', body: JSON.stringify({ mode }) }),
+    ),
+
+  /** Render a video tour of the built house (High: EEVEE, Ultra: Cycles, both 1080p). The job, now queued. */
+  tour: async (jobId: string, quality: 'high' | 'ultra', mode: 'evening' | 'day' = 'evening'): Promise<Plan3dJob> =>
+    plan3dJobSchema.parse(
+      await apiRequest(`${jobPath(jobId)}/tour`, { method: 'POST', body: JSON.stringify({ quality, mode }) }),
     ),
 
   /** Pack the Blender file (up to a few minutes the first time). The answer is its file name. */

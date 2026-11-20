@@ -95,8 +95,32 @@ def job_status(
         tours={
             k: {"file": str(v.get("file")), "seconds": whole(v.get("seconds"))}
             for k, v in (service.get("tours") or {}).items()
-            if k in ("high", "ultra") and isinstance(v, dict) and v.get("file")
+            if k in ("high", "ultra", "high_day", "ultra_day")
+            and isinstance(v, dict)
+            and v.get("file")
         },
+        stills={
+            k: {
+                "files": [
+                    {
+                        "name": str(f.get("name")),
+                        "title": str(f.get("title")),
+                        "file": str(f.get("file")),
+                    }
+                    for f in (v.get("files") or [])
+                    if isinstance(f, dict) and f.get("file")
+                ],
+                "tour": str(v["tour"]) if v.get("tour") else None,
+                "seconds": whole(v.get("seconds")),
+                "per_still": v.get("per_still")
+                if isinstance(v.get("per_still"), (int, float))
+                else None,
+            }
+            for k, v in (service.get("stills") or {}).items()
+            if k in ("evening", "day") and isinstance(v, dict)
+        },
+        frames_done=whole(service.get("frames_done")) if building else None,
+        frames_total=whole(service.get("frames_total")) if building else None,
         created_at=row.get("created_at"),
         reader=str(service.get("reader") or ""),
         notice=str(service.get("notice") or ""),

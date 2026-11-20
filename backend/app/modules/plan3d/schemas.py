@@ -53,6 +53,12 @@ class JobStatus(BaseModel):
     preview: bool = False
     # rendered video tours: quality -> {file, seconds}
     tours: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    # High stills: mode (evening, day) -> {files: [{name, title, file}], tour (the fast tour's
+    # mp4), seconds, per_still}; files are under the job's files_url
+    stills: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    # while stills or a tour render: pictures done and to do
+    frames_done: int | None = None
+    frames_total: int | None = None
     created_at: str | None = None
     # who read the plan: detector (PlanTo3D's own), ai (our AI plan parser), stored (our floor
     # plan generator), trace (nothing could be read: traced by hand); "" before it is read
@@ -93,7 +99,14 @@ class ExportReady(BaseModel):
     file: str  # name of the file under the job's `files_url`
 
 
+class StillsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["evening", "day"] = "evening"
+
+
 class TourRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     quality: Literal["high", "ultra"]
+    mode: Literal["evening", "day"] = "evening"

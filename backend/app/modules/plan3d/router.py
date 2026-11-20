@@ -56,6 +56,7 @@ from app.modules.plan3d.schemas import (
     JobCreated,
     JobStatus,
     NotificationSettings,
+    StillsRequest,
     SystemStatus,
     TourRequest,
 )
@@ -327,11 +328,31 @@ async def notification_settings(payload: NotificationSettings, user: User) -> di
 async def render_tour(
     job_id: str, payload: TourRequest, user: User, planto3d: Service, store: Store
 ) -> JobStatus:
-    """A video tour of the built house: High (EEVEE, 720p) or Ultra (Cycles, 1080p). Rendered in
-    chunks by PlanTo3D; the job reads as building until the video is ready."""
+    """A video tour of the built house at 1080p: High (EEVEE) or Ultra (Cycles), in the evening
+    (default) or by day, with room titles and a minimap. Rendered in chunks by PlanTo3D; the job
+    reads as building, with frames done and time left, until the video is ready."""
     row = await _own_job(store, job_id, user)
     try:
-        await planto3d.tour(job_id, payload.quality)
+        await planto3d.tour(job_id, payload.quality, payload.mode)
+        notify.watch(job_id, user.id, getattr(user, "email", "") or "", payload.quality)
+        notify.start_poller(planto3d)
+        return service.job_status(row, await planto3d.job(job_id))
+    except Plan3dError as e:
+        raise _http_error(e) from e
+
+
+@router.post("/jobs/{job_id}/stills", response_model=JobStatus, summary="Render High stills")
+async def render_stills(
+    job_id: str, payload: StillsRequest, user: User, planto3d: Service, store: Store
+) -> JobStatus:
+    """Photoreal stills (1920 px) of every room and four elevations, in the evening or by day, then
+    a 1080p fast tour made from them. The job reads as building, with stills done and time left,
+    until they are ready; the owner gets an email."""
+    row = await _own_job(store, job_id, user)
+    try:
+        await planto3d.stills(job_id, payload.mode)
+        notify.watch(job_id, user.id, getattr(user, "email", "") or "", "high")
+        notify.start_poller(planto3d)
         return service.job_status(row, await planto3d.job(job_id))
     except Plan3dError as e:
         raise _http_error(e) from e

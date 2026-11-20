@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { TOKEN_STORAGE_KEY } from '../../lib/api';
 import { SAVE_TIMEOUT_MS } from './components/ReviewStep';
 import { PLAN3D_POLL_MS } from './hooks/usePlan3dJob';
+import { embedUrl } from './plan3dApi';
 import { Plan3dJobPage } from './Plan3dJobPage';
 import {
   API,
@@ -998,11 +999,38 @@ describe('video tours', () => {
     renderJob();
     await settle();
     const tours = screen.getByRole('group', { name: 'Video tour' });
-    expect(within(tours).getByRole('button', { name: /High \(720p\) video/ })).toBeDefined();
-    fireEvent.click(within(tours).getByRole('button', { name: 'Render Ultra (1080p)' }));
+    expect(within(tours).getByRole('button', { name: /High \(1080p\) video/ })).toBeDefined();
+    fireEvent.click(within(tours).getByRole('button', { name: 'Render Ultra (1080p, path traced)' }));
     await settle();
     const [asked] = callsTo(fetchMock, 'POST', `${JOB}/tour`);
-    expect(JSON.parse(String(asked.init.body))).toEqual({ quality: 'ultra' });
+    expect(JSON.parse(String(asked.init.body))).toEqual({ quality: 'ultra', mode: 'evening' });
     expect(screen.getByRole('progressbar', { name: 'Build progress' })).toBeDefined();
+  });
+
+  it('shows the High stills as a gallery to download, with the fast tour, and renders the other look', async () => {
+    fakeClock();
+    const files = [
+      { name: 'room_living', title: 'Living', file: 'stills_evening/room_living.jpg' },
+      { name: 'elevation_front', title: 'Front elevation (south)', file: 'stills_evening/elevation_front.jpg' },
+    ];
+    const fetchMock = mockApi({
+      [`GET ${JOB}`]: () =>
+        json({ ...DONE, stills: { evening: { files, tour: 'tour_fast_evening.mp4', seconds: 900, per_still: 61.6 } } }),
+      [`POST ${JOB}/embed`]: () => json(rawEmbed()),
+      [`POST ${JOB}/stills`]: () => json(rawJob({ stage: 'queued', quality: 'high' })),
+    });
+    renderJob();
+    await settle();
+    const stills = screen.getByRole('group', { name: 'Stills' });
+    expect(within(stills).getByText('Evening: 2 stills, 62 s each')).toBeDefined();
+    const gallery = within(stills).getByRole('list', { name: 'Evening stills' });
+    const living = within(gallery).getByRole('img', { name: 'Living' });
+    expect(living.getAttribute('src')).toBe(embedUrl(`${EMBED_BASE}/jobs/${JOB_ID}/stills_evening/room_living.jpg`));
+    expect(within(stills).getByRole('button', { name: 'Fast tour (1080p)' })).toBeDefined();
+    expect(within(stills).queryByRole('button', { name: 'Render evening stills' })).toBeNull();
+    fireEvent.click(within(stills).getByRole('button', { name: 'Render daylight stills' }));
+    await settle();
+    const [asked] = callsTo(fetchMock, 'POST', `${JOB}/stills`);
+    expect(JSON.parse(String(asked.init.body))).toEqual({ mode: 'day' });
   });
 });

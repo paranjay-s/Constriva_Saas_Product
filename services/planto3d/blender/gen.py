@@ -1199,6 +1199,89 @@ for k, f in enumerate(floors):
     ))
     progress(5 + 25 * (k + 1) / NF, f"built {f.get('name', k)}")
 
+# ------------------------------------------------------------------ modern UAE front (PATCHES 57)
+# The side facing the road (the plan's road_side, else the side of the widest door on the ground floor's outline,
+# else south) gets the modern Emirati villa front of the style references: slim vertical bronze fins in front of
+# every window on that face and a cantilevered entrance canopy with a downlight over the main door.
+# PLAN3D_FRONT_STYLE=plain turns it off.
+mat("fin_bronze", (0.29, 0.22, 0.15), 0.35, metal=1.0)
+FRONT_STYLE = os.environ.get("PLAN3D_FRONT_STYLE", "uae")
+
+
+def front_side():
+    road = str(plan.get("road_side") or "").lower()
+    if road in ("north", "south", "east", "west"):
+        return road
+    x0, x1, y0, y1 = bboxes[0]
+    best = None
+    for o in floors[0]["openings"]:
+        if o["type"] == "window":
+            continue
+        r = o["rect"]
+        mx, my = (r[0] + r[1]) / 2, (r[2] + r[3]) / 2
+        d = {"south": my - y0, "north": y1 - my, "west": mx - x0, "east": x1 - mx}
+        side = min(d, key=d.get)
+        width = max(r[1] - r[0], r[3] - r[2])
+        if d[side] < 1.5 and (best is None or width > best[0]):
+            best = (width, side)
+    return best[1] if best else "south"
+
+
+def on_face(o, side, bb):
+    r = o["rect"]
+    mx, my = (r[0] + r[1]) / 2, (r[2] + r[3]) / 2
+    return {"south": my - bb[2], "north": bb[3] - my, "west": mx - bb[0], "east": bb[1] - mx}[side] < 1.2
+
+
+if FRONT_STYLE == "uae" and floors and any(f["walls"] for f in floors):
+    FRONT = front_side()
+    out_dir = {"south": (0, -1), "north": (0, 1), "west": (-1, 0), "east": (1, 0)}[FRONT]
+    main_door = None
+    for k, f in enumerate(floors):
+        if not f["walls"]:
+            continue
+        set_level((k + BASE) * FFH)
+        bb = bboxes[k]
+        face = {"south": bb[2], "north": bb[3], "west": bb[0], "east": bb[1]}[FRONT]
+        fins = []
+        for o in f["openings"]:
+            if not on_face(o, FRONT, bb):
+                continue
+            sill, head = opening_heights(f, o)
+            r = o["rect"]
+            a0, a1 = (r[0], r[1]) if FRONT in ("south", "north") else (r[2], r[3])
+            if o["type"] != "window":
+                if k == 0 and (main_door is None or a1 - a0 > main_door[1] - main_door[0]):
+                    main_door = (a0, a1, head)
+                continue
+            n = max(3, int((a1 - a0) / 1.6) + 2)
+            for i in range(n):
+                u = a0 - 0.35 + (a1 - a0 + 0.7) * i / (n - 1)
+                d0, d1 = sorted((face + out_dir[0] * 0.15 + out_dir[1] * 0.15, face + (out_dir[0] + out_dir[1]) * 1.0))
+                z0, z1 = max(0.0, sill - 0.6), min(lib.WALL_H, head + 0.8)
+                fins.append((u - 0.1, u + 0.1, d0, d1, z0, z1, "fin_bronze") if FRONT in ("south", "north")
+                            else (d0, d1, u - 0.1, u + 0.1, z0, z1, "fin_bronze"))
+        if fins:
+            mesh_from_boxes(f"front_fins_{k}", fins, coll="furniture")
+    if main_door:
+        set_level(BASE * FFH)
+        a0, a1, head = main_door
+        bb = bboxes[0]
+        face = {"south": bb[2], "north": bb[3], "west": bb[0], "east": bb[1]}[FRONT]
+        sgn = out_dir[0] + out_dir[1]
+        d0, d1 = sorted((face, face + sgn * 5.0))
+        z0 = min(lib.WALL_H - 1.2, head + 0.7)
+        q0, q1 = a0 - 2.0, a1 + 2.0
+        canopy = [(q0, q1, d0, d1, z0, z0 + 0.7, "exterior")]
+        lamp = [((a0 + a1) / 2 - 0.35, (a0 + a1) / 2 + 0.35, (d0 + d1) / 2 - 0.35, (d0 + d1) / 2 + 0.35,
+                 z0 - 0.03, z0, "light")]
+        if FRONT in ("west", "east"):
+            canopy = [(b[2], b[3], b[0], b[1], *b[4:]) for b in canopy]
+            lamp = [(b[2], b[3], b[0], b[1], *b[4:]) for b in lamp]
+        mesh_from_boxes("front_canopy", canopy + lamp)
+    REPORT["front"] = dict(side=FRONT, canopy=bool(main_door))
+
+
 # ------------------------------------------------------------------ roof + parapet + stair cabin (mumty)
 top = (NF + BASE) * FFH
 set_level(top)
