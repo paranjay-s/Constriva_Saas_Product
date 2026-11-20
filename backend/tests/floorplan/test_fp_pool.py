@@ -6,14 +6,16 @@ import pytest
 from ezdxf import recover
 from pydantic import TypeAdapter
 
+from app.modules.ai.floorplan.drawing.style import HATCH
 from app.modules.ai.floorplan.geometry import pool_water
+from app.modules.ai.floorplan.model.build import build_building
 from app.modules.ai.floorplan.pipeline.brief_parser import parse_brief
 from app.modules.ai.floorplan.pipeline.edit_engine import apply_edit
 from app.modules.ai.floorplan.pipeline.feasibility import check_feasibility
 from app.modules.ai.floorplan.pipeline.generate import generate_plan
 from app.modules.ai.floorplan.pipeline.validator import validate
-from app.modules.ai.floorplan.render.dxf_renderer import render_dxf
-from app.modules.ai.floorplan.render.svg_renderer import POOL_COLORS, render_svg
+from app.modules.ai.floorplan.render import render_svg
+from app.modules.ai.floorplan.render.cad_dxf import building_dxf
 from app.modules.ai.floorplan.rules import POOL_WALKWAY_CM
 from app.modules.ai.floorplan.schemas.brief import BriefForm
 from app.modules.ai.floorplan.schemas.edit_ops import EditOp
@@ -78,11 +80,10 @@ def test_generated_pool_is_outdoors_and_valid(pool_plan) -> None:
 def test_pool_is_drawn_and_exported(pool_plan) -> None:
     plan = pool_plan.plan
     svg = render_svg(plan)
-    assert POOL_COLORS["water"] in svg and "SWIMMING POOL" in svg
-    doc, auditor = recover.read(io.BytesIO(render_dxf(plan)))
+    assert HATCH["water"]["color"] in svg and "SWIMMING POOL" in svg
+    doc, auditor = recover.read(io.BytesIO(building_dxf(build_building(plan))))
     assert not auditor.has_errors
-    assert len(doc.modelspace().query('LWPOLYLINE[layer=="POOL"]')) == 2  # water edge + coping
-    assert len(doc.modelspace().query('LINE[layer=="HATCH"]')) > 0  # deck planks
+    assert len(doc.modelspace().query('HATCH[layer=="L-SITE-HATCH"]')) >= 2  # water + coping
 
 
 def test_small_plot_offers_to_drop_the_pool() -> None:

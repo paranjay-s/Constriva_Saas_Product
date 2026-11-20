@@ -22,6 +22,15 @@ PlanPdfParser = Callable[[bytes], dict[str, Any]]
 
 
 def default_pdf_parser(pdf_bytes: bytes) -> dict[str, Any]:
+    """A PDF exported by our floor plan generator carries its building model, signed by
+    this server: it is used exactly (no AI reading). Any other PDF is read by the parser."""
+    from app.modules.ai.floorplan.model.embed import signed_model
+
+    building = signed_model(pdf_bytes)
+    if building is not None:
+        from app.modules.ai.floorplan.model.planjson import to_planjson
+
+        return to_planjson(building)
     from app.modules.parsing.llm_parser import parse_plan_pdf
 
     return parse_plan_pdf(pdf_bytes, min_rooms=1)

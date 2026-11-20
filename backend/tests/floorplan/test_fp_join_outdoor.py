@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from app.modules.ai.floorplan.legacy_plan_json import to_legacy_plan_json
 from app.modules.ai.floorplan.pipeline.layout.solver import fill_holes_with_shafts
 from app.modules.ai.floorplan.pipeline.validator import ValidationReport, _check_shafts
-from app.modules.ai.floorplan.render.svg_renderer import render_svg
+from app.modules.ai.floorplan.render import render_svg
 from app.modules.ai.floorplan.schemas.plan import FloorPlan, Plot, Room
 
 

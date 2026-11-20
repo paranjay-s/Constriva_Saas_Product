@@ -27,6 +27,9 @@ confirmed against the Dubai Building Code by an engineer):
     FLOORPLAN_SHEET               A3 (or A1)
     FLOORPLAN_FURNITURE           true: draw one minimal furniture set per room
     FLOORPLAN_SITE_RULES          true: apply setbacks and the built-up target (false: whole plot)
+    FLOORPLAN_MODEL_SIGNING_KEY   signs the building model embedded in every exported PDF
+                               (empty: derived from PLAN3D_EMBED_SECRET / SUPABASE_JWT_SECRET)
+    FLOORPLAN_DWG_CONVERTER       path of the ODA File Converter (DWG export); empty = default paths
 
 The API key is never stored here; it is read from the existing app settings
 (GEMINI_API_KEY / LLM_API_KEY) at call time.
@@ -34,6 +37,7 @@ The API key is never stored here; it is read from the existing app settings
 
 from functools import lru_cache
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -67,6 +71,8 @@ class FloorplanSettings(BaseSettings):
     built_up_max: float = 0.75
     full_resolve_s: float = 30.0
     site_rules: bool = True  # setbacks and built-up target; False lays out the whole plot
+    model_signing_key: SecretStr = SecretStr("")  # signs the model embedded in PDFs
+    dwg_converter: str = ""  # path of the ODA File Converter; "" = look in the usual places
     sheet: str = "A3"
     furniture: bool = True
 

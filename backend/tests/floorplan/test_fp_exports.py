@@ -8,7 +8,8 @@ import pymupdf
 import pytest
 from ezdxf import recover
 
-from app.modules.ai.floorplan.render.dxf_renderer import LAYERS, render_dxf
+from app.modules.ai.floorplan.model.build import build_building
+from app.modules.ai.floorplan.render.cad_dxf import LAYERS, building_dxf
 from app.modules.ai.floorplan.render.exports import (
     FORMATS,
     PlanReference,
@@ -25,46 +26,53 @@ def _read_dxf(data: bytes):
     return doc, auditor
 
 
-def test_dxf_is_valid_and_in_centimetres(sample_plan: FloorPlan) -> None:
-    doc, auditor = _read_dxf(render_dxf(sample_plan))
+def _dxf(plan: FloorPlan) -> bytes:
+    return building_dxf(build_building(plan))
+
+
+def test_dxf_is_valid_and_in_millimetres(sample_plan: FloorPlan) -> None:
+    doc, auditor = _read_dxf(_dxf(sample_plan))
     assert not auditor.has_errors, [e.message for e in auditor.errors]
-    assert doc.header["$INSUNITS"] == ezdxf.units.CM
+    assert doc.header["$INSUNITS"] == ezdxf.units.MM
     for name in LAYERS:
         assert name in doc.layers, name
 
 
 def test_dxf_entities_match_the_plan(sample_plan: FloorPlan) -> None:
-    doc, _ = _read_dxf(render_dxf(sample_plan))
+    b = build_building(sample_plan)
+    doc, _ = _read_dxf(building_dxf(b))
     msp = doc.modelspace()
     count = Counter((e.dxftype(), e.dxf.layer) for e in msp)
-    swinging = [d for d in sample_plan.doors if d.swing != "none"]
-    assert count[("ARC", "DOORS")] == len(swinging)
-    assert count[("INSERT", "FURNITURE")] == len(sample_plan.fixtures)
-    assert count[("LWPOLYLINE", "WINDOWS")] == len(sample_plan.windows)
-    assert count[("HATCH", "WALLS")] >= 1 and count[("LWPOLYLINE", "WALLS")] >= 1
-    assert count[("DIMENSION", "DIMENSIONS")] >= 4
+    st = b.storeys[0]
+    doors = [o for o in st.openings if o.kind == "door"]
+    assert count[("INSERT", "A-DOOR")] == len(doors)
+    assert count[("INSERT", "A-GLAZ")] == len(st.openings) - len(doors)
+    fixtures = count[("INSERT", "A-FLOR-FIXT")] + count[("INSERT", "A-FURN")]
+    assert fixtures == len(st.fixtures)
+    assert count[("HATCH", "A-WALL-PATT")] >= 1 and count[("LWPOLYLINE", "A-WALL-EXTR")] >= 1
+    assert count[("DIMENSION", "A-ANNO-DIMS")] >= 4
     labels = {e.dxf.text for e in msp.query("TEXT")}
     for r in sample_plan.rooms:
-        assert r.label.upper() in labels
-    # furniture symbols are reusable named blocks
-    for f in sample_plan.fixtures:
-        assert f.symbol.upper() in doc.blocks
+        if r.type != "shaft" and not r.is_open:
+            assert r.label.upper() in labels
 
 
 def test_dxf_geometry_is_in_real_units(sample_plan: FloorPlan) -> None:
-    doc, _ = _read_dxf(render_dxf(sample_plan))
-    plot = next(iter(doc.modelspace().query('LWPOLYLINE[layer=="PLOT"]')))
+    doc, _ = _read_dxf(_dxf(sample_plan))
+    plot = next(iter(doc.modelspace().query('LWPOLYLINE[layer=="C-PROP"]')))
     xs = [p[0] for p in plot.get_points()]
     ys = [p[1] for p in plot.get_points()]
-    assert max(xs) - min(xs) == pytest.approx(sample_plan.plot.width)
-    assert max(ys) - min(ys) == pytest.approx(sample_plan.plot.depth)
-    dims = list(doc.modelspace().query("DIMENSION"))
-    overall = max(d.get_measurement() for d in dims)
-    assert overall == pytest.approx(max(sample_plan.plot.width, sample_plan.plot.depth))
+    assert max(xs) - min(xs) == pytest.approx(sample_plan.plot.width * 10, abs=25)
+    assert max(ys) - min(ys) == pytest.approx(sample_plan.plot.depth * 10, abs=25)
+    measures = {round(d.get_measurement()) for d in doc.modelspace().query("DIMENSION")}
+    # the plot chain measures the plot (the building chain may be wider by the outer half of
+    # exterior walls standing on a plot edge, in layouts without setbacks)
+    assert any(abs(m - sample_plan.plot.width * 10) <= 25 for m in measures)
+    assert any(abs(m - sample_plan.plot.depth * 10) <= 25 for m in measures)
 
 
 def test_dxf_has_no_sample_content(sample_plan: FloorPlan) -> None:
-    text = render_dxf(sample_plan).decode("utf-8")
+    text = _dxf(sample_plan).decode("utf-8")
     assert not DENY_RE.search(text), DENY_RE.findall(text)
 
 
@@ -148,4 +156,4 @@ def test_all_formats_share_one_file_name(sample_plan: FloorPlan) -> None:
 
 def test_unknown_format_is_rejected(sample_plan: FloorPlan) -> None:
     with pytest.raises(ValueError):
-        export_plan(sample_plan, "dwg")  # type: ignore[arg-type]
+        export_plan(sample_plan, "xyz")  # type: ignore[arg-type]

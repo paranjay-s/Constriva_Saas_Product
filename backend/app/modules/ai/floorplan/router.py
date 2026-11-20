@@ -261,16 +261,21 @@ async def export_endpoint(
 ) -> Response:
     sp = await run_in_threadpool(_own_plan, store, plan_id, user)
     building = await run_in_threadpool(service.building_for, sp)
-    exp = await run_in_threadpool(
-        export_plan,
-        sp.plan,
-        format,
-        dpi=dpi,
-        version=sp.version,
-        building=building,
-        furniture=furniture,
-        sheet=sheet,
-    )
+    from app.modules.ai.floorplan.render.dwg import DwgUnavailable
+
+    try:
+        exp = await run_in_threadpool(
+            export_plan,
+            sp.plan,
+            format,
+            dpi=dpi,
+            version=sp.version,
+            building=building,
+            furniture=furniture,
+            sheet=sheet,
+        )
+    except DwgUnavailable as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
     return Response(
         content=exp.data,
         media_type=exp.media_type,

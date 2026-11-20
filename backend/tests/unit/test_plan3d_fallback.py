@@ -7,6 +7,7 @@ no model is called."""
 import time
 
 import pytest
+from pydantic import SecretStr
 from fastapi.testclient import TestClient
 
 from app.core.security import get_current_user
@@ -193,8 +194,29 @@ def test_a_pdf_of_the_owners_generated_plan_uses_the_stored_plan(client, planto3
     assert client.get(f"{API}/jobs/{job_id}").json()["reader"] == "stored"
 
 
-def test_someone_elses_generated_plan_is_read_from_the_drawing(client, planto3d, plans):
+def test_someone_elses_generated_plan_uses_its_signed_model(client, planto3d, plans, monkeypatch):
+    from app.modules.ai.floorplan.settings import get_settings
+
+    monkeypatch.setattr(get_settings(), "model_signing_key", SecretStr("test-signing-key"))
     pdf = stored(plans, "someone-else-uuid-0002")
+    response = client.post(f"{API}/jobs", files={"file": ("villa.pdf", pdf, "application/pdf")})
+    assert response.status_code == 201
+    upload = next(r for r in planto3d.requests if r.url.path == "/api/upload")
+    assert upload.headers["x-detect"] == "0"  # the model is exact: no detection
+    (imported,) = planto3d.imports
+    assert imported["plan"]["reader"] == "model"
+
+
+def test_a_pdf_without_its_model_is_read_from_the_drawing(client, planto3d, plans, monkeypatch):
+    import pymupdf
+
+    from app.modules.ai.floorplan.settings import get_settings
+
+    monkeypatch.setattr(get_settings(), "model_signing_key", SecretStr("test-signing-key"))
+    with pymupdf.open(stream=stored(plans, "someone-else-uuid-0002"), filetype="pdf") as doc:
+        for name in doc.embfile_names():
+            doc.embfile_del(name)
+        pdf = doc.tobytes()
     response = client.post(f"{API}/jobs", files={"file": ("villa.pdf", pdf, "application/pdf")})
     assert response.status_code == 201
     upload = next(r for r in planto3d.requests if r.url.path == "/api/upload")

@@ -18,7 +18,7 @@ from app.modules.ai.floorplan.pipeline.layout.engine import LayoutResult
 from app.modules.ai.floorplan.pipeline.requirements import expand_rooms
 from app.modules.ai.floorplan.pipeline.room_program import ProgramDraft, build_program
 from app.modules.ai.floorplan.pipeline.validator import Issue, ValidationReport
-from app.modules.ai.floorplan.render.svg_renderer import render_svg
+from app.modules.ai.floorplan.render import render_svg
 from app.modules.ai.floorplan.schemas.brief import BriefForm, TextBrief
 from app.modules.ai.llm.client import GeminiClient, LLMError, get_llm
 

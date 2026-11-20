@@ -362,4 +362,28 @@ def stored_plan_for_pdf(
     from app.modules.ai.floorplan.render.exports import read_plan_reference
 
     ref = read_plan_reference(pdf_bytes)
-    return plan_for_3d(ref.plan_id, owner_id, store) if ref else None
+    stored = plan_for_3d(ref.plan_id, owner_id, store) if ref else None
+    return stored or signed_plan_for_pdf(pdf_bytes)
+
+
+def signed_plan_for_pdf(pdf_bytes: bytes) -> dict | None:
+    """A PDF this server exported carries its building model, signed: 3D uses it exactly,
+    whoever uploads it (the holder of the PDF already has the plan). None otherwise."""
+    from app.modules.ai.floorplan.model.embed import signed_model
+    from app.modules.ai.floorplan.model.planjson import to_planjson
+    from app.modules.ai.floorplan.model.planto3d import to_planto3d
+
+    building = signed_model(pdf_bytes)
+    if building is None:
+        return None
+    name = building.meta.project or "Floor plan"
+    return {
+        "id": building.meta.plan_id,
+        "name": name,
+        "version": building.meta.version,
+        "project_id": None,
+        "plan_json": to_planjson(building),
+        "planto3d": to_planto3d(building, source_name=f"{name}.pdf"),
+        "building": building.to_json_dict(),
+        "pdf": pdf_bytes,
+    }

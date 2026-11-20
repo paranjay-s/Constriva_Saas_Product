@@ -17,16 +17,17 @@ from typing import Literal
 
 import pymupdf
 
-from app.modules.ai.floorplan.render.dxf_renderer import render_dxf
 from app.modules.ai.floorplan.schemas.plan import FloorPlan
 
-ExportFormat = Literal["svg", "pdf", "png", "dxf"]
-FORMATS: tuple[str, ...] = ("svg", "pdf", "png", "dxf")
+ExportFormat = Literal["svg", "pdf", "png", "dxf", "dwg", "ifc"]
+FORMATS: tuple[str, ...] = ("svg", "pdf", "png", "dxf", "dwg", "ifc")
 MEDIA_TYPES = {
     "svg": "image/svg+xml",
     "pdf": "application/pdf",
     "png": "image/png",
     "dxf": "application/dxf",
+    "dwg": "application/acad",
+    "ifc": "application/x-step",
 }
 
 
@@ -109,14 +110,26 @@ def export_plan(
     model is built."""
     if fmt not in FORMATS:
         raise ValueError(f"unknown export format {fmt!r}; use one of {', '.join(FORMATS)}")
-    if fmt == "dxf":
-        data = render_dxf(plan)
+    from app.modules.ai.floorplan.model.build import build_building
+
+    b = building or build_building(plan, version=version or 1)
+    if fmt in ("dxf", "dwg"):
+        from app.modules.ai.floorplan.render.cad_dxf import building_dxf
+
+        data = building_dxf(b, sheet=sheet, furniture=furniture)
+        if fmt == "dwg":
+            from app.modules.ai.floorplan.render.dwg import dxf_to_dwg
+
+            data = dxf_to_dwg(data)
+    elif fmt == "ifc":
+        from app.modules.ai.floorplan.render.cad_ifc import building_ifc
+
+        data = building_ifc(b)
     else:
         from app.modules.ai.floorplan.drawing.compose import compose_sheet
         from app.modules.ai.floorplan.drawing.emit import to_pdf, to_png, to_svg
-        from app.modules.ai.floorplan.model.build import build_building
+        from app.modules.ai.floorplan.model.embed import embed_model
 
-        b = building or build_building(plan, version=version or 1)
         drawn = compose_sheet(b, sheet=sheet, furniture=furniture)
         if fmt == "svg":
             data = to_svg(drawn, embed_font=True).encode("utf-8")
@@ -126,7 +139,7 @@ def export_plan(
                 title=plan.meta.project.strip() or "Floor plan",
                 keywords=plan_reference(plan.id, version),
             )
-            data = pdf if fmt == "pdf" else to_png(pdf, dpi)
+            data = embed_model(pdf, b) if fmt == "pdf" else to_png(pdf, dpi)
     return Export(data, MEDIA_TYPES[fmt], f"{_basename(plan)}.{fmt}")
 
 

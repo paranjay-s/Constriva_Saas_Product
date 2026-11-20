@@ -81,7 +81,7 @@ def test_no_sample_content(path: Path) -> None:
 
 
 def test_rendered_svg_has_no_sample_content(sample_plan) -> None:
-    from app.modules.ai.floorplan.render.svg_renderer import render_svg
+    from app.modules.ai.floorplan.render import render_svg
 
     svg = render_svg(sample_plan)
     assert not DENY_RE.search(svg), DENY_RE.findall(svg)

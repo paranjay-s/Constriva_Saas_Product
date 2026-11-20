@@ -227,8 +227,10 @@ export const editResponseSchema = z.object({
 export type EditResponse = z.infer<typeof editResponseSchema>;
 
 export const EXPORT_FORMATS = [
-  { value: 'pdf', label: 'PDF (print, vector)' },
-  { value: 'dxf', label: 'DXF (AutoCAD)' },
+  { value: 'pdf', label: 'PDF (A3 at scale, vector)' },
+  { value: 'dxf', label: 'DXF (CAD layers, mm)' },
+  { value: 'dwg', label: 'DWG (AutoCAD 2018)' },
+  { value: 'ifc', label: 'IFC (Revit, ArchiCAD)' },
   { value: 'svg', label: 'SVG (vector)' },
   { value: 'png', label: 'PNG (image)' },
 ] as const;
