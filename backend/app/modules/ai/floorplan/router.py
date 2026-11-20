@@ -256,9 +256,21 @@ async def export_endpoint(
     store: Store,
     format: Annotated[ExportFormat, Query()] = "svg",
     dpi: Annotated[int, Query(ge=50, le=600)] = 150,
+    furniture: Annotated[bool | None, Query(description="Draw furniture (default setting)")] = None,
+    sheet: Annotated[str | None, Query(pattern="^(A3|A1)$")] = None,
 ) -> Response:
     sp = await run_in_threadpool(_own_plan, store, plan_id, user)
-    exp = await run_in_threadpool(export_plan, sp.plan, format, dpi=dpi, version=sp.version)
+    building = await run_in_threadpool(service.building_for, sp)
+    exp = await run_in_threadpool(
+        export_plan,
+        sp.plan,
+        format,
+        dpi=dpi,
+        version=sp.version,
+        building=building,
+        furniture=furniture,
+        sheet=sheet,
+    )
     return Response(
         content=exp.data,
         media_type=exp.media_type,

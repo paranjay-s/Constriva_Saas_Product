@@ -6,7 +6,7 @@ that does not fit is skipped; furniture never blocks a plan.
 """
 
 from shapely.affinity import translate
-from shapely.geometry import Polygon, box
+from shapely.geometry import LineString, Polygon, box
 from shapely.ops import unary_union
 
 from app.modules.ai.floorplan.geometry import door_clear_zone, exterior_intervals
@@ -119,10 +119,12 @@ def place_fixtures(plan: FloorPlan) -> list[Fixture]:
         placed: list[Polygon] = []
         sofa: Fixture | None = None
         bed: Fixture | None = None
+        windows = _window_zones(plan, room)
         for symbol, strategy in _recipe(room):
+            extra = windows if symbol in TALL else []
             blocked = (
-                unary_union([*zones, *(p.buffer(GAP) for p in placed)])
-                if (zones or placed)
+                unary_union([*zones, *extra, *(p.buffer(GAP) for p in placed)])
+                if (zones or placed or extra)
                 else None
             )
             fx = _place_one(plan, room, symbol, strategy, blocked, sofa, bed)
@@ -138,6 +140,25 @@ def place_fixtures(plan: FloorPlan) -> list[Fixture]:
                 sofa = fixture
             if symbol.startswith("bed_"):
                 bed = fixture
+    return out
+
+
+TALL = frozenset({"wardrobe"})  # never in front of a window
+WINDOW_CLEAR_CM = 70
+
+
+def _window_zones(plan: FloorPlan, room: Room) -> list[Polygon]:
+    """Room-local bands in front of the room's windows."""
+    from app.modules.ai.floorplan.geometry import window_span
+
+    out = []
+    for w in plan.windows:
+        if w.room != room.id:
+            continue
+        sp = window_span(plan, w)
+        line = LineString([sp.start, sp.end])
+        band = line.buffer(WINDOW_CLEAR_CM, cap_style="flat")
+        out.append(_local(band, room))
     return out
 
 

@@ -26,8 +26,7 @@ def area_lines(a: Areas, unit: str = "ft") -> list[str]:
     gross versus net. For metric plans the first line is already in m²."""
     sq = _sqft if unit == "ft" else _m2
     first = (
-        f"Total area {sq(a.plot_m2)} ({sq(a.built_up_m2)} built-up + "
-        f"{sq(a.exterior_m2)} exterior)"
+        f"Total area {sq(a.plot_m2)} ({sq(a.built_up_m2)} built-up + {sq(a.exterior_m2)} exterior)"
     )
     metric = (
         f"Total area {_m2(a.plot_m2)} ({_m2(a.built_up_m2)} built-up + "

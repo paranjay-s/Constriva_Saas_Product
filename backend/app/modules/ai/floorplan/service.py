@@ -15,7 +15,6 @@ from app.modules.ai.floorplan.pipeline.edit_engine import EditResult, edit_plan
 from app.modules.ai.floorplan.pipeline.generate import generate_plan
 from app.modules.ai.floorplan.pipeline.plan_tools import facing
 from app.modules.ai.floorplan.pipeline.requirements import describe
-from app.modules.ai.floorplan.render.svg_renderer import render_svg
 from app.modules.ai.floorplan.schemas.api import (
     ChatMessage,
     EditRequest,
@@ -105,7 +104,7 @@ def to_response(sp: StoredPlan) -> PlanResponse:
         name=sp.name,
         version=sp.version,
         plan=sp.plan,
-        svg=render_svg(sp.plan),
+        svg=preview_svg(sp),
         brief=sp.brief,
         notes=sp.notes,
         messages=[ChatMessage.model_validate(m) for m in sp.messages],
@@ -118,6 +117,15 @@ def to_response(sp: StoredPlan) -> PlanResponse:
         facing=facing(sp.plan),
         areas=_area_lines(sp),
     )
+
+
+def preview_svg(sp: StoredPlan) -> str:
+    """The in-app preview: the same sheet as the PDF, font embedded (it is shown as an
+    image, which cannot load fonts from the page)."""
+    from app.modules.ai.floorplan.drawing.compose import compose_sheet
+    from app.modules.ai.floorplan.drawing.emit import to_svg
+
+    return to_svg(compose_sheet(building_for(sp)), embed_font=True)
 
 
 def _area_lines(sp: StoredPlan) -> list[str]:
@@ -342,7 +350,7 @@ def plan_for_3d(plan_id: str, owner_id: str, store: PlanStore | None = None) -> 
         "plan_json": to_legacy_plan_json(sp.plan),
         "planto3d": to_planto3d(building, source_name=f"{sp.name}.pdf"),
         "building": building.to_json_dict(),
-        "pdf": export_plan(sp.plan, "pdf", version=sp.version).data,
+        "pdf": export_plan(sp.plan, "pdf", version=sp.version, building=building).data,
     }
 
 

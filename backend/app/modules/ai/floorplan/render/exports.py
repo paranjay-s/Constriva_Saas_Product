@@ -18,7 +18,6 @@ from typing import Literal
 import pymupdf
 
 from app.modules.ai.floorplan.render.dxf_renderer import render_dxf
-from app.modules.ai.floorplan.render.svg_renderer import render_svg
 from app.modules.ai.floorplan.schemas.plan import FloorPlan
 
 ExportFormat = Literal["svg", "pdf", "png", "dxf"]
@@ -96,22 +95,38 @@ def _with_reference(pdf: bytes, plan: FloorPlan, version: int | None) -> bytes:
 
 
 def export_plan(
-    plan: FloorPlan, fmt: ExportFormat, *, dpi: int = 150, version: int | None = None
+    plan: FloorPlan,
+    fmt: ExportFormat,
+    *,
+    dpi: int = 150,
+    version: int | None = None,
+    building=None,
+    furniture: bool | None = None,
+    sheet: str | None = None,
 ) -> Export:
+    """Every format from the building model (drawing/ for SVG, PDF and PNG). `building`
+    carries the revision list and model of a stored plan; without it the plan's own
+    model is built."""
     if fmt not in FORMATS:
         raise ValueError(f"unknown export format {fmt!r}; use one of {', '.join(FORMATS)}")
     if fmt == "dxf":
         data = render_dxf(plan)
     else:
-        svg = render_svg(plan)
+        from app.modules.ai.floorplan.drawing.compose import compose_sheet
+        from app.modules.ai.floorplan.drawing.emit import to_pdf, to_png, to_svg
+        from app.modules.ai.floorplan.model.build import build_building
+
+        b = building or build_building(plan, version=version or 1)
+        drawn = compose_sheet(b, sheet=sheet, furniture=furniture)
         if fmt == "svg":
-            data = svg.encode("utf-8")
+            data = to_svg(drawn, embed_font=True).encode("utf-8")
         else:
-            doc = pymupdf.open(stream=svg.encode("utf-8"), filetype="svg")
-            if fmt == "pdf":
-                data = _with_reference(doc.convert_to_pdf(), plan, version)
-            else:
-                data = doc[0].get_pixmap(dpi=max(50, min(dpi, 600))).tobytes("png")
+            pdf = to_pdf(
+                drawn,
+                title=plan.meta.project.strip() or "Floor plan",
+                keywords=plan_reference(plan.id, version),
+            )
+            data = pdf if fmt == "pdf" else to_png(pdf, dpi)
     return Export(data, MEDIA_TYPES[fmt], f"{_basename(plan)}.{fmt}")
 
 

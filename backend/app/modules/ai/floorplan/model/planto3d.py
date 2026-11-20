@@ -97,9 +97,13 @@ def _wall_rect(w: Wall, walls: list[Wall]) -> tuple[float, float, float, float]:
     """(x0, y0, x1, y1) in mm: centre line +- t/2, each end run on to the far face of a
     perpendicular wall it ends on."""
     h = w.thickness / 2
-    lo, hi = (min(w.a[0], w.b[0]), max(w.a[0], w.b[0])) if w.horizontal else (
-        min(w.a[1], w.b[1]),
-        max(w.a[1], w.b[1]),
+    lo, hi = (
+        (min(w.a[0], w.b[0]), max(w.a[0], w.b[0]))
+        if w.horizontal
+        else (
+            min(w.a[1], w.b[1]),
+            max(w.a[1], w.b[1]),
+        )
     )
     c = w.a[1] if w.horizontal else w.a[0]
     ext_lo = ext_hi = 0.0
@@ -107,9 +111,13 @@ def _wall_rect(w: Wall, walls: list[Wall]) -> tuple[float, float, float, float]:
         if q.horizontal == w.horizontal or q.kind == "boundary":
             continue
         qc = q.a[0] if w.horizontal else q.a[1]  # q's line, across w's direction
-        qlo, qhi = (min(q.a[1], q.b[1]), max(q.a[1], q.b[1])) if w.horizontal else (
-            min(q.a[0], q.b[0]),
-            max(q.a[0], q.b[0]),
+        qlo, qhi = (
+            (min(q.a[1], q.b[1]), max(q.a[1], q.b[1]))
+            if w.horizontal
+            else (
+                min(q.a[0], q.b[0]),
+                max(q.a[0], q.b[0]),
+            )
         )
         if not qlo <= c <= qhi:
             continue

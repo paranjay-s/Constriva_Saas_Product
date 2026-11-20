@@ -171,9 +171,13 @@ def _walls(
                 run = _flush(run, walls, horizontal, c, height)
                 continue
             m = (p + q) / 2
-            a, b = (room_at(m, c - 1), room_at(m, c + 1)) if horizontal else (
-                room_at(c - 1, m),
-                room_at(c + 1, m),
+            a, b = (
+                (room_at(m, c - 1), room_at(m, c + 1))
+                if horizontal
+                else (
+                    room_at(c - 1, m),
+                    room_at(c + 1, m),
+                )
             )
             if a is None and b is None:
                 run = _flush(run, walls, horizontal, c, height)
@@ -322,6 +326,8 @@ def _fixtures(plan: FloorPlan) -> list[Fixture]:
         )
 
     for f in plan.fixtures:
+        if rooms[f.room].is_open:
+            continue  # planting in gardens and courts is drawn with the site, not as fixtures
         kind = FIXTURE_KIND.get(f.symbol)
         sym = SYMBOLS.get(f.symbol)
         if kind is None or sym is None:
@@ -607,6 +613,7 @@ def build_building(
 ) -> Building:
     s = settings or get_settings()
     width, depth = mm(plan.plot.width), mm(plan.plot.depth)
+
     def duct(r: PlanRoom) -> bool:  # a shaft inside the house, not touching the plot edge
         return (
             r.type == "shaft"

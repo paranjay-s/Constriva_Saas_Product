@@ -2,8 +2,6 @@
 
 import pytest
 
-pytestmark = pytest.mark.site_rules
-
 from app.modules.ai.floorplan.model.areas import area_lines
 from app.modules.ai.floorplan.model.build import build_building
 from app.modules.ai.floorplan.model.building import Areas
@@ -19,6 +17,7 @@ from app.modules.ai.floorplan.pipeline.generate import (
 )
 from app.modules.ai.floorplan.schemas.brief import Brief, BriefForm, PlotSpec, RoomRequest
 
+pytestmark = pytest.mark.site_rules
 FT = 30.48
 
 
@@ -70,9 +69,7 @@ def test_an_area_without_its_basis_is_asked_once_before_drawing() -> None:
 
 
 def test_a_built_up_area_makes_a_larger_plot() -> None:
-    res = parse_brief(
-        BriefForm(plot_area=3500, unit="ft", bedrooms=3, area_basis="built_up"), None
-    )
+    res = parse_brief(BriefForm(plot_area=3500, unit="ft", bedrooms=3, area_basis="built_up"), None)
     p = res.brief.plot
     assert p.built_up_m2 == pytest.approx(325.2, abs=0.1)
     assert p.width_cm * p.depth_cm / 10_000 == pytest.approx(325.2 / 0.70, rel=0.01)
