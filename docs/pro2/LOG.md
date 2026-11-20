@@ -22,3 +22,4 @@ counted at the end of the lines that used them.
 | B | 3 typed answers by number, size, name, several | done | 821a971 | |
 | B | 4 never the same question twice; unmatched -> buttons + why | done | 821a971 | |
 | B | 5 tests incl. the exact looping sequence | done | 821a971 | material suite 69 passed |
+| A | end-of-section suites: backend 1350 passed / 1 failed (fixed in b3431c3) / 3 skipped; floorplan 564 passed after the fix | done | b3431c3 | coverage band without setbacks |
