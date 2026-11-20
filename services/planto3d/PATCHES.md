@@ -725,3 +725,15 @@ rectangle, measured with `tools/space_check.py`); what changes is how the space 
   11.0 % -> 96.4 % (feat/pro with its 3 m / 1.5 m setbacks: 95.9 %, 82.6 %, 91.5 %).
 - Tried and reverted: doors taken from every door swing hinged at a wall end (recall 88 %, precision fell from
   97 % to 80 %).
+
+## 62. Design details in the room kits (feat/pro_2, C3.2)
+
+- Feature ceilings (`blender/gen.py` `FEATURE_CEILING`, `PLAN3D_FEATURE_CEILINGS=0` turns them off): a tray
+  (coffered) ceiling with a warm LED cove in living rooms and majlis from 140 sq ft, dining rooms from 120 and
+  bedrooms from 130 (`lib.tray_ceiling`: a 1.6 ft bulkhead 0.6 ft deep all round, so the middle reads higher);
+  slatted wood ceilings in foyers, lobbies and passages (`lib.slat_ceiling`).
+- Lighting: a chandelier over the seating of living rooms from 150 sq ft and a pendant cluster over dining tables
+  (the library's `chandelier` and `pendant_cluster` models, hung at their own size).
+- Feature walls: a styled TV wall behind every TV unit (`lib.tv_wall`: book-matched marble slab to 8.5 ft, an LED
+  line above it, walnut slats either side) and wainscot panelling on the dining room's longest free wall
+  (`lib.wainscot`). Bedrooms keep the walnut panel behind the bed.

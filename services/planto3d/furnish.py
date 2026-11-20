@@ -564,9 +564,46 @@ def living(R):
             q = R.spot(OPP[side], 5.0, 1.4)
             if q:
                 R.add("tv_unit", q[3], q[0], q[1], q[2])
+                feature_wall(R, OPP[side], q, "tv_wall", most=11.0)
+            if area(R.rect) >= 150:                       # a chandelier over the seating (C3.2)
+                R.add("chandelier", (0, 0, 0, 0), ct[0], ct[1], 0, solid=False)
             extras(R, [("armchair", 2.7, 2.7, False), ("side_table", 1.7, 1.7, False), ("floor_lamp", 1.5, 1.5, False),
                        ("plant", 2.0, 2.0, False)])
             return
+
+
+def feature_wall(R, side, spot, fn, most=11.0):
+    """a wall feature (TV wall, panelling) centred on `spot` (x, y, rot, box) along the free stretch of that wall"""
+    x0, x1, y0, y1 = R.rect
+    x, y = spot[0], spot[1]
+    c = x if side in "NS" else y
+    iv = next(((a, b) for a, b in R.free[side]["tall"] if a - 0.01 <= c <= b + 0.01), None)
+    if not iv:
+        return
+    half = min(most / 2, c - iv[0] - 0.2, iv[1] - c - 0.2)
+    if half < 2.5:
+        return
+    box = {"N": (c - half, c + half, y1 - 0.15, y1), "S": (c - half, c + half, y0, y0 + 0.15),
+           "E": (x1 - 0.15, x1, c - half, c + half), "W": (x0, x0 + 0.15, c - half, c + half)}[side]
+    front = {"N": "-y", "S": "+y", "E": "-x", "W": "+x"}[side]
+    R.add(fn, (0, 0, 0, 0), *box, front, solid=False)
+
+
+def panelling(R):
+    """wainscot panelling on the room's longest free wall stretch (C3.2)"""
+    best = None
+    for side in "NSEW":
+        for a, b in R.free[side]["tall"]:
+            if b - a >= 6.0 and (best is None or b - a > best[2] - best[1]):
+                best = (side, a, b)
+    if not best:
+        return
+    side, a, b = best
+    x0, x1, y0, y1 = R.rect
+    box = {"N": (a + 0.2, b - 0.2, y1 - 0.12, y1), "S": (a + 0.2, b - 0.2, y0, y0 + 0.12),
+           "E": (x1 - 0.12, x1, a + 0.2, b - 0.2), "W": (x0, x0 + 0.12, a + 0.2, b - 0.2)}[side]
+    front = {"N": "-y", "S": "+y", "E": "-x", "W": "+x"}[side]
+    R.add("wainscot", (0, 0, 0, 0), *box, front, solid=False)
 
 
 def dining(R):
@@ -581,7 +618,10 @@ def dining(R):
                 if dining_table(R2):
                     R.items += R2.items
         return
-    dining_table(R)
+    if dining_table(R):
+        t = next(i for i in R.items if i["fn"] == "dining_set")
+        R.add("pendant_cluster", (0, 0, 0, 0), t["args"][0], t["args"][1], 0, solid=False)   # over the table (C3.2)
+    panelling(R)
 
 
 def dining_table(R):

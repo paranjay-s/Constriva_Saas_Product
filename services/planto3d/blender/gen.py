@@ -758,6 +758,10 @@ if os.environ.get("PLAN3D_LIBRARY", "1") != "0" and os.path.exists(os.path.join(
         _unrev = os.environ.get("PLAN3D_USE_UNREVIEWED", "").lower() in ("1", "true", "yes")
         LIBRARY = {e["id"]: e for e in json.load(_fh)["entries"] if e.get("review") == "approved" or
                    (e.get("review") != "rejected" and (str(e.get("source", "")).startswith("team-made") or _unrev))}
+# feature ceilings by room type (C3.2): (kind, smallest floor area in sq ft); PLAN3D_FEATURE_CEILINGS=0 turns them off
+FEATURE_CEILING = {} if os.environ.get("PLAN3D_FEATURE_CEILINGS", "1") == "0" else {
+    "living": ("tray", 140), "majlis": ("tray", 140), "dining": ("tray", 120), "bedroom": ("tray", 130),
+    "foyer": ("slats", 40), "lobby": ("slats", 60), "passage": ("slats", 60)}
 HANGING = {"chandelier", "pendant_cluster"}       # hung from the ceiling over (x, y), at their own size
 USED_KITS = {}                                   # piece -> how many times the library served it (meta.json)
 # build_report.json: per room and area what was read and what was built, and by which builder (PATCHES 53)
@@ -875,7 +879,7 @@ def custom(it, path=None, any_fn=False):
     return True
 
 
-CALLS = dict(kitchen_island=kitchen_island, bar_stool=bar_stool, wall_art=wall_art, wall_mirror=wall_mirror, bathtub=bathtub, round_rug=round_rug, model=model, bed=bed, nightstand=nightstand, wardrobe=wardrobe, desk=desk, wc2=wc2, vanity=vanity,
+CALLS = dict(kitchen_island=kitchen_island, bar_stool=bar_stool, wall_art=wall_art, wall_mirror=wall_mirror, tv_wall=tv_wall, wainscot=wainscot, bathtub=bathtub, round_rug=round_rug, model=model, bed=bed, nightstand=nightstand, wardrobe=wardrobe, desk=desk, wc2=wc2, vanity=vanity,
              shower2=lambda x, y, rot: shower2(x, y, rot), geyser=lambda x, y, rot: geyser(x, y, rot),
              kitchen_run=kitchen_run, chimney=chimney, wall_cab2=wall_cab2, fridge2=fridge2, washer2=washer2,
              oven_stack=oven_stack,
@@ -991,6 +995,17 @@ for k, f in enumerate(floors):
     mesh_from_boxes(f"walls_{k}", [(*b, "wall") for b in wb])
     for i, a in enumerate(f.get("arcs", [])):    # curved walls (C3.1): the band between the faces, full height
         ring_band(f"arc_wall_{k}_{i}", *a["c"], a["r"] - a["t"] / 2, a["r"] + a["t"] / 2, a["a0"], a["a1"], 0, H, "wall")
+    for zn in f["rooms"]:                         # feature ceilings (C3.2), on the room's largest rectangle
+        if zn.get("circle") or not zn.get("rects") or zn["type"] not in FEATURE_CEILING:
+            continue
+        q = max(zn["rects"], key=lambda t: (t[1] - t[0]) * (t[3] - t[2]))
+        if min(q[1] - q[0], q[3] - q[2]) < 7.0 or (q[1] - q[0]) * (q[3] - q[2]) < FEATURE_CEILING[zn["type"]][1]:
+            continue
+        kind = FEATURE_CEILING[zn["type"]][0]
+        if kind == "tray":
+            tray_ceiling(f"tray_{k}_{int(q[0])}_{int(q[2])}", *q)
+        else:
+            slat_ceiling(f"slats_{k}_{int(q[0])}_{int(q[2])}", *q)
     for zn in f["rooms"]:                         # round rooms: the floor, skirting and a lit cove follow the circle
         if not zn.get("circle"):
             continue

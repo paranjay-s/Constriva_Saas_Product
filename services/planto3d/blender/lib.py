@@ -929,6 +929,73 @@ for _n, _c in ART:
 mat("art_ground", (0.86, 0.82, 0.74), 0.9)
 
 
+def tv_wall(x0, x1, y0, y1, front):
+    """a styled TV wall (C3.2): a book-matched marble slab behind the TV, from the unit to 8.5 ft, with vertical
+    walnut slats either side and a warm LED line above the slab. (x0, x1, y0, y1) is its strip on the wall face."""
+    along_x = front in ("-y", "+y")
+    L = (x1 - x0) if along_x else (y1 - y0)
+    rot = {"-y": 0, "+x": 90, "+y": 180, "-x": 270}[front]
+    r = item("tv_wall", (x0 + x1) / 2, (y0 + y1) / 2, rot)
+    slab = min(L * 0.55, 7.0)
+    p_box(r, "tv_wall_slab", slab, 0.06, 8.0, "marble", (0, -0.03, 0.5), bevel=0.005)
+    p_box(r, "tv_wall_led", slab, 0.04, 0.05, "led", (0, -0.08, 8.55), bevel=0)
+    rest = (L - slab) / 2
+    n = max(0, int(rest / 0.45))
+    for side in (-1, 1):
+        for k in range(n):
+            cx = side * (slab / 2 + 0.25 + k * 0.45)
+            p_box(r, "tv_wall_slat", 0.22, 0.12, 8.5, "wall_accent", (cx, -0.06, 0.0), bevel=0.01)
+    return r
+
+
+def wainscot(x0, x1, y0, y1, front):
+    """wall panelling (C3.2): raised panels to 3.2 ft with a capping rail, painted a shade off the wall"""
+    along_x = front in ("-y", "+y")
+    L = (x1 - x0) if along_x else (y1 - y0)
+    rot = {"-y": 0, "+x": 90, "+y": 180, "-x": 270}[front]
+    r = item("wainscot", (x0 + x1) / 2, (y0 + y1) / 2, rot)
+    p_box(r, "wainscot_board", L, 0.04, 3.2, "white_gloss", (0, -0.02, 0.0), bevel=0)
+    p_box(r, "wainscot_rail", L, 0.12, 0.12, "white_gloss", (0, -0.06, 3.15), bevel=0.02)
+    n = max(1, int(L / 2.4))
+    w = L / n
+    for k in range(n):
+        cx = -L / 2 + (k + 0.5) * w
+        p_box(r, "wainscot_panel", w - 0.45, 0.05, 2.2, "white_gloss", (cx, -0.06, 0.5), bevel=0.02)
+    return r
+
+
+def tray_ceiling(name, x0, x1, y0, y1, drop=0.6, band=1.6):
+    """a tray (coffered) ceiling (C3.2): a bulkhead `band` wide all round, `drop` below the ceiling, with a warm LED
+    cove along its inner edge: the middle reads higher than the room's edges"""
+    t = WALL_H
+    b = min(band, (x1 - x0) / 4, (y1 - y0) / 4)
+    boxes = [(x0, x1, y0, y0 + b, t - drop, t, "ceiling"), (x0, x1, y1 - b, y1, t - drop, t, "ceiling"),
+             (x0, x0 + b, y0 + b, y1 - b, t - drop, t, "ceiling"), (x1 - b, x1, y0 + b, y1 - b, t - drop, t, "ceiling")]
+    mesh_from_boxes(name, boxes, coll="arch")
+    g = 0.08
+    led = [(x0 + b, x1 - b, y0 + b - g, y0 + b, t - drop + 0.02, t - drop + 0.1, "light"),
+           (x0 + b, x1 - b, y1 - b, y1 - b + g, t - drop + 0.02, t - drop + 0.1, "light"),
+           (x0 + b - g, x0 + b, y0 + b, y1 - b, t - drop + 0.02, t - drop + 0.1, "light"),
+           (x1 - b, x1 - b + g, y0 + b, y1 - b, t - drop + 0.02, t - drop + 0.1, "light")]
+    mesh_from_boxes(name + "_cove", led, coll="furniture")
+
+
+def slat_ceiling(name, x0, x1, y0, y1, depth=0.25, gap=0.5):
+    """slatted wood ceiling (C3.2): battens across the room's short side, 0.15 ft wide every `gap` ft"""
+    t = WALL_H
+    across_x = (x1 - x0) <= (y1 - y0)
+    boxes = []
+    a, b = (y0, y1) if across_x else (x0, x1)
+    k = a + 0.3
+    while k < b - 0.3:
+        if across_x:
+            boxes.append((x0 + 0.05, x1 - 0.05, k, k + 0.15, t - depth, t, "wall_accent"))
+        else:
+            boxes.append((k, k + 0.15, y0 + 0.05, y1 - 0.05, t - depth, t, "wall_accent"))
+        k += gap
+    mesh_from_boxes(name, boxes, coll="arch")
+
+
 def wall_mirror(x0, x1, y0, y1, front):
     """a full-length mirror in a thin brass frame, 0.4 to 6.6 ft up (dressing rooms, C1)"""
     along_x = front in ("-y", "+y")
