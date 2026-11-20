@@ -1,0 +1,182 @@
+{
+ "task": "room_program",
+ "model": "claude-opus-5-5",
+ "user": "{\"brief\": {\"purpose\": \"residential\", \"bedrooms\": 1, \"bathrooms\": 2, \"road_side\": null, \"preferences\": [{\"kind\": \"adjacent\", \"a\": \"living\", \"b\": \"dining\", \"text\": \"living room should be attached with Dining and kitchen\"}, {\"kind\": \"adjacent\", \"a\": \"living\", \"b\": \"kitchen\", \"text\": \"living room should be attached with Dining and kitchen\"}, {\"kind\": \"adjacent\", \"a\": \"pool\", \"b\": \"garden\", \"text\": \"in backyard I want a garden which is attached with the swimming pool\"}], \"notes\": \"Built-up area of 5000 sq ft on a 6000 sq ft plot; gardens are a shared side garden by living/dining/kitchen, a front lawn and a backyard garden with pool.\"}, \"plot\": {\"width_m\": 19.3, \"depth_m\": 28.9, \"usable_area_m2\": 557.8}, \"rooms\": [{\"id\": \"bed_1\", \"type\": \"master_bedroom\", \"default_label\": \"MASTER BED ROOM\", \"min_area_m2\": 12.0, \"attached_to\": null}, {\"id\": \"bath_1\", \"type\": \"bath\", \"default_label\": \"BATH\", \"min_area_m2\": 2.8, \"attached_to\": \"bed_1\"}, {\"id\": \"dress_1\", \"type\": \"dress\", \"default_label\": \"DRESS\", \"min_area_m2\": 2.5, \"attached_to\": \"bed_1\"}, {\"id\": \"bath_c1\", \"type\": \"bath\", \"default_label\": \"BATH\", \"min_area_m2\": 2.8, \"attached_to\": null}, {\"id\": \"parking_1\", \"type\": \"parking\", \"default_label\": \"GARAGE\", \"min_area_m2\": 12.5, \"attached_to\": null}, {\"id\": \"foyer_1\", \"type\": \"foyer\", \"default_label\": \"FOYER\", \"min_area_m2\": 2.5, \"attached_to\": null}, {\"id\": \"courtyard_1\", \"type\": \"courtyard\", \"default_label\": \"COURTYARD\", \"min_area_m2\": 6.0, \"attached_to\": null}, {\"id\": \"living_1\", \"type\": \"living\", \"default_label\": \"LIVING\", \"min_area_m2\": 12.0, \"attached_to\": null}, {\"id\": \"dining_1\", \"type\": \"dining\", \"default_label\": \"DINING\", \"min_area_m2\": 11.5, \"attached_to\": null}, {\"id\": \"kitchen_1\", \"type\": \"kitchen\", \"default_label\": \"KITCHEN\", \"min_area_m2\": 6.0, \"attached_to\": null}, {\"id\": \"garden_1\", \"type\": \"garden\", \"default_label\": \"GARDEN\", \"min_area_m2\": 1.0, \"attached_to\": null}, {\"id\": \"garden_2\", \"type\": \"garden\", \"default_label\": \"GARDEN\", \"min_area_m2\": 1.0, \"attached_t",
+ "answer": {
+  "rooms": [
+   {
+    "id": "bed_1",
+    "target_area_m2": 30.0,
+    "label": "MASTER BED ROOM"
+   },
+   {
+    "id": "bath_1",
+    "target_area_m2": 6.0,
+    "label": null
+   },
+   {
+    "id": "dress_1",
+    "target_area_m2": 6.0,
+    "label": null
+   },
+   {
+    "id": "bath_c1",
+    "target_area_m2": 5.0,
+    "label": "COMMON BATH"
+   },
+   {
+    "id": "parking_1",
+    "target_area_m2": 18.0,
+    "label": "GARAGE"
+   },
+   {
+    "id": "foyer_1",
+    "target_area_m2": 10.0,
+    "label": null
+   },
+   {
+    "id": "courtyard_1",
+    "target_area_m2": 16.0,
+    "label": null
+   },
+   {
+    "id": "living_1",
+    "target_area_m2": 48.0,
+    "label": "LIVING"
+   },
+   {
+    "id": "dining_1",
+    "target_area_m2": 24.0,
+    "label": null
+   },
+   {
+    "id": "kitchen_1",
+    "target_area_m2": 12.0,
+    "label": null
+   },
+   {
+    "id": "garden_1",
+    "target_area_m2": 18.0,
+    "label": "SIDE GARDEN"
+   },
+   {
+    "id": "garden_2",
+    "target_area_m2": 26.0,
+    "label": "FRONT LAWN"
+   },
+   {
+    "id": "garden_3",
+    "target_area_m2": 30.0,
+    "label": "BACKYARD GARDEN"
+   },
+   {
+    "id": "other_1",
+    "target_area_m2": 26.0,
+    "label": "MEETING ROOM"
+   },
+   {
+    "id": "other_2",
+    "target_area_m2": 28.0,
+    "label": "GAMING ROOM"
+   },
+   {
+    "id": "other_3",
+    "target_area_m2": 7.0,
+    "label": "PUJA"
+   },
+   {
+    "id": "other_4",
+    "target_area_m2": 30.0,
+    "label": "HOME THEATRE"
+   },
+   {
+    "id": "pool_1",
+    "target_area_m2": 36.0,
+    "label": "SWIMMING POOL"
+   },
+   {
+    "id": "lobby_1",
+    "target_area_m2": 14.0,
+    "label": null
+   }
+  ],
+  "adjacency": [
+   {
+    "a": "living_1",
+    "b": "dining_1",
+    "weight": 10
+   },
+   {
+    "a": "living_1",
+    "b": "kitchen_1",
+    "weight": 10
+   },
+   {
+    "a": "pool_1",
+    "b": "garden_3",
+    "weight": 10
+   },
+   {
+    "a": "kitchen_1",
+    "b": "dining_1",
+    "weight": 8
+   },
+   {
+    "a": "garden_1",
+    "b": "living_1",
+    "weight": 7
+   },
+   {
+    "a": "garden_1",
+    "b": "dining_1",
+    "weight": 6
+   },
+   {
+    "a": "garden_1",
+    "b": "kitchen_1",
+    "weight": 5
+   },
+   {
+    "a": "garden_2",
+    "b": "foyer_1",
+    "weight": 6
+   },
+   {
+    "a": "parking_1",
+    "b": "foyer_1",
+    "weight": 6
+   },
+   {
+    "a": "foyer_1",
+    "b": "lobby_1",
+    "weight": 8
+   },
+   {
+    "a": "lobby_1",
+    "b": "living_1",
+    "weight": 7
+   },
+   {
+    "a": "lobby_1",
+    "b": "bed_1",
+    "weight": 5
+   },
+   {
+    "a": "lobby_1",
+    "b": "bath_c1",
+    "weight": 5
+   },
+   {
+    "a": "other_3",
+    "b": "living_1",
+    "weight": 4
+   },
+   {
+    "a": "foyer_1",
+    "b": "other_1",
+    "weight": 5
+   }
+  ],
+  "notes": "Previous targets summed to ~573 m2, exceeding the 557.8 m2 usable area, so no layout was possible. All rooms reduced; total now ~390 m2 (~70% of usable) to leave room for walls and circulation. Side garden serves living/dining/kitchen, front lawn near foyer, backyard garden adjoins pool."
+ }
+}

@@ -1,0 +1,632 @@
+{
+ "doors": [
+  {
+   "from_room": null,
+   "id": "d1",
+   "offset": 122,
+   "swing": "in-left",
+   "to_room": "living_1",
+   "wall": "east",
+   "width": 100
+  },
+  {
+   "from_room": "lobby_1",
+   "id": "d2",
+   "offset": 15,
+   "swing": "in-left",
+   "to_room": "bed_1",
+   "wall": "south",
+   "width": 95
+  },
+  {
+   "from_room": "bed_1",
+   "id": "d3",
+   "offset": 15,
+   "swing": "in-left",
+   "to_room": "bath_1",
+   "wall": "north",
+   "width": 75
+  },
+  {
+   "from_room": "bed_1",
+   "id": "d4",
+   "offset": 15,
+   "swing": "in-left",
+   "to_room": "dress_1",
+   "wall": "east",
+   "width": 80
+  },
+  {
+   "from_room": "lobby_1",
+   "id": "d5",
+   "offset": 343,
+   "swing": "in-left",
+   "to_room": "bed_2",
+   "wall": "south",
+   "width": 95
+  },
+  {
+   "from_room": "bed_2",
+   "id": "d6",
+   "offset": 15,
+   "swing": "in-left",
+   "to_room": "bath_2",
+   "wall": "south",
+   "width": 75
+  },
+  {
+   "from_room": "lobby_1",
+   "id": "d7",
+   "offset": 343,
+   "swing": "in-left",
+   "to_room": "bed_3",
+   "wall": "north",
+   "width": 95
+  },
+  {
+   "from_room": "bed_3",
+   "id": "d8",
+   "offset": 15,
+   "swing": "in-left",
+   "to_room": "bath_3",
+   "wall": "north",
+   "width": 75
+  },
+  {
+   "from_room": "living_1",
+   "id": "d9",
+   "offset": 15,
+   "swing": "in-left",
+   "to_room": "kitchen_1",
+   "wall": "north",
+   "width": 95
+  },
+  {
+   "from_room": "living_1",
+   "id": "d10",
+   "offset": 329,
+   "swing": "in-left",
+   "to_room": "majlis_1",
+   "wall": "north",
+   "width": 95
+  },
+  {
+   "from_room": "lobby_1",
+   "id": "d11",
+   "offset": 15,
+   "swing": "in-left",
+   "to_room": "maid_room_1",
+   "wall": "east",
+   "width": 95
+  },
+  {
+   "from_room": "living_1",
+   "id": "d12",
+   "offset": 150,
+   "swing": "in-left",
+   "to_room": "lobby_1",
+   "wall": "south",
+   "width": 95
+  }
+ ],
+ "fixtures": [
+  {
+   "id": "f1",
+   "room": "bed_1",
+   "rotation": 270,
+   "symbol": "bed_double",
+   "x": 114,
+   "y": 274
+  },
+  {
+   "id": "f2",
+   "room": "bed_1",
+   "rotation": 90,
+   "symbol": "wardrobe",
+   "x": 315,
+   "y": 104
+  },
+  {
+   "id": "f3",
+   "room": "bed_1",
+   "rotation": 270,
+   "symbol": "side_table",
+   "x": 34,
+   "y": 162
+  },
+  {
+   "id": "f4",
+   "room": "bed_1",
+   "rotation": 270,
+   "symbol": "side_table",
+   "x": 34,
+   "y": 386
+  },
+  {
+   "id": "f5",
+   "room": "bath_1",
+   "rotation": 270,
+   "symbol": "toilet",
+   "x": 49,
+   "y": 134
+  },
+  {
+   "id": "f6",
+   "room": "bath_1",
+   "rotation": 90,
+   "symbol": "basin",
+   "x": 146,
+   "y": 139
+  },
+  {
+   "id": "f7",
+   "room": "dress_1",
+   "rotation": 180,
+   "symbol": "wardrobe",
+   "x": 124,
+   "y": 166
+  },
+  {
+   "id": "f8",
+   "room": "bed_2",
+   "rotation": 0,
+   "symbol": "bed_double",
+   "x": 234,
+   "y": 114
+  },
+  {
+   "id": "f9",
+   "room": "bed_2",
+   "rotation": 180,
+   "symbol": "wardrobe",
+   "x": 234,
+   "y": 286
+  },
+  {
+   "id": "f10",
+   "room": "bed_2",
+   "rotation": 0,
+   "symbol": "side_table",
+   "x": 122,
+   "y": 34
+  },
+  {
+   "id": "f11",
+   "room": "bed_2",
+   "rotation": 0,
+   "symbol": "side_table",
+   "x": 346,
+   "y": 34
+  },
+  {
+   "id": "f12",
+   "room": "bath_2",
+   "rotation": 90,
+   "symbol": "toilet",
+   "x": 190,
+   "y": 104
+  },
+  {
+   "id": "f13",
+   "room": "bath_2",
+   "rotation": 0,
+   "symbol": "basin",
+   "x": 119,
+   "y": 34
+  },
+  {
+   "id": "f14",
+   "room": "bed_3",
+   "rotation": 180,
+   "symbol": "bed_double",
+   "x": 234,
+   "y": 231
+  },
+  {
+   "id": "f15",
+   "room": "bed_3",
+   "rotation": 0,
+   "symbol": "wardrobe",
+   "x": 234,
+   "y": 44
+  },
+  {
+   "id": "f16",
+   "room": "bed_3",
+   "rotation": 180,
+   "symbol": "side_table",
+   "x": 122,
+   "y": 311
+  },
+  {
+   "id": "f17",
+   "room": "bed_3",
+   "rotation": 180,
+   "symbol": "side_table",
+   "x": 346,
+   "y": 311
+  },
+  {
+   "id": "f18",
+   "room": "bath_3",
+   "rotation": 90,
+   "symbol": "toilet",
+   "x": 100,
+   "y": 184
+  },
+  {
+   "id": "f19",
+   "room": "bath_3",
+   "rotation": 90,
+   "symbol": "basin",
+   "x": 115,
+   "y": 239
+  },
+  {
+   "id": "f20",
+   "room": "living_1",
+   "rotation": 180,
+   "symbol": "sofa_3",
+   "x": 309,
+   "y": 286
+  },
+  {
+   "id": "f21",
+   "room": "living_1",
+   "rotation": 180,
+   "symbol": "coffee_table",
+   "x": 309,
+   "y": 176
+  },
+  {
+   "id": "f22",
+   "room": "living_1",
+   "rotation": 0,
+   "symbol": "armchair",
+   "x": 304,
+   "y": 54
+  },
+  {
+   "id": "f23",
+   "room": "kitchen_1",
+   "rotation": 90,
+   "symbol": "kitchen_counter",
+   "x": 224,
+   "y": 184
+  },
+  {
+   "id": "f24",
+   "room": "kitchen_1",
+   "rotation": 270,
+   "symbol": "fridge",
+   "x": 46,
+   "y": 189
+  },
+  {
+   "id": "f25",
+   "room": "maid_room_1",
+   "rotation": 0,
+   "symbol": "bed_single",
+   "x": 159,
+   "y": 114
+  },
+  {
+   "id": "f26",
+   "room": "garden_1",
+   "rotation": 90,
+   "symbol": "tree",
+   "x": 269,
+   "y": 480
+  },
+  {
+   "id": "f27",
+   "room": "garden_1",
+   "rotation": 90,
+   "symbol": "plant",
+   "x": 494,
+   "y": 484
+  },
+  {
+   "id": "f28",
+   "room": "garden_1",
+   "rotation": 90,
+   "symbol": "plant",
+   "x": 494,
+   "y": 414
+  }
+ ],
+ "id": "sample-villa-3000",
+ "meta": {
+  "floor_name": "GROUND FLOOR",
+  "owner": "",
+  "project": "VILLA 3000",
+  "unit_display": "ft"
+ },
+ "plot": {
+  "built_up_m2": 161.2,
+  "depth": 1830,
+  "road_side": "east",
+  "setbacks": {
+   "front": 300,
+   "left": 150,
+   "rear": 150,
+   "right": 150
+  },
+  "width": 1525
+ },
+ "rooms": [
+  {
+   "h": 540,
+   "id": "bed_1",
+   "label": "MASTER BED ROOM",
+   "locked": false,
+   "part_of": null,
+   "type": "master_bedroom",
+   "w": 359,
+   "x": 628,
+   "y": 150
+  },
+  {
+   "h": 270,
+   "id": "bath_1",
+   "label": "BATH",
+   "locked": false,
+   "part_of": null,
+   "type": "bath",
+   "w": 180,
+   "x": 807,
+   "y": 690
+  },
+  {
+   "h": 210,
+   "id": "dress_1",
+   "label": "DRESS",
+   "locked": false,
+   "part_of": null,
+   "type": "dress",
+   "w": 239,
+   "x": 389,
+   "y": 150
+  },
+  {
+   "h": 330,
+   "id": "bed_2",
+   "label": "BED ROOM",
+   "locked": false,
+   "part_of": null,
+   "type": "bedroom",
+   "w": 478,
+   "x": 150,
+   "y": 360
+  },
+  {
+   "h": 210,
+   "id": "bath_2",
+   "label": "BATH",
+   "locked": false,
+   "part_of": null,
+   "type": "bath",
+   "w": 239,
+   "x": 150,
+   "y": 150
+  },
+  {
+   "h": 345,
+   "id": "bed_3",
+   "label": "BED ROOM",
+   "locked": false,
+   "part_of": null,
+   "type": "bedroom",
+   "w": 463,
+   "x": 150,
+   "y": 960
+  },
+  {
+   "h": 375,
+   "id": "bath_3",
+   "label": "BATH",
+   "locked": false,
+   "part_of": null,
+   "type": "bath",
+   "w": 149,
+   "x": 150,
+   "y": 1305
+  },
+  {
+   "h": 345,
+   "id": "living_1",
+   "label": "LIVING",
+   "locked": false,
+   "part_of": null,
+   "type": "living",
+   "w": 612,
+   "x": 613,
+   "y": 960
+  },
+  {
+   "h": 375,
+   "id": "kitchen_1",
+   "label": "KITCHEN",
+   "locked": false,
+   "part_of": null,
+   "type": "kitchen",
+   "w": 268,
+   "x": 957,
+   "y": 1305
+  },
+  {
+   "h": 375,
+   "id": "majlis_1",
+   "label": "MAJLIS",
+   "locked": false,
+   "part_of": null,
+   "type": "majlis",
+   "w": 658,
+   "x": 299,
+   "y": 1305
+  },
+  {
+   "h": 270,
+   "id": "maid_room_1",
+   "label": "MAID ROOM",
+   "locked": false,
+   "part_of": null,
+   "type": "maid_room",
+   "w": 328,
+   "x": 150,
+   "y": 690
+  },
+  {
+   "h": 270,
+   "id": "lobby_1",
+   "label": "LOBBY",
+   "locked": false,
+   "part_of": null,
+   "type": "lobby",
+   "w": 329,
+   "x": 478,
+   "y": 690
+  },
+  {
+   "h": 960,
+   "id": "garden_1",
+   "label": "GARDEN",
+   "locked": false,
+   "part_of": null,
+   "type": "garden",
+   "w": 538,
+   "x": 987,
+   "y": 0
+  },
+  {
+   "h": 150,
+   "id": "shaft_1",
+   "label": "GARDEN",
+   "locked": false,
+   "part_of": "garden_1",
+   "type": "shaft",
+   "w": 987,
+   "x": 0,
+   "y": 0
+  },
+  {
+   "h": 1680,
+   "id": "shaft_2",
+   "label": "GARDEN",
+   "locked": false,
+   "part_of": "garden_1",
+   "type": "shaft",
+   "w": 150,
+   "x": 0,
+   "y": 150
+  },
+  {
+   "h": 870,
+   "id": "shaft_3",
+   "label": "GARDEN",
+   "locked": false,
+   "part_of": "garden_1",
+   "type": "shaft",
+   "w": 300,
+   "x": 1225,
+   "y": 960
+  },
+  {
+   "h": 150,
+   "id": "shaft_4",
+   "label": "GARDEN",
+   "locked": false,
+   "part_of": "garden_1",
+   "type": "shaft",
+   "w": 1075,
+   "x": 150,
+   "y": 1680
+  }
+ ],
+ "windows": [
+  {
+   "id": "w1",
+   "offset": 195,
+   "room": "bed_1",
+   "wall": "east",
+   "width": 150
+  },
+  {
+   "id": "w2",
+   "offset": 104,
+   "room": "bed_1",
+   "wall": "north",
+   "width": 150
+  },
+  {
+   "id": "w3",
+   "offset": 104,
+   "room": "bath_1",
+   "wall": "east",
+   "width": 60
+  },
+  {
+   "id": "w4",
+   "offset": 90,
+   "room": "bed_2",
+   "wall": "west",
+   "width": 150
+  },
+  {
+   "id": "w5",
+   "offset": 89,
+   "room": "bath_2",
+   "wall": "north",
+   "width": 60
+  },
+  {
+   "id": "w6",
+   "offset": 97,
+   "room": "bed_3",
+   "wall": "west",
+   "width": 150
+  },
+  {
+   "id": "w7",
+   "offset": 157,
+   "room": "bath_3",
+   "wall": "west",
+   "width": 60
+  },
+  {
+   "id": "w8",
+   "offset": 403,
+   "room": "living_1",
+   "wall": "north",
+   "width": 180
+  },
+  {
+   "id": "w9",
+   "offset": 262,
+   "room": "living_1",
+   "wall": "east",
+   "width": 63
+  },
+  {
+   "id": "w10",
+   "offset": 127,
+   "room": "kitchen_1",
+   "wall": "east",
+   "width": 120
+  },
+  {
+   "id": "w11",
+   "offset": 239,
+   "room": "majlis_1",
+   "wall": "south",
+   "width": 180
+  },
+  {
+   "id": "w12",
+   "offset": 90,
+   "room": "maid_room_1",
+   "wall": "west",
+   "width": 90
+  }
+ ]
+}

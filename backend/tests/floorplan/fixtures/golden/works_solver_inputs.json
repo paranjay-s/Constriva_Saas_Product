@@ -1,0 +1,519 @@
+[
+ {
+  "status": "ok"
+ },
+ {
+  "options": {
+   "coarse": 2,
+   "exact_tiling": true,
+   "fixed": null,
+   "seed": 0,
+   "time_limit_s": 6.0
+  },
+  "plot": {
+   "built_up_m2": 275.9,
+   "depth": 2505,
+   "road_side": "south",
+   "setbacks": {
+    "front": 300,
+    "left": 150,
+    "rear": 150,
+    "right": 150
+   },
+   "width": 1670
+  },
+  "program": {
+   "adjacency": [
+    {
+     "a": "bath_c1",
+     "b": "lobby_1",
+     "weight": 6
+    },
+    {
+     "a": "bed_1",
+     "b": "lobby_1",
+     "weight": 7
+    },
+    {
+     "a": "bed_2",
+     "b": "lobby_1",
+     "weight": 7
+    },
+    {
+     "a": "courtyard_1",
+     "b": "dining_1",
+     "weight": 4
+    },
+    {
+     "a": "courtyard_1",
+     "b": "living_1",
+     "weight": 5
+    },
+    {
+     "a": "dining_1",
+     "b": "kitchen_1",
+     "weight": 9
+    },
+    {
+     "a": "dining_1",
+     "b": "living_1",
+     "weight": 8
+    },
+    {
+     "a": "dining_1",
+     "b": "lobby_1",
+     "weight": 6
+    },
+    {
+     "a": "dining_1",
+     "b": "other_1",
+     "weight": 4
+    },
+    {
+     "a": "foyer_1",
+     "b": "living_1",
+     "weight": 8
+    }
+   ],
+   "entrance_side": "south",
+   "pool_axis": null,
+   "pool_layout": null,
+   "rooms": [
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "bed_1",
+     "label": "MASTER BED ROOM",
+     "target_area_m2": 30.0,
+     "type": "bedroom",
+     "zone": "private"
+    },
+    {
+     "attached_to": "bed_1",
+     "block": null,
+     "id": "bath_1",
+     "label": "BATH",
+     "target_area_m2": 7.66,
+     "type": "bath",
+     "zone": "service"
+    },
+    {
+     "attached_to": "bed_1",
+     "block": null,
+     "id": "dress_1",
+     "label": "DRESS",
+     "target_area_m2": 7.66,
+     "type": "dress",
+     "zone": "private"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "bed_2",
+     "label": "BED ROOM",
+     "target_area_m2": 30.0,
+     "type": "bedroom",
+     "zone": "private"
+    },
+    {
+     "attached_to": "bed_2",
+     "block": null,
+     "id": "bath_2",
+     "label": "BATH",
+     "target_area_m2": 6.57,
+     "type": "bath",
+     "zone": "service"
+    },
+    {
+     "attached_to": "bed_2",
+     "block": null,
+     "id": "dress_2",
+     "label": "DRESS",
+     "target_area_m2": 6.57,
+     "type": "dress",
+     "zone": "private"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "bath_c1",
+     "label": "COMMON BATH",
+     "target_area_m2": 5.47,
+     "type": "bath",
+     "zone": "service"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "living_1",
+     "label": "LIVING",
+     "target_area_m2": 76.61,
+     "type": "living",
+     "zone": "public"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "kitchen_1",
+     "label": "KITCHEN",
+     "target_area_m2": 19.7,
+     "type": "kitchen",
+     "zone": "service"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "dining_1",
+     "label": "DINING",
+     "target_area_m2": 38.3,
+     "type": "dining",
+     "zone": "public"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "lobby_1",
+     "label": "LOBBY",
+     "target_area_m2": 17.61,
+     "type": "lobby",
+     "zone": "circulation"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "courtyard_1",
+     "label": "COURTYARD",
+     "target_area_m2": 50.0,
+     "type": "courtyard",
+     "zone": "open"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "foyer_1",
+     "label": "FOYER",
+     "target_area_m2": 16.42,
+     "type": "foyer",
+     "zone": "circulation"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "other_1",
+     "label": "PUJA",
+     "target_area_m2": 6.57,
+     "type": "other",
+     "zone": "public"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "garden_1",
+     "label": "GARDEN",
+     "target_area_m2": 49.61,
+     "type": "garden",
+     "zone": "open"
+    }
+   ],
+   "rules": [
+    {
+     "kind": "daylight",
+     "room": "bed_1",
+     "text": ""
+    },
+    {
+     "kind": "daylight",
+     "room": "bed_2",
+     "text": ""
+    },
+    {
+     "kind": "daylight",
+     "room": "living_1",
+     "text": ""
+    },
+    {
+     "kind": "daylight",
+     "room": "kitchen_1",
+     "text": ""
+    }
+   ]
+  },
+  "topology": {
+   "parent": {
+    "bath_1": "bed_1",
+    "bath_2": "bed_2",
+    "bath_c1": "lobby_1",
+    "bed_1": "lobby_1",
+    "bed_2": "lobby_1",
+    "courtyard_1": "living_1",
+    "dining_1": "living_1",
+    "dress_1": "bed_1",
+    "dress_2": "bed_2",
+    "foyer_1": null,
+    "garden_1": null,
+    "kitchen_1": "dining_1",
+    "living_1": "foyer_1",
+    "lobby_1": "living_1",
+    "other_1": "living_1"
+   },
+   "root": "foyer_1"
+  }
+ },
+ {
+  "options": {
+   "coarse": 1,
+   "exact_tiling": false,
+   "fixed": null,
+   "seed": 0,
+   "time_limit_s": 8.0
+  },
+  "plot": {
+   "built_up_m2": 275.9,
+   "depth": 2505,
+   "road_side": "south",
+   "setbacks": {
+    "front": 300,
+    "left": 150,
+    "rear": 150,
+    "right": 150
+   },
+   "width": 1670
+  },
+  "program": {
+   "adjacency": [
+    {
+     "a": "bath_c1",
+     "b": "lobby_1",
+     "weight": 6
+    },
+    {
+     "a": "bed_1",
+     "b": "lobby_1",
+     "weight": 7
+    },
+    {
+     "a": "bed_2",
+     "b": "lobby_1",
+     "weight": 7
+    },
+    {
+     "a": "courtyard_1",
+     "b": "dining_1",
+     "weight": 4
+    },
+    {
+     "a": "courtyard_1",
+     "b": "living_1",
+     "weight": 5
+    },
+    {
+     "a": "dining_1",
+     "b": "kitchen_1",
+     "weight": 9
+    },
+    {
+     "a": "dining_1",
+     "b": "living_1",
+     "weight": 8
+    },
+    {
+     "a": "dining_1",
+     "b": "lobby_1",
+     "weight": 6
+    },
+    {
+     "a": "dining_1",
+     "b": "other_1",
+     "weight": 4
+    },
+    {
+     "a": "foyer_1",
+     "b": "living_1",
+     "weight": 8
+    }
+   ],
+   "entrance_side": "south",
+   "pool_axis": null,
+   "pool_layout": null,
+   "rooms": [
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "bed_1",
+     "label": "MASTER BED ROOM",
+     "target_area_m2": 30.0,
+     "type": "bedroom",
+     "zone": "private"
+    },
+    {
+     "attached_to": "bed_1",
+     "block": null,
+     "id": "bath_1",
+     "label": "BATH",
+     "target_area_m2": 7.66,
+     "type": "bath",
+     "zone": "service"
+    },
+    {
+     "attached_to": "bed_1",
+     "block": null,
+     "id": "dress_1",
+     "label": "DRESS",
+     "target_area_m2": 7.66,
+     "type": "dress",
+     "zone": "private"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "bed_2",
+     "label": "BED ROOM",
+     "target_area_m2": 30.0,
+     "type": "bedroom",
+     "zone": "private"
+    },
+    {
+     "attached_to": "bed_2",
+     "block": null,
+     "id": "bath_2",
+     "label": "BATH",
+     "target_area_m2": 6.57,
+     "type": "bath",
+     "zone": "service"
+    },
+    {
+     "attached_to": "bed_2",
+     "block": null,
+     "id": "dress_2",
+     "label": "DRESS",
+     "target_area_m2": 6.57,
+     "type": "dress",
+     "zone": "private"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "bath_c1",
+     "label": "COMMON BATH",
+     "target_area_m2": 5.47,
+     "type": "bath",
+     "zone": "service"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "living_1",
+     "label": "LIVING",
+     "target_area_m2": 76.61,
+     "type": "living",
+     "zone": "public"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "kitchen_1",
+     "label": "KITCHEN",
+     "target_area_m2": 19.7,
+     "type": "kitchen",
+     "zone": "service"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "dining_1",
+     "label": "DINING",
+     "target_area_m2": 38.3,
+     "type": "dining",
+     "zone": "public"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "lobby_1",
+     "label": "LOBBY",
+     "target_area_m2": 17.61,
+     "type": "lobby",
+     "zone": "circulation"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "courtyard_1",
+     "label": "COURTYARD",
+     "target_area_m2": 50.0,
+     "type": "courtyard",
+     "zone": "open"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "foyer_1",
+     "label": "FOYER",
+     "target_area_m2": 16.42,
+     "type": "foyer",
+     "zone": "circulation"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "other_1",
+     "label": "PUJA",
+     "target_area_m2": 6.57,
+     "type": "other",
+     "zone": "public"
+    },
+    {
+     "attached_to": null,
+     "block": null,
+     "id": "garden_1",
+     "label": "GARDEN",
+     "target_area_m2": 49.61,
+     "type": "garden",
+     "zone": "open"
+    }
+   ],
+   "rules": [
+    {
+     "kind": "daylight",
+     "room": "bed_1",
+     "text": ""
+    },
+    {
+     "kind": "daylight",
+     "room": "bed_2",
+     "text": ""
+    },
+    {
+     "kind": "daylight",
+     "room": "living_1",
+     "text": ""
+    },
+    {
+     "kind": "daylight",
+     "room": "kitchen_1",
+     "text": ""
+    }
+   ]
+  },
+  "topology": {
+   "parent": {
+    "bath_1": "bed_1",
+    "bath_2": "bed_2",
+    "bath_c1": "lobby_1",
+    "bed_1": "lobby_1",
+    "bed_2": "lobby_1",
+    "courtyard_1": "living_1",
+    "dining_1": "living_1",
+    "dress_1": "bed_1",
+    "dress_2": "bed_2",
+    "foyer_1": null,
+    "garden_1": null,
+    "kitchen_1": "dining_1",
+    "living_1": "foyer_1",
+    "lobby_1": "living_1",
+    "other_1": "living_1"
+   },
+   "root": "foyer_1"
+  }
+ }
+]
