@@ -273,6 +273,11 @@ def _plot(form: BriefForm, tb: TextBrief, conflicts: list[Conflict]) -> tuple[Pl
     if area_cm2:
         basis = form.area_basis or tb.area_basis or area_basis_from_words(form.prompt)
         stated_m2 = area_cm2 / 10_000
+        if basis == "plot":
+            built, built_notes = built_up_from_words(form.prompt, unit, stated_m2, tb, form)
+            notes += built_notes
+        else:
+            built = None
         plot_cm2 = area_cm2
         what = "plot"
         if basis == "built_up":
@@ -298,7 +303,7 @@ def _plot(form: BriefForm, tb: TextBrief, conflicts: list[Conflict]) -> tuple[Pl
                 shape_assumed=True,
                 area_basis=basis,
                 stated_area_m2=round(stated_m2, 2),
-                built_up_m2=round(stated_m2, 2) if basis == "built_up" else None,
+                built_up_m2=round(stated_m2, 2) if basis == "built_up" else built,
             ),
             notes,
         )
@@ -327,6 +332,63 @@ def area_basis_from_words(text: str) -> str | None:
         if built and plot:  # "5000 sq ft plot with 3500 sq ft built-up": a plot size
             return "plot"
     return None
+
+
+_NUM = r"(\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)"
+_AREA_UNIT = (
+    r"(sq\.?\s*(?:ft|feet|foot|m|mt|mtr|meters?|metres?)\b|square\s+(?:feet|foot|meters?|metres?)"
+    r"|ft\.?\s*(?:²|2|sq)|feet\s*(?:²|2)|m\s*²|m2\b|sqft\b|sqm\b)?"
+)
+_AT_LEAST = r"(at\s*least|atleast|min(?:imum)?\.?|not\s+less\s+than|more\s+than)?"
+_BUILT_WORD = r"(?:built|build|buil)[\s-]*up(?:\s+area)?|bua|covered\s+area|construction\s+area"
+_BUILT_AFTER = re.compile(
+    rf"\b(?:{_BUILT_WORD})\s*(?:of|is|=|:|should\s+be|must\s+be|to\s+be|around|about)?\s*"
+    rf"{_AT_LEAST}\s*(?:of\s+)?{_NUM}\s*{_AREA_UNIT}",
+    re.IGNORECASE,
+)
+_BUILT_BEFORE = re.compile(
+    rf"{_AT_LEAST}\s*{_NUM}\s*{_AREA_UNIT}\s*(?:of\s+)?(?:{_BUILT_WORD})\b",
+    re.IGNORECASE,
+)
+
+
+def stated_built_up(text: str, unit: str) -> tuple[float, bool] | None:
+    """The built-up area a description states beside the plot area, in m², and whether it
+    is a minimum ("at least 3000 sq ft built-up"). None when it states none."""
+    for pattern in (_BUILT_AFTER, _BUILT_BEFORE):
+        m = pattern.search(text or "")
+        if not m:
+            continue
+        at_least, number, unit_words = m.group(1), m.group(2), (m.group(3) or "").lower()
+        value = float(number.replace(",", ""))
+        metric = bool(re.search(r"\bm\b|m²|m2|sqm|met|mtr|mt\b", unit_words))
+        feet = bool(re.search(r"ft|feet|foot", unit_words))
+        per = CM_PER_M if metric or (not feet and unit == "m") else CM_PER_FT
+        m2 = value * per**2 / 10_000
+        if m2 > 5:
+            return m2, bool(at_least)
+    return None
+
+
+def built_up_from_words(
+    text: str, unit: str, plot_m2: float, tb: TextBrief, form: BriefForm
+) -> tuple[float | None, list[str]]:
+    """The person's own built-up area when the description states one beside the plot.
+
+    The person's number wins over the usual share band. A minimum ("at least 3000 sq ft")
+    that the default share already exceeds keeps the default (the wish is met) and says so."""
+    found = stated_built_up(text, unit)
+    if found is None:
+        return None, []
+    m2, at_least = found
+    if at_least:
+        default_m2 = built_up_share(form, tb) * plot_m2
+        if default_m2 >= m2:
+            return None, [
+                f"Built-up area at least {fmt_area_m2(m2, unit)}: planned about "
+                f"{fmt_area_m2(default_m2, unit)} ({default_m2 / plot_m2:.0%} of the plot)."
+            ]
+    return round(m2, 2), [f"Built-up area {fmt_area_m2(m2, unit)}, as you asked."]
 
 
 def built_up_share(form: BriefForm, tb: TextBrief) -> float:

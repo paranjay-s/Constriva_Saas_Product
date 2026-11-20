@@ -118,3 +118,56 @@ def test_a_generated_villa_meets_its_band_and_setbacks() -> None:
     b = build_building(plan)
     assert 0.60 <= b.areas.coverage <= 0.76, b.areas
     assert abs(b.areas.rooms_gross_m2 - b.areas.built_up_m2) <= 0.01 * b.areas.built_up_m2
+
+
+@pytest.mark.parametrize(
+    ("text", "m2", "at_least"),
+    [
+        ("6000 ft.² in which I want built-up area of 5000 ft.²", 464.5, False),
+        ("7000 ft.² area buildup area of 5000 ft.² with a pool", 464.5, False),
+        ("plot 4500, I want build up area of atleast 3000 sq feet", 278.7, True),
+        ("5000 sq ft plot with 3500 sq ft built-up", 325.2, False),
+        ("built up 300 m2 on a 500 m2 plot", 300.0, False),
+        ("BUA: 4,200 sqft", 390.2, False),
+    ],
+)
+def test_a_stated_built_up_area_is_read(text: str, m2: float, at_least: bool) -> None:
+    from app.modules.ai.floorplan.pipeline.brief_parser import stated_built_up
+
+    got = stated_built_up(text, "ft")
+    assert got is not None
+    assert got[0] == pytest.approx(m2, abs=0.1) and got[1] is at_least
+
+
+def test_the_persons_built_up_area_wins_over_the_band() -> None:
+    form = BriefForm(
+        prompt="6000 sq ft plot, built-up area of 5000 sq ft",
+        plot_area=6000,
+        unit="ft",
+        bedrooms=1,
+        area_basis="plot",
+    )
+    res = parse_brief(form, None)
+    assert res.brief.plot.built_up_m2 == pytest.approx(464.5, abs=0.1)
+    from app.modules.ai.floorplan.schemas.brief import SetbackRequest
+
+    b = res.brief.model_copy(update={"setbacks": SetbackRequest(front=0, side=0, rear=0)})
+    plot = plot_from_brief(b)
+    target, notes = built_up_target(b, plot)
+    plot_m2 = plot.width * plot.depth / 10_000
+    # 83 % of the plot: outside the 65-75 % band, kept (or cut only to what fits), with a note
+    assert target / plot_m2 > 0.75
+    assert any("outside the usual" in n for n in notes)
+
+
+def test_an_at_least_built_up_below_the_default_keeps_the_default() -> None:
+    form = BriefForm(
+        prompt="plot 4500 sq ft, build up area of atleast 3000 sq feet",
+        plot_area=4500,
+        unit="ft",
+        bedrooms=2,
+        area_basis="plot",
+    )
+    res = parse_brief(form, None)
+    assert res.brief.plot.built_up_m2 is None
+    assert any("at least" in a for a in res.brief.assumptions)

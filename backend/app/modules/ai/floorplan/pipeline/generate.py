@@ -109,27 +109,39 @@ def plot_from_brief(brief: Brief) -> Plot:
 def built_up_target(brief: Brief, plot: Plot) -> tuple[float, list[str]]:
     """Built-up area to aim for (m2) and notes for the person.
 
-    The person's built-up area or share wins. Otherwise the default share of the plot
-    (FLOORPLAN_BUILT_UP_SHARE) kept inside FLOORPLAN_BUILT_UP_MIN..MAX. Never more than
-    fits inside the setbacks (less the outer half of the exterior walls)."""
+    The person's numbers win: a built-up area or share they state is used as it is, even
+    outside FLOORPLAN_BUILT_UP_MIN..MAX (a note says the coverage is unusual; the plan is
+    never refused for it). Only without one is the default share of the plot
+    (FLOORPLAN_BUILT_UP_SHARE) kept inside the band. Never more than physically fits inside
+    the setbacks (less the outer half of the exterior walls); a note says when it was cut."""
     s = get_settings()
     plot_m2 = plot.width * plot.depth / 10_000
     notes: list[str] = []
-    if brief.plot.built_up_m2:
-        target = brief.plot.built_up_m2
-    elif brief.built_up_share:
-        target = brief.built_up_share * plot_m2
+    asked = brief.plot.built_up_m2 or (
+        brief.built_up_share * plot_m2 if brief.built_up_share else None
+    )
+    if asked:
+        target = asked
     else:
         share = min(max(s.built_up_share, s.built_up_min), s.built_up_max)
         target = share * plot_m2
     x0, y0, x1, y1 = plot.buildable()
     fits = max(0.0, (x1 - x0) * (y1 - y0) / 10_000 * 0.98)
     if target > fits:
+        where = "inside the setbacks" if plot.has_setbacks else "on the plot"
         notes.append(
-            f"The setbacks leave room for about {fits:,.0f} m² of building "
-            f"({fits / plot_m2:.0%} of the plot), less than the {target:,.0f} m² aimed for."
+            f"The plot has room for about {fits:,.0f} m² of building {where} "
+            f"({fits / plot_m2:.0%} of the plot), less than the {target:,.0f} m² asked for; "
+            f"the plan uses {fits:,.0f} m²."
         )
         target = fits
+    if asked and plot_m2 > 0:
+        cover = target / plot_m2
+        if not s.built_up_min <= cover <= s.built_up_max:
+            notes.append(
+                f"Built-up area is {cover:.0%} of the plot, outside the usual "
+                f"{s.built_up_min:.0%}-{s.built_up_max:.0%}; planned as you asked."
+            )
     return round(target, 1), notes
 
 
@@ -190,6 +202,7 @@ def generate_plan(
 
     plot, meta = plot_from_brief(brief), meta_from_brief(brief)
     chain, pool_notes = pool_choices(brief)
+    site_notes = built_up_target(brief, plot)[1] if s.site_rules else []
 
     attempts: list[str] = []
     warnings: list[str] = []
@@ -222,7 +235,7 @@ def generate_plan(
                     feasibility=feas,
                     report=res.report,
                     attempts=attempts,
-                    warnings=pool_notes + warnings,
+                    warnings=site_notes + pool_notes + warnings,
                     method=res.method,
                 )
             report = res.report
