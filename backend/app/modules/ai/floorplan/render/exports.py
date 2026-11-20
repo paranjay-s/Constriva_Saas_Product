@@ -104,10 +104,13 @@ def export_plan(
     building=None,
     furniture: bool | None = None,
     sheet: str | None = None,
+    view: str = "engineering",
 ) -> Export:
     """Every format from the building model (drawing/ for SVG, PDF and PNG). `building`
     carries the revision list and model of a stored plan; without it the plan's own
-    model is built."""
+    model is built. `view` "presentation" draws the colour presentation plan for SVG, PDF
+    and PNG (drawing/presentation.py; the PDF carries the signed model as well); DXF, DWG
+    and IFC are always the engineering drawing."""
     if fmt not in FORMATS:
         raise ValueError(f"unknown export format {fmt!r}; use one of {', '.join(FORMATS)}")
     from app.modules.ai.floorplan.model.build import build_building
@@ -130,7 +133,12 @@ def export_plan(
         from app.modules.ai.floorplan.drawing.emit import to_pdf, to_png, to_svg
         from app.modules.ai.floorplan.model.embed import embed_model
 
-        drawn = compose_sheet(b, sheet=sheet, furniture=furniture)
+        if view == "presentation":
+            from app.modules.ai.floorplan.drawing.presentation import compose_presentation
+
+            drawn = compose_presentation(b, sheet=sheet, furniture=furniture)
+        else:
+            drawn = compose_sheet(b, sheet=sheet, furniture=furniture)
         if fmt == "svg":
             data = to_svg(drawn, embed_font=True).encode("utf-8")
         else:
@@ -140,7 +148,8 @@ def export_plan(
                 keywords=plan_reference(plan.id, version),
             )
             data = embed_model(pdf, b) if fmt == "pdf" else to_png(pdf, dpi)
-    return Export(data, MEDIA_TYPES[fmt], f"{_basename(plan)}.{fmt}")
+    suffix = "-presentation" if view == "presentation" and fmt in ("svg", "pdf", "png") else ""
+    return Export(data, MEDIA_TYPES[fmt], f"{_basename(plan)}{suffix}.{fmt}")
 
 
 def _basename(plan: FloorPlan) -> str:

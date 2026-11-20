@@ -25,7 +25,7 @@ import { ConfirmationCard, type PlanNames } from './components/ConfirmationCard'
 import { ExportMenu } from './components/ExportMenu';
 import { PlanViewer2D } from './components/PlanViewer2D';
 import { useJobEvents } from './hooks/useJobEvents';
-import { type BriefFormValues, EMPTY_FORM, type ParseResponse, type PlanResponse } from './schemas';
+import { type BriefFormValues, EMPTY_FORM, type ParseResponse, type PlanResponse, type PlanView } from './schemas';
 
 const LINES = [
   'draw a 3 BHK on a *30 × 40 ft plot*',
@@ -299,6 +299,29 @@ export function FloorplanPage() {
   };
 
   // ---------------------------------------------------------------- view
+  // the plan view: the engineering drawing (default) or the colour presentation plan
+  const [view, setView] = useState<PlanView>('engineering');
+  const [presentation, setPresentation] = useState<{ key: string; svg: string | null; error: string | null }>({
+    key: '',
+    svg: null,
+    error: null,
+  });
+  useEffect(() => {
+    if (view !== 'presentation' || !plan) return;
+    const key = `${plan.id}:${plan.version}`;
+    if (presentation.key === key) return;
+    let live = true;
+    floorplanApi
+      .presentationSvg(plan.id)
+      .then((svg) => live && setPresentation({ key, svg, error: null }))
+      .catch((e: unknown) =>
+        live && setPresentation({ key, svg: null, error: e instanceof Error ? e.message : 'Could not load the presentation plan' }),
+      );
+    return () => {
+      live = false;
+    };
+  }, [view, plan, presentation.key]);
+
   const svgUrl = useMemo(() => (plan ? URL.createObjectURL(new Blob([plan.svg], { type: 'image/svg+xml' })) : null), [plan]);
   useEffect(() => () => {
     if (svgUrl) URL.revokeObjectURL(svgUrl);
@@ -360,8 +383,29 @@ export function FloorplanPage() {
                   </>
                 )}
               </div>
+              <div className="fp-view-toggle" role="group" aria-label="Plan view" style={{ display: 'flex', gap: 6 }}>
+                {(['engineering', 'presentation'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    className="st-btn"
+                    aria-pressed={view === v}
+                    data-active={view === v}
+                    onClick={() => setView(v)}
+                    style={view === v ? { borderColor: 'var(--accent, #C5A77B)', color: 'var(--text-1, #fff)' } : undefined}
+                  >
+                    {v === 'engineering' ? 'Engineering' : 'Presentation'}
+                  </button>
+                ))}
+                {view === 'presentation' && presentation.error && (
+                  <span style={{ fontSize: 12, color: '#FFB4AB', alignSelf: 'center' }}>{presentation.error}</span>
+                )}
+              </div>
               <div style={{ flex: 1, minHeight: 420 }}>
-                <PlanViewer2D svg={plan.svg} title={plan.name} />
+                <PlanViewer2D
+                  svg={view === 'presentation' && presentation.svg ? presentation.svg : plan.svg}
+                  title={view === 'presentation' ? `${plan.name} (presentation)` : plan.name}
+                />
               </div>
               {plan.areas.length > 0 && (
                 <div className="fp-areas" style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
@@ -390,7 +434,7 @@ export function FloorplanPage() {
                   <div style={{ marginTop: 6 }}>Values to be confirmed against the Dubai Building Code by an engineer.</div>
                 </details>
               )}
-              <ExportMenu planId={plan.id} />
+              <ExportMenu planId={plan.id} view={view} />
               {plan.notes.length > 0 && (
                 <details style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                   <summary style={{ cursor: 'pointer', color: 'var(--text-2)' }}>Notes about this plan ({plan.notes.length})</summary>

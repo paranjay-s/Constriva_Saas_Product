@@ -11,6 +11,8 @@ import {
   type JobState,
   type ParseResponse,
   type PlanResponse,
+  type PlanView,
+  VIEW_FORMATS,
   editResponseSchema,
   floorplanSummarySchema,
   jobStateSchema,
@@ -97,9 +99,18 @@ export const floorplanApi = {
       }),
     ),
 
+  /** The colour presentation plan as SVG text, for the plan view. */
+  presentationSvg: async (planId: string): Promise<string> => {
+    const url = `${API_BASE_URL}${FLOORPLAN_BASE}/${encodeURIComponent(planId)}/export?format=svg&view=presentation`;
+    const res = await fetch(url, { headers: authHeaders() });
+    if (!res.ok) throw new ApiError(res.status, `Could not load the presentation plan (${res.status})`);
+    return res.text();
+  },
+
   /** Download one export and hand it to the browser as a file. */
-  download: async (planId: string, format: ExportFormat, dpi = 200): Promise<void> => {
-    const url = `${API_BASE_URL}${FLOORPLAN_BASE}/${encodeURIComponent(planId)}/export?format=${format}&dpi=${dpi}`;
+  download: async (planId: string, format: ExportFormat, dpi = 200, view: PlanView = 'engineering'): Promise<void> => {
+    const asked = view === 'presentation' && VIEW_FORMATS.includes(format) ? '&view=presentation' : '';
+    const url = `${API_BASE_URL}${FLOORPLAN_BASE}/${encodeURIComponent(planId)}/export?format=${format}&dpi=${dpi}${asked}`;
     const res = await fetch(url, { headers: authHeaders() });
     if (!res.ok) throw new ApiError(res.status, `Download failed (${res.status})`);
     const disposition = res.headers.get('content-disposition') ?? '';

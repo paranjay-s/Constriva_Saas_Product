@@ -250,3 +250,8 @@ export const EXPORT_FORMATS = [
   { value: 'png', label: 'PNG (image)' },
 ] as const;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number]['value'];
+
+/** The two views of a plan: the engineering drawing (default) and the colour presentation
+ * plan. PDF, PNG and SVG follow the active view; DXF, DWG and IFC are always engineering. */
+export type PlanView = 'engineering' | 'presentation';
+export const VIEW_FORMATS: readonly ExportFormat[] = ['pdf', 'svg', 'png'];

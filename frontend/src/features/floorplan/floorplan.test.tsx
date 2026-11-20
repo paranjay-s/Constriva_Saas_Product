@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AuthProvider } from '../../context/AuthContext';
 import { ProjectProvider } from '../../context/ProjectContext';
 import { FloorplanPage } from './FloorplanPage';
+import { floorplanApi } from './api';
 import { ConfirmationCard } from './components/ConfirmationCard';
 import { ProgressSteps } from './components/ProgressSteps';
 import { parseSse } from './hooks/useJobEvents';
@@ -208,5 +209,26 @@ describe('FloorplanPage (chat)', () => {
     const brief = body.brief ?? body;
     expect(brief.project_name).toBe('Granite Villa');
     expect(brief.owner_name).toBe('Mr. A. Sharma');
+  });
+});
+
+describe('plan views', () => {
+  it('PDF, PNG and SVG follow the presentation view; DXF, DWG and IFC stay engineering', async () => {
+    const urls: string[] = [];
+    const fetchMock = vi.fn(async (url: string) => {
+      urls.push(url);
+      return new Response('x', { status: 200, headers: { 'content-disposition': 'attachment; filename="p.pdf"' } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const create = vi.fn(() => 'blob:x');
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: create, revokeObjectURL: vi.fn() }));
+    await floorplanApi.download('p1', 'pdf', 200, 'presentation');
+    await floorplanApi.download('p1', 'dxf', 200, 'presentation');
+    await floorplanApi.download('p1', 'pdf', 200, 'engineering');
+    expect(urls[0]).toContain('format=pdf');
+    expect(urls[0]).toContain('view=presentation');
+    expect(urls[1]).not.toContain('view=');
+    expect(urls[2]).not.toContain('view=');
+    vi.unstubAllGlobals();
   });
 });

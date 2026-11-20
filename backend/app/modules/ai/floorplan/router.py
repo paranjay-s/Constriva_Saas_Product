@@ -8,7 +8,7 @@ GET  /jobs/{job_id}/events   SSE stream of progress events (replays, then live)
 GET  /{plan_id}              plan JSON + SVG + chat history
 POST /{plan_id}/edit         chat edit -> new version (or why not)
 POST /{plan_id}/revert       undo / go back to an earlier version
-GET  /{plan_id}/export       ?format=svg|pdf|png|dxf[&dpi=]
+GET  /{plan_id}/export       ?format=svg|pdf|png|dxf[&dpi=][&view=engineering|presentation]
 
 Every plan and job belongs to the user who made it; other users get 404. A plan is
 always made inside one of the user's own projects (so it shows in their project list).
@@ -258,6 +258,13 @@ async def export_endpoint(
     dpi: Annotated[int, Query(ge=50, le=600)] = 150,
     furniture: Annotated[bool | None, Query(description="Draw furniture (default setting)")] = None,
     sheet: Annotated[str | None, Query(pattern="^(A3|A1)$")] = None,
+    view: Annotated[
+        str,
+        Query(
+            pattern="^(engineering|presentation)$",
+            description="presentation: the colour plan (SVG, PDF, PNG only)",
+        ),
+    ] = "engineering",
 ) -> Response:
     sp = await run_in_threadpool(_own_plan, store, plan_id, user)
     building = await run_in_threadpool(service.building_for, sp)
@@ -273,6 +280,7 @@ async def export_endpoint(
             building=building,
             furniture=furniture,
             sheet=sheet,
+            view=view,
         )
     except DwgUnavailable as e:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e)) from e
