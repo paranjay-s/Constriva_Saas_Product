@@ -24,7 +24,8 @@ PRIVATE_LEAF = (
     "puja",
     "gym",
 )
-OPEN_EDGE = ("garden", "lawn", "parking", "driveway", "dock", "balcony", "pool")  # reached from outside, no door
+# reached from outside, no door
+OPEN_EDGE = ("garden", "lawn", "parking", "driveway", "dock", "balcony", "pool")
 
 ENTRANCE_DOOR_CM = 100
 

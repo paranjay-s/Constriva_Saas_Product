@@ -36,7 +36,7 @@ from app.modules.ai.floorplan.rules import (
     OPEN_AREA_CAP,
     OPENING_END_CLEARANCE_CM,
 )
-from app.modules.ai.floorplan.schemas.common import DEFAULT_LABEL
+from app.modules.ai.floorplan.schemas.common import DEFAULT_LABEL, is_open
 from app.modules.ai.floorplan.schemas.plan import Plot, Room
 from app.modules.ai.floorplan.schemas.program import RoomProgram
 
@@ -138,19 +138,41 @@ def _share_wall(m: cp_model.CpModel, a: _Box, b: _Box, lx: int, ly: int, tag: st
     return sides
 
 
-def _touch_edge(m: cp_model.CpModel, b: _Box, side: str, grid: Grid, length_cm: float, tag: str):
+def _buildable_units(plot: Plot, grid: Grid) -> tuple[int, int, int, int]:
+    """The plot inside the setbacks, in grid units (rounded inwards)."""
+    x0, y0, x1, y1 = plot.buildable()
+    return (
+        math.ceil(x0 / grid.gx - 1e-9),
+        math.ceil(y0 / grid.gy - 1e-9),
+        math.floor(x1 / grid.gx + 1e-9),
+        math.floor(y1 / grid.gy + 1e-9),
+    )
+
+
+def _touch_edge(
+    m: cp_model.CpModel,
+    b: _Box,
+    side: str,
+    grid: Grid,
+    length_cm: float,
+    tag: str,
+    bounds: tuple[int, int, int, int] | None = None,
+):
+    """A boolean that, when true, puts the box on that edge of `bounds` (grid units;
+    default the plot) with at least `length_cm` of its side along it."""
+    x0, y0, x1, y1 = bounds or (0, 0, grid.nx, grid.ny)
     bvar = m.NewBoolVar(f"edge_{tag}_{side}")
     if side == "west":
-        m.Add(b.x == 0).OnlyEnforceIf(bvar)
+        m.Add(b.x == x0).OnlyEnforceIf(bvar)
         m.Add(b.h >= math.ceil(length_cm / grid.gy)).OnlyEnforceIf(bvar)
     elif side == "east":
-        m.Add(b.xe == grid.nx).OnlyEnforceIf(bvar)
+        m.Add(b.xe == x1).OnlyEnforceIf(bvar)
         m.Add(b.h >= math.ceil(length_cm / grid.gy)).OnlyEnforceIf(bvar)
     elif side == "north":
-        m.Add(b.y == 0).OnlyEnforceIf(bvar)
+        m.Add(b.y == y0).OnlyEnforceIf(bvar)
         m.Add(b.w >= math.ceil(length_cm / grid.gx)).OnlyEnforceIf(bvar)
     else:
-        m.Add(b.ye == grid.ny).OnlyEnforceIf(bvar)
+        m.Add(b.ye == y1).OnlyEnforceIf(bvar)
         m.Add(b.w >= math.ceil(length_cm / grid.gx)).OnlyEnforceIf(bvar)
     return bvar
 
@@ -230,6 +252,17 @@ def solve_layout(
 
     m.AddNoOverlap2D([b.ix for b in boxes.values()], [b.iy for b in boxes.values()])
 
+    # setbacks: enclosed rooms stay inside the buildable box; open areas may use the strips
+    bounds = _buildable_units(plot, grid)
+    for r in program.rooms:
+        if r.id in fixed or is_open(r.type):
+            continue
+        b = boxes[r.id]
+        m.Add(b.x >= bounds[0])
+        m.Add(b.y >= bounds[1])
+        m.Add(b.xe <= bounds[2])
+        m.Add(b.ye <= bounds[3])
+
     # topology: shared walls for doors
     for child, par in topo.parent.items():
         if par is None or child not in boxes or par not in boxes:
@@ -242,7 +275,9 @@ def solve_layout(
     # entrance and parking on the road edge
     entrance_len = ENTRANCE_DOOR_CM + 2 * OPENING_END_CLEARANCE_CM + 10
     if topo.root not in fixed:
-        m.Add(_touch_edge(m, boxes[topo.root], road, grid, entrance_len, "root") == 1)
+        m.Add(
+            _touch_edge(m, boxes[topo.root], road, grid, entrance_len, "root", bounds) == 1
+        )
     for r in program.rooms:
         if r.type == "parking" and r.id not in fixed:
             m.Add(_touch_edge(m, boxes[r.id], road, grid, 250, r.id) == 1)
@@ -307,8 +342,9 @@ def solve_layout(
 
     for r in program.rooms:
         if r.type in HABITABLE or r.type in ("garden", "deck"):
+            edge_bounds = None if is_open(r.type) else bounds
             edges = [
-                _touch_edge(m, boxes[r.id], s, grid, 120, r.id)
+                _touch_edge(m, boxes[r.id], s, grid, 120, r.id, edge_bounds)
                 for s in ("west", "east", "north", "south")
             ]
             miss = m.NewBoolVar(f"noext_{r.id}")
@@ -534,7 +570,13 @@ def _grow_into_gaps(
 
 
 def _free_distance(r: Room, side: str, rooms: list[Room], plot: Plot) -> int:
-    """Distance from a room side to the next room (overlapping its span) or plot edge."""
+    """Distance from a room side to the next room (overlapping its span) or plot edge;
+    for an enclosed room on a plot with setbacks, to the setback line."""
+    if not r.is_open and r.type != "shaft" and plot.has_setbacks:
+        bx0, by0, bx1, by1 = plot.buildable()
+        edge = {"east": bx1 - r.x2, "west": r.x - bx0, "south": by1 - r.y2, "north": r.y - by0}
+        cap = max(0, edge[side])
+        return min(cap, _free_distance(r.model_copy(update={"type": "garden"}), side, rooms, plot))
     if side == "east":
         limit = plot.width - r.x2
         hits = [
@@ -574,8 +616,11 @@ def fill_holes_with_shafts(rooms: list[Room], plot: Plot) -> list[Room]:
     The uncovered area is cut along every room edge into a coarse grid of cells, and
     neighbouring empty cells are merged into maximal rectangles.
     """
-    xs = sorted({0, plot.width, *(v for r in rooms for v in (r.x, r.x2))})
-    ys = sorted({0, plot.depth, *(v for r in rooms for v in (r.y, r.y2))})
+    bx0, by0, bx1, by1 = plot.buildable()
+    extra_x = (bx0, bx1) if plot.has_setbacks else ()
+    extra_y = (by0, by1) if plot.has_setbacks else ()
+    xs = sorted({0, plot.width, *extra_x, *(v for r in rooms for v in (r.x, r.x2))})
+    ys = sorted({0, plot.depth, *extra_y, *(v for r in rooms for v in (r.y, r.y2))})
 
     def covered(x0: int, y0: int) -> bool:
         return any(r.x <= x0 < r.x2 and r.y <= y0 < r.y2 for r in rooms)
@@ -611,7 +656,16 @@ def fill_holes_with_shafts(rooms: list[Room], plot: Plot) -> list[Room]:
                     h=ys[j2 + 1] - ys[j],
                 )
             )
-    return rooms + join_outdoor(rooms, shafts)
+    joined = join_outdoor(rooms, shafts)
+    if plot.has_setbacks:
+        # space in the setback strips that no garden or pool takes stays unbuilt: the
+        # building model draws it as paving, it is not a shaft inside the house
+        joined = [
+            s
+            for s in joined
+            if s.part_of or (bx0 <= s.x and s.x2 <= bx1 and by0 <= s.y and s.y2 <= by1)
+        ]
+    return rooms + joined
 
 
 OUTDOOR_TYPES = ("garden", "lawn", "pool", "deck", "courtyard", "parking", "driveway", "dock")

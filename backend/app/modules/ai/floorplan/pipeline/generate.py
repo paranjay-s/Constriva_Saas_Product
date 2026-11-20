@@ -19,7 +19,7 @@ from app.modules.ai.floorplan.pipeline.pool_layouts import Choice, fallback_note
 from app.modules.ai.floorplan.pipeline.room_program import build_program
 from app.modules.ai.floorplan.pipeline.validator import ValidationReport
 from app.modules.ai.floorplan.schemas.brief import Brief
-from app.modules.ai.floorplan.schemas.plan import FloorPlan, Meta, Plot
+from app.modules.ai.floorplan.schemas.plan import FloorPlan, Meta, Plot, Setbacks
 from app.modules.ai.floorplan.schemas.program import RoomProgram
 from app.modules.ai.floorplan.settings import get_settings
 from app.modules.ai.llm.client import LLMClient
@@ -46,7 +46,59 @@ class GenerationResult:
 
 
 def plot_from_brief(brief: Brief) -> Plot:
-    return Plot(width=brief.plot.width_cm, depth=brief.plot.depth_cm, road_side=brief.road_side)
+    """The plot to lay out: size on the 5 cm grid, setbacks and the built-up target from
+    the settings (or the person's own numbers). See built_up_target."""
+    s = get_settings()
+    plot = Plot(
+        width=round(brief.plot.width_cm / 5) * 5,
+        depth=round(brief.plot.depth_cm / 5) * 5,
+        road_side=brief.road_side,
+    )
+    if not s.site_rules:
+        return plot
+    asked = brief.setbacks
+    front = asked.front if asked and asked.front is not None else s.setback_front_m
+    side = asked.side if asked and asked.side is not None else s.setback_side_m
+    rear = asked.rear if asked and asked.rear is not None else s.setback_rear_m
+    plot = plot.model_copy(
+        update={
+            "setbacks": Setbacks(
+                front=round(front * 100),
+                rear=round(rear * 100),
+                left=round(side * 100),
+                right=round(side * 100),
+            )
+        }
+    )
+    target, _ = built_up_target(brief, plot)
+    return plot.model_copy(update={"built_up_m2": target})
+
+
+def built_up_target(brief: Brief, plot: Plot) -> tuple[float, list[str]]:
+    """Built-up area to aim for (m2) and notes for the person.
+
+    The person's built-up area or share wins. Otherwise the default share of the plot
+    (FLOORPLAN_BUILT_UP_SHARE) kept inside FLOORPLAN_BUILT_UP_MIN..MAX. Never more than
+    fits inside the setbacks (less the outer half of the exterior walls)."""
+    s = get_settings()
+    plot_m2 = plot.width * plot.depth / 10_000
+    notes: list[str] = []
+    if brief.plot.built_up_m2:
+        target = brief.plot.built_up_m2
+    elif brief.built_up_share:
+        target = brief.built_up_share * plot_m2
+    else:
+        share = min(max(s.built_up_share, s.built_up_min), s.built_up_max)
+        target = share * plot_m2
+    x0, y0, x1, y1 = plot.buildable()
+    fits = max(0.0, (x1 - x0) * (y1 - y0) / 10_000 * 0.98)
+    if target > fits:
+        notes.append(
+            f"The setbacks leave room for about {fits:,.0f} m² of building "
+            f"({fits / plot_m2:.0%} of the plot), less than the {target:,.0f} m² aimed for."
+        )
+        target = fits
+    return round(target, 1), notes
 
 
 def meta_from_brief(brief: Brief) -> Meta:
@@ -149,11 +201,22 @@ def generate_plan(
             tell("layout", f"Trying a {chain[i + 1].layout.replace('_', ' ')} pool instead")
 
     reasons = report.feedback()[:3] if report else ["the rooms could not be arranged on the plot"]
+    hint = "Try fewer or smaller rooms, or a larger plot."
+    if plot.has_setbacks:
+        x0, y0, x1, y1 = plot.buildable()
+        sb = plot.setbacks
+        hint = (
+            f"Inside the setbacks ({sb.front / 100:g} m front, {sb.left / 100:g} m sides, "
+            f"{sb.rear / 100:g} m rear) the house can use {(x1 - x0) * (y1 - y0) / 10_000:,.0f} "
+            "m² of the plot. Try smaller setbacks (say \"1 m setbacks\" or \"no setbacks\"), "
+            "fewer or smaller rooms, or a larger plot."
+        )
     return GenerationResult(
         "failed",
         "No valid plan could be made for this brief. Main problems: "
         + "; ".join(reasons)
-        + ". Try fewer or smaller rooms, or a larger plot.",
+        + ". "
+        + hint,
         program=program,
         feasibility=feas,
         report=report,

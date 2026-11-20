@@ -89,7 +89,30 @@ def check_feasibility(brief: Brief) -> FeasibilityResult:
             ["Use a wider plot."],
         )
     if required <= available:
-        return FeasibilityResult(True, required, available)
+        from app.modules.ai.floorplan.pipeline.generate import plot_from_brief
+        from app.modules.ai.floorplan.schemas.common import is_open
+
+        rooms, _ = expand_rooms(brief)
+        inside = sum(
+            MIN_ROOM[r.type].area_m2
+            for r in rooms
+            if r.type not in AREA_FLEXIBLE_TYPES and not is_open(r.type)
+        ) * (1 + CIRCULATION_FACTOR)
+        x0, y0, x1, y1 = plot_from_brief(brief).buildable()
+        buildable = round(max(0, x1 - x0) * max(0, y1 - y0) / 10_000, 1)
+        if inside <= buildable:
+            return FeasibilityResult(True, required, available)
+        return FeasibilityResult(
+            False,
+            round(inside, 1),
+            buildable,
+            f"The rooms need about {_area_text(inside, unit)} of building, but inside the "
+            f"setbacks the plot leaves only {_area_text(buildable, unit)}.",
+            [
+                "Use smaller setbacks (FLOORPLAN_SETBACK_* settings) if the plot's rules allow.",
+                "Remove a room, or use a larger plot.",
+            ],
+        )
 
     options: list[str] = []
     beds = sum(r.count for r in brief.rooms if r.type in ("bedroom", "master_bedroom"))

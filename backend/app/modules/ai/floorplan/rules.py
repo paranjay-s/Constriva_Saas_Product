@@ -127,7 +127,27 @@ OPEN_AREA_CAP: dict[str, float] = {
 }
 PARKING_PER_CAR_M2 = (13.5, 18.0)  # one car space incl. door clearance (min, max)
 COURTYARD_PLOT_SHARE = (0.05, 0.15)  # courtyard target as a share of the plot
-ROOM_SCALE_UP_MAX = 1.4  # rooms may grow up to this factor to use a large plot
+ROOM_SCALE_UP_MAX = 1.4  # rooms may grow up to this factor to use a large plot (no target)
+# Largest sensible size (m2) per room type when rooms grow to meet a built-up target;
+# types not listed (living, family hall, majlis, dining, bar, gym, circulation) take the rest.
+MAX_ROOM_M2: dict[str, float] = {
+    "master_bedroom": 45.0,
+    "bedroom": 30.0,
+    "bath": 12.0,
+    "toilet": 5.0,
+    "dress": 15.0,
+    "kitchen": 30.0,
+    "store": 10.0,
+    "utility": 12.0,
+    "stair": 18.0,
+    "maid_room": 14.0,
+    "driver_room": 14.0,
+    "study": 22.0,
+    "foyer": 25.0,
+    "prayer": 20.0,
+    "puja": 12.0,
+    "lift": 6.0,
+}
 GARDEN_MIN_SPARE = 0.05  # spare plot share above which a garden is added to take it
 # Circulation may grow, but only up to this multiple of its target (open areas grow freely).
 CIRCULATION_MAX_FACTOR = 1.6

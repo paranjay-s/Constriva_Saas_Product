@@ -350,6 +350,13 @@ export function FloorplanPage() {
               <div style={{ flex: 1, minHeight: 420 }}>
                 <PlanViewer2D svg={plan.svg} title={plan.name} />
               </div>
+              {plan.areas.length > 0 && (
+                <div className="fp-areas" style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
+                  {plan.areas.map((a) => (
+                    <div key={a}>{a}</div>
+                  ))}
+                </div>
+              )}
               <ExportMenu planId={plan.id} />
               {plan.notes.length > 0 && (
                 <details style={{ fontSize: 13, color: 'var(--text-muted)' }}>
@@ -451,9 +458,21 @@ export function FloorplanPage() {
                             Choose the project to save it in (below the message box) before generating.
                           </p>
                         ) : latest && !t.parsed.ready ? (
-                          <p className="st-names-hint" style={{ margin: 0 }}>
-                            Tell me what is missing in the message box and I will update the brief.
-                          </p>
+                          <>
+                            {t.parsed.missing.some((m) => m.includes('built-up area')) && (
+                              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                <button type="button" className="st-btn" onClick={() => submit('The area I gave is the plot area.')}>
+                                  It is the plot area
+                                </button>
+                                <button type="button" className="st-btn" onClick={() => submit('The area I gave is the built-up area.')}>
+                                  It is the built-up area
+                                </button>
+                              </div>
+                            )}
+                            <p className="st-names-hint" style={{ margin: 0 }}>
+                              Tell me what is missing in the message box and I will update the brief.
+                            </p>
+                          </>
                         ) : null
                       }
                     />

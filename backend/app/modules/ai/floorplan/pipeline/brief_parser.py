@@ -12,6 +12,7 @@ If the LLM is unavailable the form alone is used and a warning says so.
 import json
 import logging
 import math
+import re
 from dataclasses import dataclass, field
 
 from app.modules.ai.floorplan.prompts import load_prompt
@@ -209,6 +210,8 @@ def parse_brief(form: BriefForm, llm: LLMClient | None = None) -> ParseResult:
         preferences=tb.preferences,
         pool_layout=pool_layout,
         covered_walkway=tb.covered_walkway,
+        built_up_share=tb.built_up_share or form.built_up_share,
+        setbacks=tb.setbacks,
         notes=tb.notes,
         unknowns=unknowns,
         conflicts=conflicts,
@@ -221,6 +224,8 @@ def missing_required(brief: Brief) -> list[str]:
     missing = []
     if brief.plot.width_cm is None or brief.plot.depth_cm is None:
         missing.append("plot size (width and depth, or area)")
+    elif brief.plot.stated_area_m2 and brief.plot.area_basis is None:
+        missing.append(AREA_BASIS_QUESTION)
     if brief.bedrooms is None and not any(r.type in BEDROOM_TYPES for r in brief.rooms):
         missing.append("number of bedrooms")
     return missing
@@ -265,20 +270,81 @@ def _plot(form: BriefForm, tb: TextBrief, conflicts: list[Conflict]) -> tuple[Pl
         )
         area_cm2 = tb.plot_area * per**2
     if area_cm2:
+        basis = form.area_basis or tb.area_basis or area_basis_from_words(form.prompt)
+        stated_m2 = area_cm2 / 10_000
+        plot_cm2 = area_cm2
+        what = "plot"
+        if basis == "built_up":
+            share = built_up_share(form, tb)
+            plot_cm2 = area_cm2 / share
+            what = "built-up"
+            notes.append(
+                f"The {fmt_area_m2(stated_m2, unit)} is the built-up area; at {share:.0%} "
+                f"built-up the plot is about {fmt_area_m2(plot_cm2 / 10_000, unit)}."
+            )
         rw, rd = DEFAULT_PLOT_RATIO
-        width = math.sqrt(area_cm2 * rw / rd)
-        depth = area_cm2 / width
+        width = math.sqrt(plot_cm2 * rw / rd)
+        depth = plot_cm2 / width
         notes.append(
-            f"Only the plot area was given, so a {rw}:{rd} (width:depth) shape was assumed. "
-            "Enter the real width and depth for an accurate plan."
+            f"Only the {what} area was given, so a {rw}:{rd} (width:depth) plot shape was "
+            "assumed. Enter the real width and depth for an accurate plan."
         )
         return (
             PlotSpec(
-                width_cm=round(width), depth_cm=round(depth), input_unit=unit, shape_assumed=True
+                width_cm=round(width / 5) * 5,
+                depth_cm=round(depth / 5) * 5,
+                input_unit=unit,
+                shape_assumed=True,
+                area_basis=basis,
+                stated_area_m2=round(stated_m2, 2),
+                built_up_m2=round(stated_m2, 2) if basis == "built_up" else None,
             ),
             notes,
         )
     return PlotSpec(input_unit=unit), notes
+
+
+_BUILT_UP_WORDS = re.compile(
+    r"\b(built[\s-]*up|covered|construction|constructed|floor|carpet|bua)\s*(area)?\b"
+    r"|\bthe (house|villa|home) (is|of) \d",
+    re.IGNORECASE,
+)
+_PLOT_WORDS = re.compile(r"\b(plot|land|site|lot)\b", re.IGNORECASE)
+
+
+def area_basis_from_words(text: str) -> str | None:
+    """'plot' or 'built_up' when the wording says which area was meant, else None.
+
+    Only the last sentence that mentions an area decides, so an answer given after the
+    question ("it is the built-up area") wins over the first description."""
+    for sentence in reversed(re.split(r"[.\n!?]+", text or "")):
+        built, plot = _BUILT_UP_WORDS.search(sentence), _PLOT_WORDS.search(sentence)
+        if built and not plot:
+            return "built_up"
+        if plot and not built:
+            return "plot"
+        if built and plot:  # "5000 sq ft plot with 3500 sq ft built-up": a plot size
+            return "plot"
+    return None
+
+
+def built_up_share(form: BriefForm, tb: TextBrief) -> float:
+    """The built-up share of the plot: the person's (text, then form), else the setting."""
+    from app.modules.ai.floorplan.settings import get_settings
+
+    return tb.built_up_share or form.built_up_share or get_settings().built_up_share
+
+
+def fmt_area_m2(m2: float, unit: str) -> str:
+    if unit == "ft":
+        return f"{m2 * 10.7639:,.0f} sq ft"
+    return f"{m2:,.0f} m²"
+
+
+AREA_BASIS_QUESTION = (
+    "Is the area you gave the plot area or the built-up area? Choose one on the card "
+    "(plot or built-up) and confirm."
+)
 
 
 def _bedroom_entries(text_entries: list[RoomRequest], total: int | None) -> list[RoomRequest]:

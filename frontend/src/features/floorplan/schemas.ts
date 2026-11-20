@@ -201,6 +201,7 @@ export const planResponseSchema = z.object({
   saved: z.boolean(),
   history: z.array(versionInfoSchema).default([]),
   facing: z.string().nullable().optional(),
+  areas: z.array(z.string()).optional().default([]),
 });
 export type PlanResponse = z.infer<typeof planResponseSchema>;
 

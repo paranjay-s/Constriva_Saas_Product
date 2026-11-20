@@ -60,3 +60,15 @@ Rules
   direction/orientation rules", "electrical layout").
 - notes: one short sentence for any other useful requirement that does not fit above.
 - Never output coordinates, dimensions of individual rooms, or a layout.
+
+Areas
+- When the description gives an area instead of a width and depth, fill plot_area and
+  plot_area_unit, and set area_basis only if the words say what the area is: "a 5000 sq
+  ft plot", "land of 500 m2" -> "plot"; "5000 sq ft built-up", "covered area",
+  "construction area", "a 5000 sq ft house/villa" -> "built_up". If the words do not say,
+  leave area_basis null (the person will be asked once). A later sentence that answers
+  ("it is the plot area") decides.
+- built_up_share: only when the person states a share ("60% built-up", "cover 70% of the
+  plot") as a fraction (0.6, 0.7); else null.
+- setbacks: only distances the person states, in metres ("no setbacks" -> front 0,
+  side 0, rear 0; "1.5 m setback all round" -> all 1.5); else null.

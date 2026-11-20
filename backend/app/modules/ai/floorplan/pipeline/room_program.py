@@ -26,6 +26,7 @@ from app.modules.ai.floorplan.rules import (
     AREA_FLEXIBLE_TYPES,
     COURTYARD_PLOT_SHARE,
     GARDEN_MIN_SPARE,
+    MAX_ROOM_M2,
     MIN_ROOM,
     PARKING_PER_CAR_M2,
     POOL_PLOT_SHARE_MAX,
@@ -40,7 +41,17 @@ from app.modules.ai.llm.client import LLMClient, LLMError
 
 logger = logging.getLogger("construtiva.ai.floorplan")
 
-OPEN_TYPES = ("garden", "lawn", "courtyard", "parking", "driveway", "dock", "balcony", "pool", "deck")
+OPEN_TYPES = (
+    "garden",
+    "lawn",
+    "courtyard",
+    "parking",
+    "driveway",
+    "dock",
+    "balcony",
+    "pool",
+    "deck",
+)
 
 
 class DraftRoom(BaseModel):
@@ -238,6 +249,9 @@ def _fit_to_plot(
                 targets[r.id] = special
             targets[r.id] = min(max(targets[r.id], _min_area(r.type)), cap)
     open_need = sum(targets[r.id] for r in reqs if r.type in OPEN_TYPES)
+    built = _built_up_centre_target(brief)
+    if built is not None:
+        return _fit_to_built_up(targets, reqs, plot_m2, open_need, built)
     lo = PROGRAM_PLOT_SHARE[0] * plot_m2 - open_need
     hi = max(lo, PROGRAM_PLOT_SHARE[1] * plot_m2 - open_need)
     fixed = [r for r in reqs if r.type not in AREA_FLEXIBLE_TYPES and r.type not in OPEN_TYPES]
@@ -260,6 +274,75 @@ def _fit_to_plot(
     spare = plot_m2 - (fixed_total + circulation) * 1.08 - open_need
     has_garden = any(r.type == "garden" for r in reqs)
     if not has_garden and spare > GARDEN_MIN_SPARE * plot_m2:
+        targets["garden_1"] = max(6.0, spare * 0.5)
+        return True
+    return False
+
+
+def _built_up_centre_target(brief: Brief) -> float | None:
+    """The built-up target measured on wall centre lines (what room targets add up to):
+    the gross target less the outer half of the exterior walls along an estimated
+    perimeter. None when the plot has no built-up target."""
+    from app.modules.ai.floorplan.pipeline.generate import plot_from_brief
+    from app.modules.ai.floorplan.settings import get_settings
+
+    if brief.plot.width_cm is None or brief.plot.depth_cm is None:
+        return None
+    plot = plot_from_brief(brief)
+    if not plot.built_up_m2:
+        return None
+    x0, y0, x1, y1 = plot.buildable()
+    aspect = max(0.2, (x1 - x0) / max(1, y1 - y0))
+    w = (plot.built_up_m2 * aspect) ** 0.5
+    perimeter = 2 * (w + plot.built_up_m2 / w)
+    return plot.built_up_m2 - perimeter * get_settings().wall_exterior_mm / 2000
+
+
+def _fit_to_built_up(
+    targets: dict[str, float],
+    reqs: list[ReqRoom],
+    plot_m2: float,
+    open_need: float,
+    built: float,
+) -> bool:
+    """Scale the enclosed rooms so they add up to the built-up target.
+
+    Circulation takes 7 % of the rooms each (as before). Rooms grow or shrink together;
+    a room that reaches its type's largest sensible size (MAX_ROOM_M2) stops and the
+    rest goes to the rooms without a cap (living, family hall, majlis, dining...).
+    Returns True when a garden was added for the spare plot."""
+    from app.modules.ai.floorplan.schemas.common import is_open
+
+    enclosed = [r for r in reqs if not is_open(r.type)]
+    circ = [r for r in enclosed if r.type in ("lobby", "passage")]
+    fixed = [r for r in enclosed if r.type not in ("lobby", "passage")]
+    if not fixed:
+        return False
+    rooms_need = built / (1 + 0.07 * len(circ))
+    capped: set[str] = set()
+    for _ in range(len(fixed) + 1):
+        free = [r for r in fixed if r.id not in capped]
+        fixed_cap = sum(targets[r.id] for r in fixed if r.id in capped)
+        free_total = sum(targets[r.id] for r in free)
+        if not free or free_total <= 0:
+            break
+        factor = max(0.0, rooms_need - fixed_cap) / free_total
+        changed = False
+        for r in free:
+            t = max(_min_area(r.type), targets[r.id] * factor)
+            cap = MAX_ROOM_M2.get(r.type)
+            if cap is not None and t > cap:
+                t = max(cap, _min_area(r.type))
+                capped.add(r.id)
+                changed = True
+            targets[r.id] = t
+        if not changed:
+            break
+    fixed_total = sum(targets[r.id] for r in fixed)
+    for r in circ:
+        targets[r.id] = max(_min_area(r.type), 0.07 * fixed_total)
+    spare = plot_m2 - built - open_need
+    if not any(r.type in ("garden", "lawn") for r in reqs) and spare > GARDEN_MIN_SPARE * plot_m2:
         targets["garden_1"] = max(6.0, spare * 0.5)
         return True
     return False

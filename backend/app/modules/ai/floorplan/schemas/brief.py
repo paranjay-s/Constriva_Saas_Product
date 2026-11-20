@@ -26,6 +26,13 @@ class PlotSpec(_Model):
     shape_assumed: bool = Field(
         default=False, description="True when only the area was given and a ratio was assumed"
     )
+    area_basis: Literal["plot", "built_up"] | None = Field(
+        default=None, description="What a stated area meant: the plot or the built-up area"
+    )
+    stated_area_m2: float | None = Field(default=None, gt=0)
+    built_up_m2: float | None = Field(
+        default=None, gt=0, description="Target built-up area (m2) for the layout"
+    )
 
 
 class RoomRequest(_Model):
@@ -47,6 +54,14 @@ class Preference(_Model):
     text: str = ""
 
 
+class SetbackRequest(_Model):
+    """Setbacks the person stated, in metres; None = the setting's default."""
+
+    front: float | None = Field(default=None, ge=0, le=30)
+    side: float | None = Field(default=None, ge=0, le=30)
+    rear: float | None = Field(default=None, ge=0, le=30)
+
+
 class Conflict(_Model):
     field: str
     form_value: str
@@ -61,6 +76,12 @@ class BriefForm(_Model):
     plot_depth: float | None = Field(default=None, gt=0)
     unit: InputUnit = "ft"
     plot_area: float | None = Field(default=None, gt=0, description="In unit^2, only if no size")
+    area_basis: Literal["plot", "built_up"] | None = Field(
+        default=None, description="The person's answer: is the stated area the plot or built-up?"
+    )
+    built_up_share: float | None = Field(
+        default=None, gt=0.2, lt=1.0, description="Built-up share of the plot, if asked for"
+    )
     purpose: Purpose | None = None
     bedrooms: int | None = Field(default=None, ge=0, le=12)
     bathrooms: int | None = Field(default=None, ge=0, le=12)
@@ -80,6 +101,19 @@ class TextBrief(_Model):
     plot_unit: InputUnit | None = None
     plot_area: float | None = Field(default=None, gt=0)
     plot_area_unit: Literal["sqft", "sqm"] | None = None
+    area_basis: Literal["plot", "built_up"] | None = Field(
+        default=None,
+        description="Only when the words say it: 'plot of 5000 sq ft' -> plot; "
+        "'5000 sq ft built-up / covered / construction area' -> built_up",
+    )
+    built_up_share: float | None = Field(
+        default=None, gt=0.2, lt=1.0, description="'60% built-up' -> 0.6; else null"
+    )
+    setbacks: SetbackRequest | None = Field(
+        default=None,
+        description="Only setbacks the person states, in metres: 'no setbacks' -> all 0; "
+        "'3 m front, 1 m sides' -> front 3, side 1; else null",
+    )
     purpose: Purpose | None = None
     bedrooms: int | None = Field(default=None, ge=0, le=12)
     bathrooms: int | None = Field(default=None, ge=0, le=12)
@@ -111,6 +145,8 @@ class Brief(_Model):
         default=None, description="Where the pool sits; None = beside the house (side)"
     )
     covered_walkway: bool = False
+    built_up_share: float | None = Field(default=None, gt=0.2, lt=1.0)
+    setbacks: SetbackRequest | None = None
     notes: str = ""
     unknowns: list[str] = Field(default_factory=list)
     conflicts: list[Conflict] = Field(default_factory=list)

@@ -94,6 +94,10 @@ class PlanResponse(_Model):
         default_factory=list, description="Earlier versions that can be restored"
     )
     facing: str | None = None
+    areas: list[str] = Field(
+        default_factory=list,
+        description="Total, built-up and exterior area in the title block's wording",
+    )
 
 
 class RevertRequest(_Model):

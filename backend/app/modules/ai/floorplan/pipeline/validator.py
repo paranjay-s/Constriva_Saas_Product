@@ -103,7 +103,29 @@ def validate(plan: FloorPlan, program: RoomProgram | None = None) -> ValidationR
     _check_wet_cluster(plan, rep)
     _check_shafts(plan, rep)
     _check_coverage(plan, rep)
+    _check_setbacks(plan, rep)
     return rep
+
+
+def _check_setbacks(plan: FloorPlan, rep: ValidationReport) -> None:
+    """Enclosed rooms inside the setback line; built-up area near its target."""
+    if not plan.plot.has_setbacks:
+        return
+    x0, y0, x1, y1 = plan.plot.buildable()
+    for r in plan.rooms:
+        if r.is_open or r.type == "shaft":
+            continue
+        if r.x < x0 or r.y < y0 or r.x2 > x1 or r.y2 > y1:
+            rep.add("SETBACK", f"{r.id} crosses the setback line", r.id)
+    target = plan.plot.built_up_m2
+    if target:
+        built = plan.built_area_m2
+        if built < 0.85 * target:
+            rep.add(
+                "BUILT_UP_LOW",
+                f"rooms cover {built:.0f} m2 of the {target:.0f} m2 built-up target",
+                warning=True,
+            )
 
 
 # ---------------------------------------------------------------------- geometry
@@ -436,6 +458,8 @@ def _check_shafts(plan: FloorPlan, rep: ValidationReport) -> None:
 
 
 def _check_coverage(plan: FloorPlan, rep: ValidationReport) -> None:
+    if plan.plot.has_setbacks:
+        return  # the setback strips are exterior paving, not unused plot (see _check_setbacks)
     plot_area = plan.plot.width * plan.plot.depth
     covered = (
         unary_union([room_box(r) for r in plan.rooms])

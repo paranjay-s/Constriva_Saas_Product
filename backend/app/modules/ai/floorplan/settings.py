@@ -26,6 +26,7 @@ confirmed against the Dubai Building Code by an engineer):
     FLOORPLAN_FULL_RESOLVE_S      30   time budget of a full re-solve ("start over")
     FLOORPLAN_SHEET               A3 (or A1)
     FLOORPLAN_FURNITURE           true: draw one minimal furniture set per room
+    FLOORPLAN_SITE_RULES          true: apply setbacks and the built-up target (false: whole plot)
 
 The API key is never stored here; it is read from the existing app settings
 (GEMINI_API_KEY / LLM_API_KEY) at call time.
@@ -65,6 +66,7 @@ class FloorplanSettings(BaseSettings):
     built_up_min: float = 0.65
     built_up_max: float = 0.75
     full_resolve_s: float = 30.0
+    site_rules: bool = True  # setbacks and built-up target; False lays out the whole plot
     sheet: str = "A3"
     furniture: bool = True
 

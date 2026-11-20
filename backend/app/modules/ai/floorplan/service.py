@@ -78,7 +78,11 @@ def run_generation(
         options = res.feasibility.options if res.feasibility and not res.feasibility.ok else []
         return None, res.message or "No plan could be made for this brief.", options
     job.emit("saving", "Saving the plan")
-    notes = [*brief.assumptions, *res.warnings]
+    from app.modules.ai.floorplan.model.areas import area_lines
+    from app.modules.ai.floorplan.model.build import build_building
+
+    areas = area_lines(build_building(res.plan).areas, brief.plot.input_unit)
+    notes = [*areas, *brief.assumptions, *res.warnings]
     sp = StoredPlan(
         id=plan_id,
         owner_id=job.owner_id,
@@ -111,7 +115,18 @@ def to_response(sp: StoredPlan) -> PlanResponse:
             for h in reversed(sp.history)
         ],
         facing=facing(sp.plan),
+        areas=_area_lines(sp),
     )
+
+
+def _area_lines(sp: StoredPlan) -> list[str]:
+    from app.modules.ai.floorplan.model.areas import area_lines
+
+    try:
+        return area_lines(building_for(sp).areas, sp.plan.meta.unit_display)
+    except Exception:  # the statement is informative; never fail a read over it
+        logger.exception("could not compute the areas of plan %s", sp.id)
+        return []
 
 
 def list_plans(store: PlanStore, owner_id: str, project_id: str | None) -> list[FloorplanSummary]:
@@ -208,6 +223,9 @@ def edit(sp: StoredPlan, req: EditRequest, llm: LLMClient | None, store: PlanSto
         sp.version += 1
         _sync_brief(sp)
         reply = "Done. " + " ".join(res.summary) if res.summary else "Done."
+        lines = _area_lines(sp)
+        if lines:
+            reply += " " + lines[0] + "."
     else:
         reply = res.message
         if res.alternatives:

@@ -405,13 +405,10 @@ def stair_for(room_id: str, rect: tuple[int, int, int, int], storey_height: int)
 # -------------------------------------------------------------------------- site
 
 
-def setbacks_for(road: str, s: FloorplanSettings) -> Setbacks:
-    return Setbacks(
-        front=int(round(s.setback_front_m * 1000 / GRID_MM)) * GRID_MM,
-        rear=int(round(s.setback_rear_m * 1000 / GRID_MM)) * GRID_MM,
-        left=int(round(s.setback_side_m * 1000 / GRID_MM)) * GRID_MM,
-        right=int(round(s.setback_side_m * 1000 / GRID_MM)) * GRID_MM,
-    )
+def setbacks_for(plot) -> Setbacks:
+    """The plot's setbacks in mm (zero on a plot laid out without setbacks)."""
+    sb = plot.setbacks
+    return Setbacks(front=mm(sb.front), rear=mm(sb.rear), left=mm(sb.left), right=mm(sb.right))
 
 
 def setback_box(site: Site) -> tuple[int, int, int, int]:
@@ -484,7 +481,7 @@ def _site(
         depth=depth,
         road_side=road,
         north_deg=0.0,
-        setbacks=setbacks_for(road, s),
+        setbacks=setbacks_for(plan.plot),
         elements=elements,
     )
 
@@ -610,7 +607,17 @@ def build_building(
 ) -> Building:
     s = settings or get_settings()
     width, depth = mm(plan.plot.width), mm(plan.plot.depth)
-    enclosed = [r for r in plan.rooms if not r.is_open or (r.type == "shaft" and not r.part_of)]
+    def duct(r: PlanRoom) -> bool:  # a shaft inside the house, not touching the plot edge
+        return (
+            r.type == "shaft"
+            and not r.part_of
+            and r.x > 0
+            and r.y > 0
+            and r.x2 < plan.plot.width
+            and r.y2 < plan.plot.depth
+        )
+
+    enclosed = [r for r in plan.rooms if not r.is_open or duct(r)]
     rects = {r.id: _rect(r) for r in enclosed}
     types = {r.id: r.type for r in enclosed}
     walls = _walls(rects, types, s, s.storey_height_mm - 300)

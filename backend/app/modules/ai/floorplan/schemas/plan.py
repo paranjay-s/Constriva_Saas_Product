@@ -55,10 +55,41 @@ class Meta(_Model):
     unit_display: DisplayUnit = "cm"
 
 
+class Setbacks(_Model):
+    """Distances (cm) enclosed rooms keep from the plot edge. Front is the road side;
+    left and right are as seen from the road, facing the house. Open areas (pool,
+    garden, parking...) may use the setbacks; everything stays inside the plot."""
+
+    front: int = Field(default=0, ge=0)
+    rear: int = Field(default=0, ge=0)
+    left: int = Field(default=0, ge=0)
+    right: int = Field(default=0, ge=0)
+
+
 class Plot(_Model):
     width: int = Field(gt=0, description="East-west size in cm")
     depth: int = Field(gt=0, description="North-south size in cm")
     road_side: Side | None = None
+    setbacks: Setbacks = Field(default_factory=Setbacks)
+    built_up_m2: float | None = Field(
+        default=None, gt=0, description="Target built-up (covered) area; None = no target"
+    )
+
+    def buildable(self) -> tuple[int, int, int, int]:
+        """(x0, y0, x1, y1) in cm: the plot inside the setbacks."""
+        sb = self.setbacks
+        n, s, w, e = {
+            "south": (sb.rear, sb.front, sb.left, sb.right),
+            "north": (sb.front, sb.rear, sb.right, sb.left),
+            "east": (sb.left, sb.right, sb.rear, sb.front),
+            "west": (sb.right, sb.left, sb.front, sb.rear),
+        }[self.road_side or "south"]
+        return w, n, self.width - e, self.depth - s
+
+    @property
+    def has_setbacks(self) -> bool:
+        sb = self.setbacks
+        return bool(sb.front or sb.rear or sb.left or sb.right)
 
 
 class Room(_Model):
