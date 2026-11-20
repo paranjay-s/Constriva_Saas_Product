@@ -25,3 +25,6 @@ counted at the end of the lines that used them.
 | A | end-of-section suites: backend 1350 passed / 1 failed (fixed in b3431c3) / 3 skipped; floorplan 564 passed after the fix | done | b3431c3 | coverage band without setbacks |
 | C2 | 1 hollow-wall (two thin lines) mask for low-resolution scans | skipped | - | two attempts: lines at 72 dpi too faint and broken; beds and stairs close into blocks; no closed rooms. Reverted. Fresh plan stays on the AI reader's walls |
 | C3 | 1 curved walls, round rooms, spiral stairs | done | 2c7c2e0 | DXF/IFC export of arcs not done; the AI reader (PlanJSON) has no arcs |
+| C1 | 1 measure space (SPACE.md) | done | b37f2f2 | fresh plan 2/13 rooms within 5% of labels (reading); OPT 5 18/30 |
+| C1 | 2 heights, FOV toggle, lens, furniture, finishes, light, mirrors | done | fddcac2 | taller living/majlis as a separate height not done |
+| C1 | 3 before/after three rooms Low and High | done | b37f2f2 | render 15.8 min so far |
