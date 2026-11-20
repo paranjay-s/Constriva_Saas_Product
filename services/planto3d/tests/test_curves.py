@@ -57,5 +57,9 @@ fns = sorted(i["fn"] for i in items)
 inside = all(math.hypot(x - 20, y - 20) <= 9 + 0.01 for i in items if i["solid"] for x in i["box"][:2] for y in i["box"][2:])
 check({"round_rug", "coffee_table", "sofa"} <= set(fns), f"round living room: {fns}")
 check(inside, "every solid piece stands inside the circle")
+# a dash-dot (chain) pattern is a property, setback or centre line, never a wall face; plain dashes are kept
+import vector  # noqa: E402
+check(vector.chain_line("7.09 1.42 1.42 1.42") and vector.chain_line("17.01 2.83 2.27 2.83"), "chain lines are skipped")
+check(not vector.chain_line("4.25 2.83") and not vector.chain_line(None), "plain dashes and solid lines are kept")
 print(f"{len(FAILS)} failed")
 sys.exit(1 if FAILS else 0)

@@ -102,6 +102,13 @@ def polyline_arc(pts):
     return ((ax, ay), (ax + k * t0[0], ay + k * t0[1]), (cx - k * t1[0], cy - k * t1[1]), (cx, cy))
 
 
+def chain_line(dasharray):
+    """a dash-dot (chain) pattern: a long dash and short dashes/dots, four or more values. Plot boundaries, setback
+    and centre lines are drawn so; plain dashes (two values: hidden edges, ventilators) are kept."""
+    vals = [float(v) for v in re.findall(NUM, dasharray or "")]
+    return len(vals) >= 4 and max(vals) >= 2.5 * min(v for v in vals if v > 0)
+
+
 def circle_pieces(pts, most=80.0):
     """a polyline of short pieces lying on one circle (a ring the exporter flattened, curved walls) -> the same
     points cut into runs of at most `most` degrees (each then reads as one arc), else []"""
@@ -201,6 +208,8 @@ def read_page(pdf, page=1):
 
     def path(el, m, box):
         stroke, fill = _rgb(el.get("stroke")), _rgb(el.get("fill", "black"))
+        if chain_line(el.get("stroke-dasharray")):
+            stroke = None       # a property line, setback or centre line (dash-dot): never a wall, door or window
         a, b, c, d, e, f = m
         sw = float(el.get("stroke-width", 1)) * (abs(a * d - b * c) ** 0.5)
         tf = lambda x, y: (a * x + c * y + e, b * x + d * y + f)

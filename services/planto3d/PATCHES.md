@@ -714,3 +714,14 @@ rectangle, measured with `tools/space_check.py`); what changes is how the space 
   now carries them too.
 - `tests/test_curves.py` (in run_all.sh); the drawing -> detector round trip is
   `backend/tests/floorplan/test_fp_curves.py`.
+
+## 61. Property lines are not walls (feat/pro_2, C2.4)
+
+- `vector.py` `chain_line`: strokes with a dash-dot pattern (four or more dash values, a long dash and short
+  ones) are left out of the segments: plot boundaries, setback and centre lines. With no setbacks (the 2D
+  generator's new default) the dash-dot plot line runs along the house's outer wall face, in the same pen as the
+  interior walls, and the detector lost the outer walls. Drawing-only round trip of 20 generated plans
+  (`tools/roundtrip/run_roundtrip.py`): walls 16.7 % -> 99.9 % recall, doors 15.1 % -> 85.2 %, windows
+  11.0 % -> 96.4 % (feat/pro with its 3 m / 1.5 m setbacks: 95.9 %, 82.6 %, 91.5 %).
+- Tried and reverted: doors taken from every door swing hinged at a wall end (recall 88 %, precision fell from
+  97 % to 80 %).
