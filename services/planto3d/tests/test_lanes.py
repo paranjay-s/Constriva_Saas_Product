@@ -22,7 +22,7 @@ def run_blender(jid, quality, d, t0, a=0, b=100):
     return []
 
 
-def run_tour(jid, tq, secs, res):
+def run_tour(jid, tq, secs, res, mode="evening"):
     order.append((jid, "tour"))
     return "tour_high.mp4", None
 
