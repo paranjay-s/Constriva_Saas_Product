@@ -713,7 +713,7 @@ def builder():
 # Another program (an AI plan reader, a floor plan generator) may hand in the plan, or the person traces it on the
 # review page. Everything in such a plan comes from outside: each value is checked for type, range and size and
 # the plan is written out afresh, so nothing unchecked reaches Blender, a file path or a page.
-READERS = ("ai", "stored", "trace", "manual")      # who made an imported plan; run_detect's plans are "detector"
+READERS = ("ai", "scan", "stored", "trace", "manual")      # who made an imported plan; run_detect's plans are "detector"
 SCALES = ("labels", "assumed", "user", "given")    # given: the reader measured the scale itself
 OPENINGS = ("door", "window", "opening")
 COORD = 5000.0                  # feet: no house is larger, and Blender is never handed an absurd number

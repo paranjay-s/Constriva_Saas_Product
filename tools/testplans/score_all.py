@@ -38,8 +38,16 @@ def detect(pdf):
 
 
 def cached(pdf):
+    """A reading of this PDF by the configured provider and model is in the cache (a reading by
+    another model does not count: the parser would call the configured one live)."""
+    from app.modules.parsing.settings import resolve_llm_config
+
     h = hashlib.sha256(pdf.read_bytes()).hexdigest()
-    return CACHE.is_dir() and any(CACHE.glob(f"{h}.parser-*"))
+    try:
+        cfg = resolve_llm_config()
+    except Exception:  # noqa: BLE001 - no AI configured: nothing is cached for it
+        return False
+    return CACHE.is_dir() and any(CACHE.glob(f"{h}.parser-*.{cfg.provider}.{cfg.model}.json"))
 
 
 def ai_read(pdf):
@@ -70,6 +78,7 @@ def main():
     ap.add_argument("--from-dump", help="score the readings saved by an earlier --dump instead of reading again")
     ap.add_argument("--dump", help="write each plan's reading here (<id>.det.json), for overlays")
     ap.add_argument("--fit", action="store_true", help="apply the server's size fit after reading (full pipeline)")
+    ap.add_argument("--scan", action="store_true", help="try the OpenCV + OCR scan reader before the AI")
     ap.add_argument("--out", default=str(ROOT / "docs/overnight/accuracy.md"))
     a = ap.parse_args()
     d = Path(a.plans)
@@ -85,6 +94,14 @@ def main():
             det = det if det.get("floors") else None
         else:
             det, reader = detect(pdf), "detector"
+        if det is None and not a.from_dump and a.scan:
+            from app.modules.plan3d.scan_reader import read_scan_pdf
+
+            res = read_scan_pdf(pdf.read_bytes())
+            named = sum(1 for r in (res.plan or {"floors": [{"rooms": []}]})["floors"][0]["rooms"]
+                        if r.get("label"))
+            if res.plan and named >= 2:
+                det, reader = res.plan, "scan"
         if det is None and not a.from_dump:
             reader = "ai"
             if cached(pdf):
@@ -127,11 +144,11 @@ def main():
 
     pct = lambda n, t: f"{100 * n / t:.0f}%" if t else "-"
     lines = [f"\n## {a.label} ({a.set} set, {len(pick)} plans, {fresh} fresh AI calls{', size fit applied' if a.fit else ''})\n",
-             "| style | plans | read | detector / ai / none | wall recall | wall precision | doors found | windows found | room type | specials | storeys | building type |",
+             "| style | plans | read | detector / scan / ai / none | wall recall | wall precision | doors found | windows found | room type | specials | storeys | building type |",
              "|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for key in sorted(agg, key=lambda k: (k == "ALL", k)):
         g = agg[key]
-        lines.append(f"| {key} | {g['plans']:.0f} | {pct(g['read'], g['plans'])} | {g['by_detector']:.0f} / {g['by_ai']:.0f} / {g['by_none']:.0f} | "
+        lines.append(f"| {key} | {g['plans']:.0f} | {pct(g['read'], g['plans'])} | {g['by_detector']:.0f} / {g['by_scan']:.0f} / {g['by_ai']:.0f} / {g['by_none']:.0f} | "
                      f"{pct(g['hit_r'], g['len_r'])} | {pct(g['hit_d'], g['len_d'])} | {pct(g['doors_found'], g['doors_ref'])} | "
                      f"{pct(g['windows_found'], g['windows_ref'])} | {pct(g['types_ok'], g['n_rooms'])} | "
                      f"{pct(g['specials_found'], g['specials_total'])} | {pct(g['storeys_ok'], g['plans'])} | {pct(g['kind_ok'], g['plans'])} |")

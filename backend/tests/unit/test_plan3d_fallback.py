@@ -7,8 +7,8 @@ no model is called."""
 import time
 
 import pytest
-from pydantic import SecretStr
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from app.core.security import get_current_user
 from app.main import app
@@ -239,3 +239,33 @@ def test_open_in_3d_needs_the_users_own_plan(client, planto3d, plans):
         response = client.post(f"{API}/jobs/from-floorplan", json={"plan_id": plan_id})
         assert response.status_code == 404
     assert not any(r.url.path == "/api/upload" for r in planto3d.requests)
+
+
+def test_a_scan_the_scan_reader_reads_skips_the_ai_reader(
+    client, planto3d, ai_reads, monkeypatch
+):
+    planto3d.detector_fails = True
+    plan = {"version": 1, "units": "ft", "scale_source": "labels", "floors": []}
+    monkeypatch.setattr(fallback, "scan_read", lambda pdf: (plan, "Read from the scan."))
+    job_id = new_job(client)
+    body = wait_for_review(client, job_id)
+    assert body["reader"] == "scan"
+    (imported,) = planto3d.imports
+    assert imported["reader"] == "scan" and imported["plan"] == plan
+    _, calls = ai_reads
+    assert calls == []  # no AI call
+
+
+def test_a_scan_reading_with_too_few_named_rooms_goes_to_the_ai_reader(
+    client, planto3d, ai_reads, monkeypatch
+):
+    from app.modules.plan3d import scan_reader
+
+    planto3d.detector_fails = True
+    thin = {"floors": [{"rooms": [{"label": "BEDROOM"}, {"label": ""}]}]}
+    monkeypatch.setattr(scan_reader, "read_scan_pdf", lambda pdf: scan_reader.ScanResult(thin))
+    job_id = new_job(client)
+    body = wait_for_review(client, job_id)
+    assert body["reader"] == "ai"
+    _, calls = ai_reads
+    assert len(calls) == 1

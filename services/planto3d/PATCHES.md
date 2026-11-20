@@ -608,3 +608,17 @@ furniture item its room and source (own model, library kit, built-in, skipped).
 
 Effect: the nandu pool rebuilds as one 29.1 x 11.8 ft basin; `tools/diag/rooms_report.py` turns
 the report into a table (docs/pro/3d/DIAGNOSIS.md).
+
+## 54. Rooms are checked against the plan after every build (PART 2, C)
+
+`blender/gen.py`: after the build each room's built floor area is compared with the area read from
+the plan, and a room whose label states its size ("15'9\" x 12'4\"") is compared with that size.
+A room more than 5% away (`SIZE_TOLERANCE`) is listed in `build_report.json` (`errors` per zone)
+and in `meta.json` (`size_errors`); the walkthrough (`web/view.js`, `style.css`) shows the list as an
+error box that can be closed. Stairs, ducts, lifts, open areas and water are not area-checked
+(their floors are cut by design).
+
+## 55. Plans read from scans are imported as reader "scan" (PART 2, B)
+
+`server.py` READERS gains "scan" and the review page (`web/edit.js`) says how such a plan was read.
+The scan reader itself is in the gateway (`backend/app/modules/plan3d/scan_reader.py`).

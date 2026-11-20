@@ -210,8 +210,6 @@ def read_raster(
     words: list[tuple[str, float, float]] | None = None,
 ) -> RasterResult:
     """`gray`: the page as an 8-bit grey image; `words`: (text, x px, y px) on it."""
-    from app.modules.plan3d.convert import room_type_from_name
-
     notes: list[str] = []
     scale = scale or 100
     if scale == 100 and not words:
@@ -225,6 +223,26 @@ def read_raster(
     )
     # groups of one building sit closer than a door gap; sheet furniture sits further away
     walls_mask = _building_only(walls_mask, int(min(1600 / px_mm, 15 * dpi / 25.4)))
+    res = read_mask(gray, walls_mask, px_mm=px_mm, words=words, t_px=t_px)
+    res.scale = scale
+    res.notes = notes + res.notes
+    return res
+
+
+def read_mask(
+    gray: np.ndarray,
+    walls_mask: np.ndarray,
+    *,
+    px_mm: float,
+    words: list[tuple[str, float, float]] | None = None,
+    t_px: int = 3,
+) -> RasterResult:
+    """The reading from a wall mask already made (walls white on black), `px_mm` real mm
+    per pixel (a guess is fine: the scan reader rescales afterwards)."""
+    from app.modules.plan3d.convert import room_type_from_name
+
+    notes: list[str] = []
+    scale = 0
     run = max(t_px + 2, int(MIN_RUN_MM / px_mm))
     hor = _runs(walls_mask, True, run)
     ver = _runs(walls_mask, False, run)
@@ -280,6 +298,7 @@ def read_raster(
         rtype = room_type_from_name(name) or room_type_from_name(label) or "room"
         rooms.append(
             {
+                "words": inside,
                 "type": rtype,
                 "label": name or label,
                 "rects": [R(x, y, x + w, y + h)],
@@ -306,6 +325,12 @@ def read_raster(
     return RasterResult(floor, scale, notes)
 
 
+def _drop_words(res: RasterResult) -> RasterResult:
+    for r in res.floor.get("rooms", []):
+        r.pop("words", None)
+    return res
+
+
 def read_pdf_page(pdf: bytes, page_no: int = 0, dpi: int | None = None) -> RasterResult:
     """A PDF page rendered to pixels and read by `read_raster`. The text layer (when the
     PDF has one) names rooms and gives the stated scale; a scan needs OCR for that."""
@@ -326,4 +351,4 @@ def read_pdf_page(pdf: bytes, page_no: int = 0, dpi: int | None = None) -> Raste
                 if text:
                     x0, y0, x1, y1 = line["bbox"]
                     words.append((text, (x0 + x1) / 2 * k, (y0 + y1) / 2 * k))
-    return read_raster(gray.copy(), dpi=dpi, scale=stated, words=words)
+    return _drop_words(read_raster(gray.copy(), dpi=dpi, scale=stated, words=words))

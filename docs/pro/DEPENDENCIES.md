@@ -43,3 +43,21 @@ runs in our API or worker image or its output reaches users.
 Chosen: the ODA File Converter, used only when installed. If the owner does not clear its
 licence for server use, DWG is switched off (the endpoint answers 503 with a message) and DXF
 remains, which every CAD program opens.
+
+## PART 2: reading scans (B)
+
+| Item | Version | Licence | Shipped | Use |
+|---|---|---|---|---|
+| rapidocr (RapidAI/RapidOCR) with its bundled PP-OCR ONNX models | 3.x | Apache-2.0 (code and models) | yes, backend dependency | OCR of room names, size labels and floor titles in scans (`plan3d/scan_reader.py`) |
+| onnxruntime | 1.x | MIT | yes, backend dependency | runs the OCR models |
+| opencv-python-headless | already a dependency | Apache-2.0 | yes | wall masks, deskew |
+
+Cloned into `tools/vendor-eval/` (git-ignored) to read code and licences; nothing from them is shipped:
+
+| Repository | Licence | Use by us |
+|---|---|---|
+| CubiCasa/CubiCasa5k | CC BY-NC 4.0 (dataset and model) | none in the product; private benchmark at most |
+| zlzeng/DeepFloorplan | GPL-3.0 | none (would only ever run as a separate process) |
+| art-programmer/FloorplanTransformation | MIT code; data and weights under other terms | ideas only (junction graph, integer-programming clean-up) |
+| RapidAI/RapidOCR | Apache-2.0 | the shipped OCR (installed from PyPI) |
+| mindee/doctr | Apache-2.0 | evaluated as the alternative OCR; not installed |

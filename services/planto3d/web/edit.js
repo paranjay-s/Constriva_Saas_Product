@@ -21,6 +21,7 @@ const FT_100 = 72 / 25.4 * 304.8 / 100;      // page points per foot at 1:100 (s
 // what each reader's plan needs checking for (the reader's own notice, from the server, follows)
 const READERS = {
   ai: 'Read by the AI plan reader: check the walls, doors and sizes before you build.',
+  scan: 'Read from the scanned image (walls traced, names and sizes read by OCR): check the walls, doors and sizes before you build.',
   stored: 'Opened from the floor plan generator: check the walls, doors and sizes before you build.',
   trace: 'This drawing could not be read automatically: trace the walls over it, set the scale, then add doors and windows.',
   manual: 'Drawn by hand: trace the walls over the drawing, set the scale, then add doors and windows.',

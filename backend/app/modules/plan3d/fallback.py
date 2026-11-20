@@ -1,8 +1,10 @@
 """No upload ends on an error: the readers tried, in order, until one gives a plan to review.
 
 1. PlanTo3D's own drawing reader (its detector). It starts as soon as the PDF is uploaded.
-2. If it refuses or fails: our AI plan parser, its PlanJSON converted for PlanTo3D
-   (convert.py) and imported with reader "ai" and a notice to check it.
+2. If it refuses or fails: the scan reader (scan_reader.py: OpenCV walls, OCR names and
+   sizes, scale fitted to the labels; no AI), imported with reader "scan" when it finds at
+   least SCAN_MIN_NAMED named rooms. Otherwise our AI plan parser, its PlanJSON converted
+   for PlanTo3D (convert.py) and imported with reader "ai" and a notice to check it.
 3. If that fails too, or its plan looks implausible: the review page opens on the page image
    with whatever geometry there is (reader "trace"), for the person to trace the walls and
    set the scale.
@@ -38,6 +40,8 @@ READING_MESSAGE = (
 # The review pages say which reader made the plan and what to check; the notice adds what
 # this reader itself has to say (what it dropped or changed, why nothing could be read).
 AI_NOTICE = "What the AI plan reader changed:"
+SCAN_NOTICE = "Read from the scan."
+SCAN_MIN_NAMED = 3  # named rooms a scan reading needs before it is preferred to the AI reader
 TRACE_NOTICE = "Neither reader could read this drawing{why}."
 
 STORED_NOTICE = (
@@ -98,8 +102,12 @@ async def _read_elsewhere(
     try:
         why = ""
         result: ConvertResult | None = None
+        pdf = await client.source_pdf(job_id)
+        scanned = await run_in_threadpool(scan_read, pdf)
+        if scanned is not None:
+            await client.import_plan(job_id, scanned[0], "scan", scanned[1])
+            return
         try:
-            pdf = await client.source_pdf(job_id)
             plan_json = await run_in_threadpool(ai, pdf)
             result = planjson_to_planto3d(plan_json, source_name=name, reader="ai")
         except PlanParseError as e:
@@ -129,6 +137,33 @@ async def _read_elsewhere(
         logger.warning("3D job %s could not be given a plan to review: %s", job_id, e.message)
     finally:
         _reading.pop(job_id, None)
+
+
+def scan_read(pdf: bytes) -> tuple[dict[str, Any], str] | None:
+    """The scan reader's plan and its notice, or None when it is off, fails or reads too
+    little (fewer than SCAN_MIN_NAMED named rooms): the AI reader is tried next."""
+    from app.modules.plan3d.settings import get_settings
+
+    if not get_settings().scan_reader:
+        return None
+    try:
+        from app.modules.plan3d.scan_reader import read_scan_pdf
+
+        res = read_scan_pdf(pdf)
+    except Exception:  # a reader bug or a file it cannot open: the AI reader is next
+        logger.exception("The scan reader failed")
+        return None
+    if res.plan is None:
+        return None
+    named = sum(1 for f in res.plan["floors"] for r in f["rooms"] if r.get("label"))
+    if named < SCAN_MIN_NAMED:
+        return None
+    off = (
+        f" Rooms more than 2% from their label: {'; '.join(res.rooms_off[:4])}."
+        if res.rooms_off
+        else ""
+    )
+    return res.plan, f"{SCAN_NOTICE} {' '.join(res.notes[-2:])}{off}"
 
 
 def stored_plan(stored: dict[str, Any], name: str) -> ConvertResult:
