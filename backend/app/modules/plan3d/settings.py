@@ -42,6 +42,8 @@ class Plan3dSettings(BaseSettings):
     allow_furniture_changes: bool = False
     # an AI second look at every read plan (one call each; differences go to Needs checking)
     ai_verify: bool = False
+    # an AI photo editor's look at finished High stills; the stills it names are rendered again
+    ai_polish: bool = False
     # Scans: the OpenCV + OCR reader before the AI reader (scan_reader.py); no AI calls
     scan_reader: bool = True
     # the AI gap-filler: one call per read plan fills what the readers missed (gapfill.py)

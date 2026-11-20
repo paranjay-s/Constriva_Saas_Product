@@ -108,9 +108,23 @@ class Plan3dClient:
             "POST", f"/api/jobs/{job_id}/tour", json={"quality": quality, "mode": mode}
         )
 
-    async def stills(self, job_id: str, mode: str) -> None:
-        """Queue High stills of every room and four elevations, and the fast tour made from them."""
-        await self._json("POST", f"/api/jobs/{job_id}/stills", json={"mode": mode})
+    async def stills(self, job_id: str, mode: str, redo: dict | None = None) -> None:
+        """Queue High stills of every room and four elevations, and the fast tour made from them.
+        `redo`: name -> {ev, kelvin}: render only those stills again with these settings."""
+        body: dict = {"mode": mode}
+        if redo:
+            body["redo"] = redo
+        await self._json("POST", f"/api/jobs/{job_id}/stills", json=body)
+
+    async def job_file(self, job_id: str, path: str) -> bytes:
+        """One file of a job (a still, a video ...)."""
+        try:
+            response = await self.http.get(f"/jobs/{job_id}/{path}")
+        except httpx.HTTPError as e:
+            raise Plan3dUnavailable(type(e).__name__) from e
+        if response.status_code != 200:
+            raise Plan3dError(response.status_code, "That file is not on the 3D builder.")
+        return response.content
 
     async def support(self, job_id: str, floor: int, segments: list[list[float]]) -> list[float]:
         """How much of each proposed wall (plan feet) the drawing shows: 0-1 each."""

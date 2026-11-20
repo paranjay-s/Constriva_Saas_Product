@@ -358,6 +358,38 @@ async def render_stills(
         raise _http_error(e) from e
 
 
+@router.post(
+    "/jobs/{job_id}/stills/polish", response_model=JobStatus, summary="AI polish of the stills"
+)
+async def polish_stills(
+    job_id: str, payload: StillsRequest, user: User, planto3d: Service, store: Store
+) -> JobStatus:
+    """PLAN3D_AI_POLISH: one AI look at the finished stills of a look; the stills it would change
+    (exposure, white balance; validated) are rendered again. Off unless the owner turns it on."""
+    from app.modules.plan3d import polish
+    from app.modules.plan3d.settings import get_settings
+
+    if not get_settings().ai_polish:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "AI polish is turned off.")
+    row = await _own_job(store, job_id, user)
+    try:
+        current = await planto3d.job(job_id)
+        files = ((current or {}).get("stills") or {}).get(payload.mode, {}).get("files") or []
+        if not files:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Render the stills first.")
+        stills = [(f["name"], await planto3d.job_file(job_id, f["file"])) for f in files[:24]]
+        redo = await run_in_threadpool(polish.fixes, stills)
+        if redo:
+            await planto3d.stills(
+                job_id,
+                payload.mode,
+                {k: {"ev": v["ev"], "kelvin": v["kelvin"]} for k, v in redo.items()},
+            )
+        return service.job_status(row, await planto3d.job(job_id))
+    except Plan3dError as e:
+        raise _http_error(e) from e
+
+
 @router.post("/jobs/{job_id}/export", response_model=ExportReady, summary="Pack the Blender file")
 async def export_job(job_id: str, user: User, planto3d: Service, store: Store) -> ExportReady:
     await _own_job(store, job_id, user)

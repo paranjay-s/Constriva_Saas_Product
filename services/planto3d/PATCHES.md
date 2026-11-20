@@ -661,3 +661,14 @@ The scan reader itself is in the gateway (`backend/app/modules/plan3d/scan_reade
   tour; `status.stills[mode]` lists them with seconds per still. `.mp4` is served as video/mp4.
 - `blender/gen.py`: the modern UAE front: slim bronze fins at every window of the road-facing side and a
   cantilevered entrance canopy with a downlight over the main door (`PLAN3D_FRONT_STYLE=plain` turns it off).
+
+## 58. Engines: glTF/USD export, PLAN3D_RENDERER=unreal, AI polish re-renders (PART 2, E)
+
+- `blender/export_engine.py`: the built house as glTF 2.0 (.glb, no Draco, world-space meshes) and USD (.usdc)
+  for a real-time engine (nandu villa: 62 MB / 6 MB in 3 s).
+- `server.py`: `PLAN3D_RENDERER=unreal` with `PLAN3D_UNREAL_EDITOR` renders the High stills in Unreal Engine 5
+  (`tools/unreal/import_render.py` in `tools/unreal/HouseProto`), finishes them with look.py, and lets Blender
+  render whatever Unreal did not. Default: blender.
+- `POST /api/jobs/<id>/stills` takes `redo: {name: {ev, kelvin}}` (checked: |ev| <= 1.5, 3500-6500 K): only
+  those stills are rendered again with that exposure and white balance (the gateway's PLAN3D_AI_POLISH).
+- `blender/cinema.py`: a shot's own `kelvin` sets its white balance.

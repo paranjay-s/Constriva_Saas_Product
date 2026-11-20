@@ -467,8 +467,39 @@ STILL_LIMIT_S = int(os.environ.get("PLAN3D_STILL_LIMIT_S", 480))
 STILL_RES = os.environ.get("PLAN3D_STILL_RES", "1920x1080")
 
 
-def run_stills(jid, mode, rooms=None):
-    """-> {"files": [{name, title, file, seconds}], "tour": "tour_fast_<mode>.mp4" or None, "seconds": total}"""
+RENDERER = os.environ.get("PLAN3D_RENDERER", "blender")
+UNREAL = os.environ.get("PLAN3D_UNREAL_EDITOR", "")
+
+
+def run_stills_unreal(d, out, shots, mode="evening"):
+    """PLAN3D_RENDERER=unreal: the house exported (blender/export_engine.py) and rendered by Unreal Engine 5
+    (tools/unreal/import_render.py) from the same cameras -> {name: seconds}; Blender is used when this fails"""
+    eng = os.path.join(out, "engine")
+    subprocess.run([BLENDER, "-b", os.path.join(d, "house_baked.blend"), "-P",
+                    os.path.join(HERE, "blender", "export_engine.py"), "--", eng, "--gltf"],
+                   check=True, capture_output=True, timeout=900)
+    with open(shots) as fh:
+        names = [s["name"] for s in json.load(fh)]
+    root = os.path.abspath(os.path.join(HERE, "..", ".."))
+    env = dict(os.environ, PLAN3D_UE_GLB=os.path.join(eng, "house_engine.glb"), PLAN3D_UE_SHOTS=shots,
+               PLAN3D_UE_OUT=out, PLAN3D_UE_ONLY=",".join(names), PLAN3D_UE_MODE=mode)
+    pr = subprocess.run([UNREAL, os.path.join(root, "tools", "unreal", "HouseProto", "HouseProto.uproject"),
+                         "-ExecutePythonScript=" + os.path.join(root, "tools", "unreal", "import_render.py"),
+                         "-stdout", "-FullStdOutLogOutput", "-unattended", "-nosplash", "-windowed",
+                         "-ResX=640", "-ResY=360"], env=env, capture_output=True, text=True, timeout=7200)
+    times = {m.group(1): float(m.group(2)) for m in re.finditer(r"UE STILL (\S+) ([\d.]+)", pr.stdout)}
+    for n in times:
+        src = os.path.join(out, f"{n}_ue.png")
+        if os.path.exists(src):
+            os.replace(src, os.path.join(out, f"{n}.png"))
+    if not times:
+        raise RuntimeError("Unreal rendered nothing")
+    return times
+
+
+def run_stills(jid, mode, rooms=None, redo=None):
+    """-> {"files": [{name, title, file, seconds}], "tour": "tour_fast_<mode>.mp4" or None, "seconds": total}.
+    redo: {name: {ev, kelvin}}: those stills are rendered again with these settings (AI polish)"""
     d = jdir(jid)
     out = os.path.join(d, f"stills_{mode}")
     os.makedirs(out, exist_ok=True)
@@ -480,6 +511,15 @@ def run_stills(jid, mode, rooms=None):
     subprocess.run(cmd, check=True, capture_output=True, timeout=60)
     with open(shots) as fh:
         plan_shots = json.load(fh)
+    for s in plan_shots:                          # the polish asked for: drop the old still, render it again
+        fix = (redo or {}).get(s["name"])
+        if fix:
+            s["ev"] = float(fix.get("ev") or 0.0)
+            s["kelvin"] = fix.get("kelvin")
+            if os.path.exists(os.path.join(out, s["name"] + ".jpg")):
+                os.remove(os.path.join(out, s["name"] + ".jpg"))
+    with open(shots, "w") as fh:
+        json.dump(plan_shots, fh)
     n = len(plan_shots)
     blend = os.path.join(d, "house_baked.blend") if os.path.exists(os.path.join(d, "house_baked.blend")) else os.path.join(d, "house.blend")
     c = [BLENDER, "-b", blend, "-P", os.path.join(HERE, "blender", "cinema.py"), "--", tour, out, "--shots", shots,
@@ -488,10 +528,23 @@ def run_stills(jid, mode, rooms=None):
     if mode == "day":
         c.append("--daylight")
     t0, times, files = time.time(), [], []
+    if RENDERER == "unreal" and UNREAL and os.path.exists(UNREAL) and not redo:
+        try:
+            times = list(run_stills_unreal(d, out, shots, mode).values())
+            if all(os.path.exists(os.path.join(out, s["name"] + ".png")) for s in plan_shots):
+                c = None                              # else Blender renders only what Unreal missed
+        except (subprocess.SubprocessError, OSError, RuntimeError) as e:
+            print("Unreal failed, Blender renders the stills:", e, flush=True)
     titles = {s["name"]: s.get("title") or s["name"] for s in plan_shots}
     done0 = len([s for s in plan_shots if os.path.exists(os.path.join(out, s["name"] + ".jpg"))])
     with open(os.path.join(d, "build.log"), "a") as log:
-        pr = subprocess.Popen(c, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        if any(not os.path.exists(os.path.join(out, s["name"] + ext)) for s in plan_shots for ext in (".jpg",)) \
+                and RENDERER == "unreal" and times:   # Unreal's PNGs: finish them like Blender's
+            subprocess.run([BLENDER, "-b", "--factory-startup", "--python-expr",
+                            "import sys, glob, os; sys.path.insert(0, %r); import look\n"
+                            "for p in glob.glob(os.path.join(%r, '*.png')): look.finish(p, p[:-4] + '.jpg')"
+                            % (os.path.join(HERE, "blender"), out)], capture_output=True, timeout=600)
+        pr = subprocess.Popen(c or ["true"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         for line in pr.stdout:
             log.write(line)
             m = re.match(r"SHOT (\S+) ([\d.]+)s", line)
@@ -760,11 +813,11 @@ def builder():
                 builds.task_done()
             continue
         if isinstance(quality, tuple) and quality[0] == "stills":     # ("stills", mode, rooms): High stills + fast tour
-            _, mode, rooms = quality
+            _, mode, rooms, redo = (*quality, None)[:4]
             try:
                 t0 = time.time()
                 status(jid, stage="building", progress=1, message="Rendering stills", started=t0, eta_total=600)
-                info = run_stills(jid, mode, rooms)
+                info = run_stills(jid, mode, rooms, redo)
                 st = read_status(jid) or {}
                 stills = dict(st.get("stills") or {}, **{mode: info})
                 status(jid, stage="done", progress=100, message="Ready", stills=stills)
@@ -1327,6 +1380,21 @@ class H(BaseHTTPRequestHandler):
                         return self.send(400, {"error": f"mode must be one of {', '.join(STILL_MODES)}"})
                     rooms = req_s2.get("rooms")
                     rooms = int(rooms) if isinstance(rooms, int) and 1 <= rooms <= 60 else None
+                    redo = req_s2.get("redo")
+                    if redo is not None:          # {name: {ev, kelvin}} from the AI polish, checked value by value
+                        if not isinstance(redo, dict) or len(redo) > 40:
+                            return self.send(400, {"error": "redo must map at most 40 still names to settings"})
+                        clean = {}
+                        for k, v in redo.items():
+                            if not (isinstance(k, str) and re.match(r"^[a-z0-9_]{1,64}$", k) and isinstance(v, dict)):
+                                return self.send(400, {"error": "redo: bad still name"})
+                            ev = v.get("ev", 0.0)
+                            kv = v.get("kelvin")
+                            if not isinstance(ev, (int, float)) or not -1.5 <= ev <= 1.5 or \
+                                    (kv is not None and (not isinstance(kv, (int, float)) or not 3500 <= kv <= 6500)):
+                                return self.send(400, {"error": "redo: ev within 1.5, kelvin 3500-6500"})
+                            clean[k] = dict(ev=float(ev), kelvin=kv)
+                        redo = clean
                     with plan_lock:
                         st = read_status(jid) or {}
                         if st.get("stage") != "done":
@@ -1334,7 +1402,7 @@ class H(BaseHTTPRequestHandler):
                         status(jid, stage="queued", progress=0, message=f"Waiting for the 3D builder ({builds.qsize()} ahead)")
                         with lock:
                             waiting.append(jid)
-                    builds.put((jid, ("stills", mode, rooms)), "heavy")
+                    builds.put((jid, ("stills", mode, rooms, redo)), "heavy")
                     return self.send(200, {"ok": True})
                 if what == "tour":                 # a rendered video tour of the built house: {quality, seconds?, res?}
                     req_t = json.loads(self.body() or b"{}")

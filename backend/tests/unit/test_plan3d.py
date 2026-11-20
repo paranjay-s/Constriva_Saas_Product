@@ -639,8 +639,9 @@ def test_the_page_proxy_is_the_only_gateway_route_without_bearer_auth():
         if not any(d.call is get_current_user for d in route.dependant.dependencies)
     )
     assert open_routes == ["/embed/{token}/{path:path}"]
-    # + POST /creator (admins), POST and DELETE /jobs/{id}/share, POST /jobs/{id}/stills
-    assert len(router.routes) == 19
+    # + POST /creator (admins), POST and DELETE /jobs/{id}/share, POST /jobs/{id}/stills and
+    # POST /jobs/{id}/stills/polish
+    assert len(router.routes) == 20
 
 
 def test_embed_tokens_are_redacted_from_logs_and_responses_are_private(client, planto3d):
@@ -796,3 +797,9 @@ def test_a_share_token_is_not_an_embed_token():
     token = access["url"].split("/embed/")[1].split("/")[0]
     with pytest.raises(TokenError):
         service.embed_claims(token)
+
+
+def test_ai_polish_is_off_unless_the_owner_turns_it_on(client, planto3d):
+    job_id = upload(client)
+    r = client.post(f"{API}/jobs/{job_id}/stills/polish", json={"mode": "evening"})
+    assert r.status_code == 404 and "turned off" in r.json()["detail"]

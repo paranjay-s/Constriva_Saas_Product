@@ -1,0 +1,14 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.8",
+	"Category": "",
+	"Description": "PlanTo3D prototype: a built house imported from glTF, lit with Lumen, rendered from the High still cameras.",
+	"Plugins": [
+		{ "Name": "PythonScriptPlugin", "Enabled": true },
+		{ "Name": "EditorScriptingUtilities", "Enabled": true },
+		{ "Name": "MovieRenderPipeline", "Enabled": true },
+		{ "Name": "USDImporter", "Enabled": true },
+		{ "Name": "GLTFImporter", "Enabled": true },
+		{ "Name": "PixelStreaming2", "Enabled": false }
+	]
+}
