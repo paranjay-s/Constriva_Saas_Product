@@ -215,6 +215,15 @@ create policy boq_history_owner on boq_history for all
     using (auth.uid() = user_id) with check (auth.uid() = user_id);
 ```
 
-## Final suites
+## Final suites (2026-11-20, end of the run)
 
-(filled in below when the runs finish)
+| Suite | Result |
+|---|---|
+| Backend (`TESTING=1 uv run pytest`) | 1,263 passed, 3 skipped (6 min) |
+| Frontend (`vitest run`) | 298 passed; `tsc -b` clean; `vite build` passes |
+| PlanTo3D Python tests (14 files) | all pass |
+| PlanTo3D `tests/run_all.sh` | as before this run: the tour check (reported, not required) and one doorway in an old saved build (`jobs/0bdaca14d7bf`) fail; no new failures |
+| Opt-in live chat test (`FLOORPLAN_LIVE_LLM=1`) | passes |
+
+Never claimed: 100 % accuracy anywhere. Generated and parsed plans carry "For design purposes only, not
+for construction".

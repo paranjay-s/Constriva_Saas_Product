@@ -28,3 +28,4 @@ Started 2026-11-20 on branch `feat/pro` (from `feat/merged` d08ad48).
 | 3 | Saved BOQ history + dashboard | done | 22d5cb8 | migration written, not applied (SQL in SUMMARY) |
 | 3 | Landing images | done | 93bc621 | auth hero -38 %; tour frames left (2-7 % only) |
 | 3 | Dockerfiles, deploy-3d.md, asset library script | done | e22f965 | images not built here (no Docker on this Mac) |
+| 2 | G Suites and SUMMARY | done | - | backend 1263 passed / 3 skipped; frontend 298 passed, build ok; PlanTo3D as before |
