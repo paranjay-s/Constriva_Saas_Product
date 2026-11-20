@@ -86,6 +86,7 @@ from app.modules.ai.floorplan.schemas.edit_ops import (
     ResizeRoom,
     SetPlot,
     SetPoolLayout,
+    SetSetbacks,
     SwapRooms,
     Undo,
 )
@@ -329,6 +330,10 @@ def apply_edit(
             [o for o in ops if not isinstance(o, RESOLVE_OPS + LAYOUT_OPS)],
         )
     try:
+        if any(isinstance(o, SetSetbacks) for o in ops):
+            if len(ops) > 1:
+                raise EditError("Change the setbacks on their own, then make other changes.")
+            return _set_setbacks(plan, program, ops[0], time_limit_s)
         if any(isinstance(o, SetPlot) for o in ops):
             if len(ops) > 1:
                 raise EditError("Change the plot size on its own, then make other changes.")
@@ -1014,6 +1019,51 @@ def _set_plot(
         res.plan,
         new_program,
         summary=[note],
+        ops=[op],
+        moved=[r.id for r in res.plan.rooms],
+    )
+
+
+def _set_setbacks(
+    plan: FloorPlan, program: RoomProgram, op: SetSetbacks, time_limit_s: float
+) -> EditResult:
+    """New setbacks (metres; a side not given keeps its value): the layout is re-planned."""
+    from app.modules.ai.floorplan.schemas.plan import Setbacks
+
+    old = plan.plot.setbacks
+    side = None if op.side is None else round(op.side * 100)
+    new = Setbacks(
+        front=old.front if op.front is None else round(op.front * 100),
+        rear=old.rear if op.rear is None else round(op.rear * 100),
+        left=old.left if side is None else side,
+        right=old.right if side is None else side,
+    )
+    if new == old:
+        return EditResult(
+            "no_change", plan, program, message="The plan already has those setbacks."
+        )
+    plot = plan.plot.model_copy(update={"setbacks": new})
+    res = generate_layout(program, plot, plan.meta, plan.id, time_limit_s=max(time_limit_s, 6))
+    words = (
+        f"{new.front / 100:g} m front, {new.left / 100:g} m sides, {new.rear / 100:g} m rear"
+        if new.front or new.left or new.right or new.rear
+        else "no setbacks"
+    )
+    if not res.ok:
+        why = "; ".join(res.report.feedback()[:2]) if res.report else "the rooms do not fit"
+        return EditResult(
+            "impossible",
+            plan,
+            program,
+            message=f"The rooms do not fit with {words} ({why}).",
+            alternatives=["Use smaller setbacks.", "Remove or shrink a room first."],
+            ops=[op],
+        )
+    return EditResult(
+        "ok",
+        res.plan,
+        res.program or program,
+        summary=[f"Setbacks set to {words}; the whole layout was re-planned."],
         ops=[op],
         moved=[r.id for r in res.plan.rooms],
     )

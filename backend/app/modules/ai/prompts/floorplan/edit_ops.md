@@ -25,6 +25,9 @@ Operations (use the room ids from the plan, never labels):
 - rename_room {id, label}: label in capitals, as the person wrote it.
 - set_plot {width_cm, depth_cm}: only when the person changes the plot size. Must be
   the only operation.
+- set_setbacks {front, side, rear}: distances in metres the house keeps from the plot edge,
+  only those the person states ("3 m setback at the front" -> front 3; "no setbacks" -> all
+  0; "1.5 m all round" -> all 1.5). Must be the only operation.
 - move_door {id, wall, offset}: wall is the side of the door's room ("room" in the door
   list). Leave offset out unless the person gave a distance.
 - set_pool_layout {layout}: move the swimming pool. layout is one of

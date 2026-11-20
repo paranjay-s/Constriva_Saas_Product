@@ -81,14 +81,20 @@ def test_default_target_is_seventy_percent_inside_the_band() -> None:
     plot_m2 = plot.width * plot.depth / 10_000
     target, notes = built_up_target(b, plot)
     assert target == pytest.approx(0.70 * plot_m2, rel=0.001) and not notes
-    assert (plot.setbacks.front, plot.setbacks.left, plot.setbacks.rear) == (300, 150, 150)
+    # setbacks default to 0 since feat/pro_2 (the person can ask for them)
+    assert (plot.setbacks.front, plot.setbacks.left, plot.setbacks.rear) == (0, 0, 0)
 
 
 def test_the_persons_share_wins_and_setbacks_cap_it() -> None:
     b = _brief(built_up_share=0.5)
     plot = plot_from_brief(b)
     assert plot.built_up_m2 == pytest.approx(0.5 * plot.width * plot.depth / 10_000, rel=0.01)
-    small = _brief(plot=PlotSpec(width_cm=round(30 * FT), depth_cm=round(50 * FT)))
+    from app.modules.ai.floorplan.schemas.brief import SetbackRequest
+
+    small = _brief(
+        plot=PlotSpec(width_cm=round(30 * FT), depth_cm=round(50 * FT)),
+        setbacks=SetbackRequest(front=3, side=1.5, rear=1.5),  # asked for in the brief
+    )
     target, notes = built_up_target(small, plot_from_brief(small))
     assert notes and "setbacks" in notes[0]
 
@@ -171,3 +177,17 @@ def test_an_at_least_built_up_below_the_default_keeps_the_default() -> None:
     res = parse_brief(form, None)
     assert res.brief.plot.built_up_m2 is None
     assert any("at least" in a for a in res.brief.assumptions)
+
+
+def test_setbacks_can_be_asked_for_in_chat() -> None:
+    from app.modules.ai.floorplan.pipeline.edit_engine import apply_edit
+    from app.modules.ai.floorplan.schemas.edit_ops import SetSetbacks
+
+    b = _brief(plot=PlotSpec(width_cm=round(60 * FT), depth_cm=round(100 * FT)))
+    res = generate_plan(b, llm=None)
+    assert res.ok and not res.plan.plot.has_setbacks  # none by default
+    out = apply_edit(res.plan, res.program, [SetSetbacks(op="set_setbacks", front=3, side=1)])
+    assert out.ok, out.message
+    sb = out.plan.plot.setbacks
+    assert (sb.front, sb.left, sb.right, sb.rear) == (300, 100, 100, 0)
+    assert "re-planned" in out.summary[0]

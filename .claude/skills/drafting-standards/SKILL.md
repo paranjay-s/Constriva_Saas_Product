@@ -27,9 +27,11 @@ against the Dubai Building Code by an engineer".
 
 - Ask once whether a stated area is the plot or the built-up area unless the words say it.
 - Default split 70% built-up / 30% exterior (`FLOORPLAN_BUILT_UP_SHARE`), kept within 65–75%
-  unless the user asks otherwise or the setbacks make it impossible (then say so).
-- Setbacks are settings (default 3 m front, 1.5 m sides and rear). Enclosed rooms stay inside the
-  setback line; everything stays inside the plot.
+  only when the user gives no built-up area. A built-up area, share or plot size the user states
+  always wins; unusual coverage gets a note, never a refusal (cut only to what physically fits).
+- Setbacks are settings, default 0 (owner's decision, feat/pro_2); the user can ask for them in
+  the brief or in chat (`set_setbacks`). Enclosed rooms stay inside the setback line; everything
+  stays inside the plot.
 - Report exactly: `Total area 5,000 sq ft (3,500 sq ft built-up + 1,500 sq ft exterior)`, then the
   same in m², then coverage %. Room gross areas add up to the built-up area within 1%; report net
   and gross.

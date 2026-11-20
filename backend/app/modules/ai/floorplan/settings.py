@@ -18,11 +18,14 @@ confirmed against the Dubai Building Code by an engineer):
     FLOORPLAN_WALL_INTERIOR_MM    150 (between rooms)
     FLOORPLAN_WALL_PARTITION_MM   100 (inside a suite: bath, dress, store, WC)
     FLOORPLAN_STOREY_HEIGHT_MM    3300 floor to floor (2.7 m clear + slab and finishes)
-    FLOORPLAN_SETBACK_FRONT_M     3.0  road side
-    FLOORPLAN_SETBACK_SIDE_M      1.5  left and right (DBC Table K.1 says 3 m)
-    FLOORPLAN_SETBACK_REAR_M      1.5  (DBC Table K.1 says 3 m)
+    FLOORPLAN_SETBACK_FRONT_M     0    road side (owner's default since feat/pro_2: no setbacks
+                                       unless the person asks for them, in the brief or in chat)
+    FLOORPLAN_SETBACK_SIDE_M      0    left and right (DBC Table K.1: 3 m, standalone villa)
+    FLOORPLAN_SETBACK_REAR_M      0    (DBC Table K.1 says 3 m)
     FLOORPLAN_BUILT_UP_SHARE      0.70 built-up share of the plot when only the plot is known
-    FLOORPLAN_BUILT_UP_MIN        0.65 / FLOORPLAN_BUILT_UP_MAX 0.75: the band kept unless asked
+    FLOORPLAN_BUILT_UP_MIN        0.65 / FLOORPLAN_BUILT_UP_MAX 0.75: the band for the default
+                                       share only; a built-up area or plot size the person
+                                       states always wins (a note says when it is unusual)
     FLOORPLAN_FULL_RESOLVE_S      30   time budget of a full re-solve ("start over")
     FLOORPLAN_SHEET               A3 (or A1)
     FLOORPLAN_FURNITURE           true: draw one minimal furniture set per room
@@ -63,9 +66,9 @@ class FloorplanSettings(BaseSettings):
     wall_interior_mm: int = 150
     wall_partition_mm: int = 100
     storey_height_mm: int = 3300
-    setback_front_m: float = 3.0
-    setback_side_m: float = 1.5
-    setback_rear_m: float = 1.5
+    setback_front_m: float = 0.0
+    setback_side_m: float = 0.0
+    setback_rear_m: float = 0.0
     built_up_share: float = 0.70
     built_up_min: float = 0.65
     built_up_max: float = 0.75

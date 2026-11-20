@@ -69,6 +69,16 @@ class SetPlot(_Op):
     depth_cm: int = Field(gt=0)
 
 
+class SetSetbacks(_Op):
+    """Setbacks the person asks for in chat, in metres; a side left out keeps its value.
+    The whole layout is re-planned."""
+
+    op: Literal["set_setbacks"]
+    front: float | None = Field(default=None, ge=0, le=30)
+    side: float | None = Field(default=None, ge=0, le=30)
+    rear: float | None = Field(default=None, ge=0, le=30)
+
+
 class MoveDoor(_Op):
     op: Literal["move_door"]
     id: str
@@ -214,6 +224,7 @@ EditOp = Annotated[
     | RemoveRoom
     | RenameRoom
     | SetPlot
+    | SetSetbacks
     | MoveDoor
     | AddWindow
     | SetPoolLayout
