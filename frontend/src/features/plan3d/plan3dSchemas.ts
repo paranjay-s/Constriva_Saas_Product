@@ -7,7 +7,7 @@
  */
 import { z } from 'zod';
 
-export const plan3dQualityIdSchema = z.enum(['low', 'medium', 'high']);
+export const plan3dQualityIdSchema = z.enum(['low', 'high']);
 export type Plan3dQualityId = z.infer<typeof plan3dQualityIdSchema>;
 
 /** One build quality the server names, and whether it can be built now. */
@@ -16,8 +16,6 @@ export const plan3dQualitySchema = z.looseObject({
   label: z.string(),
   description: z.string(),
   available: z.boolean(),
-  /** Planned but not built yet: shown as "Coming soon" instead of "Not available". */
-  coming_soon: z.boolean().optional(),
   /** Why it cannot be built; empty when it can. */
   reason: z.string(),
 });

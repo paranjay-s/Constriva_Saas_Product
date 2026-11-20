@@ -99,10 +99,7 @@ export function BuildOptions(props: BuildOptionsProps) {
                 </span>
                 <span id={`${id}-${option.id}-hint`} className="break-words text-xs text-[#a3afbf]">
                   {option.description}
-                  {!option.available && option.coming_soon && (
-                    <span className="mt-1 block text-[#bff6fb]">Coming soon</span>
-                  )}
-                  {!option.available && !option.coming_soon && option.reason && (
+                  {!option.available && option.reason && (
                     <span className="mt-1 block text-[#bff6fb]">Not available: {option.reason}</span>
                   )}
                 </span>

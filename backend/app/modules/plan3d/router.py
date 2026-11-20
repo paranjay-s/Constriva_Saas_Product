@@ -300,7 +300,7 @@ async def build_job(
     row = await _own_job(store, job_id, user)
     service_quality = service.QUALITY_TO_SERVICE.get(payload.quality)
     if service_quality is None:
-        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, service.CINEMA_UNAVAILABLE)
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Choose Low or High.")
     try:
         await planto3d.build(job_id, service_quality, service.furniture_set(user.id))
         notify.watch(job_id, user.id, getattr(user, "email", "") or "", payload.quality)

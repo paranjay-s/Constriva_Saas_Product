@@ -10,18 +10,23 @@ export const JOB_ID = 'a1b2c3d4e5f6';
 export const TOKEN = 'eyJqb2IiOiJhMWIyYzNkNGU1ZjYifQ.c2lnbmVk';
 export const EMBED_BASE = `${BASE}/embed/${TOKEN}`;
 
-export const HIGH_REASON = 'Coming soon: the cinema video tour is not ready yet.';
+export const HIGH_REASON = '';
 
 export const RAW_QUALITIES = [
   {
     id: 'low',
     label: 'Low',
-    description: 'Draft: the fastest build, to check the plan and walk through it.',
+    description: 'Fast: every room at its drawn size, furnished, to walk through.',
     available: true,
     reason: '',
   },
-  { id: 'medium', label: 'Medium', description: 'High-quality light and textures for the walkthrough.', available: true, reason: '' },
-  { id: 'high', label: 'High', description: 'Cinema video tour of the house.', available: false, coming_soon: true, reason: HIGH_REASON },
+  {
+    id: 'high',
+    label: 'High',
+    description: 'Baked light and textures, then photoreal stills of every room and a video tour.',
+    available: true,
+    reason: HIGH_REASON,
+  },
 ];
 
 export const RAW_SYSTEM = {

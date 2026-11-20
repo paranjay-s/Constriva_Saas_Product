@@ -344,17 +344,16 @@ def test_a_job_nobody_owns_is_taken_off_the_builder(client, planto3d, monkeypatc
 # ------------------------------------------------------------------ qualities and builds
 
 
-def test_system_names_our_three_qualities(client, planto3d):
+def test_system_names_our_two_qualities(client, planto3d):
     body = client.get(f"{API}/system").json()
     assert (body["reachable"], body["ready"]) == (True, True)
     assert body["checks"]["blender"] == {"ok": True, "version": "5.3"}
     assert [(q["id"], q["label"], q["available"]) for q in body["qualities"]] == [
         ("low", "Low", True),
-        ("medium", "Medium", True),
-        ("high", "High", False),
+        ("high", "High", True),
     ]
-    assert "cinema video tour" in body["qualities"][2]["reason"]
-    assert [q["coming_soon"] for q in body["qualities"]] == [False, False, True]
+    assert "video tour" in body["qualities"][1]["description"]
+    assert all("coming_soon" not in q for q in body["qualities"])
 
     planto3d.ready = False
     body = client.get(f"{API}/system").json()
@@ -366,7 +365,7 @@ def test_system_names_our_three_qualities(client, planto3d):
     assert "not running" in body["detail"]
 
 
-@pytest.mark.parametrize(("ours", "theirs"), [("low", "draft"), ("medium", "high")])
+@pytest.mark.parametrize(("ours", "theirs"), [("low", "draft"), ("high", "high")])
 def test_build_maps_our_quality_names_to_planto3ds(client, planto3d, ours, theirs):
     job_id = upload(client)
     response = client.post(f"{API}/jobs/{job_id}/build", json={"quality": ours})
@@ -393,12 +392,14 @@ def test_build_maps_our_quality_names_to_planto3ds(client, planto3d, ours, their
     assert (body["stage"], body["quality"], body["build_seconds"]) == ("done", ours, 58)
 
 
-def test_the_cinema_tour_is_named_but_cannot_be_built_yet(client, planto3d):
+def test_medium_is_gone_and_old_medium_jobs_read_as_high(client, planto3d):
     job_id = upload(client)
-    response = client.post(f"{API}/jobs/{job_id}/build", json={"quality": "high"})
-    assert response.status_code == 501 and "cinema video tour" in response.json()["detail"]
-    assert not any(r.url.path.endswith("/build") for r in planto3d.requests)
+    assert client.post(f"{API}/jobs/{job_id}/build", json={"quality": "medium"}).status_code == 422
     assert client.post(f"{API}/jobs/{job_id}/build", json={"quality": "ultra"}).status_code == 422
+    assert not any(r.url.path.endswith("/build") for r in planto3d.requests)
+    row = {"id": job_id, "quality": "medium", "name": "x"}
+    status_ = service.job_status(row, {"stage": "building", "progress": 10})
+    assert status_.quality == "high"
 
 
 def test_planto3d_errors_and_outages_are_passed_on_plainly(client, planto3d):

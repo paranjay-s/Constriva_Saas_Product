@@ -28,6 +28,28 @@ const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 4
 const env = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
 
 const meta = await fetch(base + 'meta.json').then((r) => r.json());
+// rooms built more than 5% away from the plan (gen.py checks every room after the build)
+if ((meta.size_errors || []).length) {
+  const box = document.createElement('div');
+  box.className = 'size-errors';
+  box.setAttribute('role', 'alert');
+  const head = document.createElement('b');
+  head.textContent = `${meta.size_errors.length} room(s) differ from the plan by more than 5%:`;
+  box.appendChild(head);
+  const list = document.createElement('ul');
+  for (const line of meta.size_errors.slice(0, 8)) {
+    const li = document.createElement('li');
+    li.textContent = line;  // text only: the labels come from the drawing
+    list.appendChild(li);
+  }
+  box.appendChild(list);
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.textContent = 'Close';
+  close.onclick = () => box.remove();
+  box.appendChild(close);
+  document.body.appendChild(box);
+}
 const draco = new DRACOLoader().setDecoderPath('../three/examples/jsm/libs/draco/');
 const gltf = await new GLTFLoader().setDRACOLoader(draco).loadAsync(base + 'house.glb', (e) => {
   if (e.total) $('status').textContent = `Loading model… ${Math.round(100 * e.loaded / e.total)}%`;

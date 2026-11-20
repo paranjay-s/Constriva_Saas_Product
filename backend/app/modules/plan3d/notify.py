@@ -1,4 +1,4 @@
-"""Tell the owner when a long build (Medium, High, Ultra) finishes or fails: one email and
+"""Tell the owner when a long build (High, or a High tour) finishes or fails: one email and
 one in-app notification per outcome. The email has no plan contents, only a link to the job,
 which needs a sign-in.
 
@@ -30,7 +30,7 @@ from app.core.config import settings as app_settings
 
 logger = logging.getLogger("construtiva.plan3d.notify")
 
-LONG_BUILDS = ("medium", "high", "ultra")
+LONG_BUILDS = ("high", "ultra")
 POLL_S = 20.0
 MAX_EVENTS = 50
 

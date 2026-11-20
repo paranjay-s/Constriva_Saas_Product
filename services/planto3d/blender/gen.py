@@ -665,6 +665,39 @@ def _box_area(bs):
     return round(sum(max(0.0, b[1] - b[0]) * max(0.0, b[3] - b[2]) for b in bs), 2)
 
 
+SIZE_TOLERANCE = 0.05   # a room built more than 5% away from the plan is an error (PATCHES 54)
+_DIM = re.compile(r"""(\d{1,3})\s*['’]\s*-?\s*(\d{1,2})?\s*(?:"|”)?\s*[xX×*]\s*(\d{1,3})\s*['’]?\s*-?\s*(\d{1,2})?""")
+
+
+def _label_ft(label):
+    m = _DIM.search(label or "")
+    if not m:
+        return None
+    a, ai, b, bi = m.groups()
+    return float(a) + float(ai or 0) / 12, float(b) + float(bi or 0) / 12
+
+
+def _size_errors(entry, zn):
+    """Rooms built more than SIZE_TOLERANCE away from the plan: from their read area (a floor
+    the build cut short) and from the size their label states."""
+    out = []
+    name = entry["label"] or entry["type"]
+    built, read = entry.get("built_area_ft2"), entry["read_area_ft2"]
+    if built is not None and read > 1 and entry["type"] not in ("stair", "open", "duct", "lift") and \
+            abs(built - read) / read > SIZE_TOLERANCE and not entry.get("water_area_ft2"):
+        out.append(f"{name}: built {built:.0f} sq ft, the plan has {read:.0f} sq ft")
+    dims = _label_ft(zn.get("label"))
+    rects = zn.get("rects") or []
+    if dims and rects:
+        q = max(rects, key=lambda r: (r[1] - r[0]) * (r[3] - r[2]))
+        w, h = sorted((q[1] - q[0], q[3] - q[2]))
+        a, b = sorted(dims)
+        diff = max(abs(w - a) / a, abs(h - b) / b) if a and b else 0
+        if diff > SIZE_TOLERANCE:
+            out.append(f"{name}: built {w:.1f} x {h:.1f} ft, its label says {a:.1f} x {b:.1f} ft ({diff:.0%})")
+    return out
+
+
 def _report_zone(k, zn, builder, built_boxes=None, water_boxes=None):
     rects = zn.get("rects") or []
     xs = [v for r in rects for v in (r[0], r[1])]
@@ -680,6 +713,7 @@ def _report_zone(k, zn, builder, built_boxes=None, water_boxes=None):
             wx = [v for b in water_boxes for v in (b[0], b[1])]
             wy = [v for b in water_boxes for v in (b[2], b[3])]
             entry["water_size_ft"] = [round(max(wx) - min(wx), 2), round(max(wy) - min(wy), 2)]
+    entry["errors"] = _size_errors(entry, zn)
     REPORT["zones"].append(entry)
 
 
@@ -1221,7 +1255,9 @@ groups["site"] = site
 EVENING = os.environ.get("PLAN3D_EVENING", "1") != "0"
 res = bake.bake_and_export(groups, unbaked=trees, out=JOB, quality=QUALITY, do_bake=BAKE, progress=progress,
                            variants=[("evening", evening, day)] if EVENING else [])
+SIZE_ERRORS = [e for z in REPORT["zones"] for e in z.get("errors", [])]
 meta = dict(version=1, floors=META_FLOORS, roof_z=round(top * lib.F, 3), eye=1.6, kits=USED_KITS, scheme=SCHEME,
+            size_errors=SIZE_ERRORS[:30],
             north_deg=NORTH, sun_bearing=SUN_BEARING,
             bounds=[round(v * lib.F, 3) for v in (X0, X1, Y0, Y1)], **res)
 with open(os.path.join(JOB, "meta.json"), "w") as fh:

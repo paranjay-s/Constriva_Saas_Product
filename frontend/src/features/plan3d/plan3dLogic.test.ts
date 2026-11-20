@@ -44,8 +44,8 @@ describe('3D gateway schemas', () => {
   it('parses the system status with its qualities, and changes nothing', () => {
     const system = plan3dSystemSchema.parse(RAW_SYSTEM);
     expect(system).toEqual(RAW_SYSTEM);
-    expect(system.qualities.map((quality) => quality.id)).toEqual(['low', 'medium', 'high']);
-    expect(system.qualities[2]).toMatchObject({ label: 'High', available: false, reason: HIGH_REASON });
+    expect(system.qualities.map((quality) => quality.id)).toEqual(['low', 'high']);
+    expect(system.qualities[1]).toMatchObject({ label: 'High', available: true, reason: HIGH_REASON });
     // the builder cannot be reached: no checks, a sentence instead
     expect(
       plan3dSystemSchema.safeParse({ reachable: false, ready: false, checks: {}, detail: 'Not running.', qualities: [] }).success,
@@ -58,8 +58,8 @@ describe('3D gateway schemas', () => {
     expect(job()).toEqual(rawJob());
     const stages = ['uploaded', 'detecting', 'detected', 'queued', 'building', 'done', 'failed'];
     for (const stage of stages) expect(plan3dJobSchema.safeParse(rawJob({ stage })).success, stage).toBe(true);
-    const built = job({ stage: 'done', quality: 'medium', build_seconds: 200, project_id: 'p-1', source: 'sample' });
-    expect(built).toMatchObject({ quality: 'medium', build_seconds: 200, project_id: 'p-1', source: 'sample' });
+    const built = job({ stage: 'done', quality: 'high', build_seconds: 200, project_id: 'p-1', source: 'sample' });
+    expect(built).toMatchObject({ quality: 'high', build_seconds: 200, project_id: 'p-1', source: 'sample' });
     const waiting = job({ stage: 'queued', queue_position: 2, eta_left: null });
     expect(waiting.queue_position).toBe(2);
     // a field the server adds later is kept, not refused
@@ -252,8 +252,8 @@ describe('words for a job', () => {
 describe('build quality', () => {
   const only = (...available: string[]) => QUALITIES.map((quality) => ({ ...quality, available: available.includes(quality.id) }));
 
-  it('starts on Medium, or on Low when Medium cannot be built', () => {
-    expect(defaultQuality(QUALITIES)).toBe('medium');
+  it('starts on Low, or on High when Low cannot be built', () => {
+    expect(defaultQuality(QUALITIES)).toBe('low');
     expect(defaultQuality(only('low', 'high'))).toBe('low');
     expect(defaultQuality(only('high'))).toBe('high');
     expect(defaultQuality(only())).toBeNull();
@@ -261,7 +261,7 @@ describe('build quality', () => {
   });
 
   it("uses the server's names, and its own when the server's are not known", () => {
-    expect(qualityLabel('medium', QUALITIES)).toBe('Medium');
+    expect(qualityLabel('high', QUALITIES)).toBe('High');
     expect(qualityLabel('low', [{ ...QUALITIES[0], label: 'Draft' }])).toBe('Draft');
     expect(qualityLabel('high')).toBe('High');
     expect(qualityLabel('low', [])).toBe('Low');

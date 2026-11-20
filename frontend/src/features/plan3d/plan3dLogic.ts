@@ -149,7 +149,7 @@ export function fileSizeText(bytes: number): string {
 // ------------------------------------------------------------------ quality
 
 /** Used when the server's own names are not known (yet). */
-const QUALITY_NAMES: Record<Plan3dQualityId, string> = { low: 'Low', medium: 'Medium', high: 'High' };
+const QUALITY_NAMES: Record<Plan3dQualityId, string> = { low: 'Low', high: 'High' };
 
 export function findQuality(qualities: readonly Plan3dQuality[], id: Plan3dQualityId | null): Plan3dQuality | null {
   return qualities.find((quality) => quality.id === id) ?? null;
@@ -161,10 +161,10 @@ export function qualityLabel(id: Plan3dQualityId | null | undefined, qualities: 
   return findQuality(qualities, id)?.label || QUALITY_NAMES[id];
 }
 
-/** Medium when it can be built, else Low, else whatever can be; null when nothing can. */
+/** Low when it can be built (fast), else whatever can be; null when nothing can. */
 export function defaultQuality(qualities: readonly Plan3dQuality[]): Plan3dQualityId | null {
   const available = qualities.filter((quality) => quality.available);
-  const preferred = (['medium', 'low'] as const).find((id) => available.some((quality) => quality.id === id));
+  const preferred = (['low', 'high'] as const).find((id) => available.some((quality) => quality.id === id));
   return preferred ?? available[0]?.id ?? null;
 }
 

@@ -18,12 +18,12 @@ EMBED_AUDIENCE = "plan3d-embed"
 EMBED_PREFIX = "/api/v1/3d/embed"
 JOB_ID = re.compile(r"^[a-f0-9]{12}$")
 
-# Our names for a build -> PlanTo3D's. "high" (the cinema video tour) has no build quality
-# in PlanTo3D: its tour renderer is a command-line tool that the service does not run.
-# It is built with the Ultra tier; until then the pages show it as "Coming soon".
-QUALITY_TO_SERVICE = {"low": "draft", "medium": "high"}
+# Our names for a build -> PlanTo3D's. Two qualities (PART 2, C): Low, a quick draft for the
+# walkthrough, and High, baked light (then photoreal stills and a video tour, run as tours).
+# Jobs stored with the old "medium" are High.
+QUALITY_TO_SERVICE = {"low": "draft", "high": "high"}
 SERVICE_TO_QUALITY = {service: ours for ours, service in QUALITY_TO_SERVICE.items()}
-CINEMA_UNAVAILABLE = "Coming soon: the cinema video tour is not ready yet."
+LEGACY_QUALITY = {"medium": "high"}
 
 
 def is_job_id(value: object) -> bool:
@@ -31,30 +31,23 @@ def is_job_id(value: object) -> bool:
 
 
 def qualities(service_ready: bool) -> list[QualityInfo]:
-    """The three qualities our pages name, and whether each can be built now."""
+    """The two qualities our pages name, and whether each can be built now."""
     not_ready = "" if service_ready else "The 3D builder is not set up yet."
     return [
         QualityInfo(
             id="low",
             label="Low",
-            description="Draft: the fastest build, to check the plan and walk through it.",
-            available=service_ready,
-            reason=not_ready,
-        ),
-        QualityInfo(
-            id="medium",
-            label="Medium",
-            description="High-quality light and textures for the walkthrough.",
+            description="Fast: every room at its drawn size, furnished, to walk through.",
             available=service_ready,
             reason=not_ready,
         ),
         QualityInfo(
             id="high",
             label="High",
-            description="Cinema video tour of the house.",
-            available=False,
-            coming_soon=True,
-            reason=CINEMA_UNAVAILABLE,
+            description="Baked light and textures, then photoreal stills of every room and a "
+            "video tour (you get an email when it is ready).",
+            available=service_ready,
+            reason=not_ready,
         ),
     ]
 
@@ -76,7 +69,8 @@ def job_status(
         )
     building = service.get("stage") in ("queued", "building")
     built = SERVICE_TO_QUALITY.get(str(service.get("quality") or ""))
-    asked = row.get("quality") if row.get("quality") in QUALITY_TO_SERVICE else None
+    stored = LEGACY_QUALITY.get(row.get("quality"), row.get("quality"))
+    asked = stored if stored in QUALITY_TO_SERVICE else None
 
     def whole(value: object) -> int | None:
         return (

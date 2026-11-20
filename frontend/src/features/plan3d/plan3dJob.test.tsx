@@ -9,7 +9,6 @@ import {
   API,
   BASE,
   EMBED_BASE,
-  HIGH_REASON,
   JOB_ID,
   type MockRoutes,
   RAW_SYSTEM,
@@ -29,8 +28,8 @@ const WALK_SRC = `${API}${EMBED_BASE}/web/view.html?job=${JOB_ID}&embed`;
 const REVIEW = 'Review the detected plan';
 const WALK = '3D walkthrough';
 
-const QUEUED = rawJob({ stage: 'queued', progress: 0, message: 'Waiting for the 3D builder (1 ahead)', quality: 'medium', queue_position: 2 });
-const DONE = rawJob({ stage: 'done', progress: 100, message: 'Ready', quality: 'medium', build_seconds: 200 });
+const QUEUED = rawJob({ stage: 'queued', progress: 0, message: 'Waiting for the 3D builder (1 ahead)', quality: 'high', queue_position: 2 });
+const DONE = rawJob({ stage: 'done', progress: 100, message: 'Ready', quality: 'high', build_seconds: 200 });
 const BUILD_FAILED = rawJob({ stage: 'failed', progress: 30, message: '3D build failed - see build.log' });
 
 /** Answers one after the other, then keeps giving the last one. */
@@ -106,7 +105,7 @@ const isDisabled = (element: HTMLElement) => element.hasAttribute('disabled');
 /** The review step with the plan loaded: the review page said "ready" and the qualities have arrived. */
 async function openReview() {
   await screen.findByTitle(REVIEW);
-  await options().findByRole('radio', { name: 'Medium' });
+  await options().findByRole('radio', { name: 'Low' });
   post(READY);
   expect(isDisabled(buildButton())).toBe(false);
   return vi.spyOn(pageOf(frame(REVIEW)), 'postMessage').mockImplementation(() => {});
@@ -270,7 +269,7 @@ describe('3D job page', () => {
       expect(callsTo(fetchMock, 'POST', `${JOB}/embed`)).toHaveLength(1);
     });
 
-    it("builds the quality choice from the server's list: Low, Medium and High, with High disabled and its reason shown", async () => {
+    it("builds the quality choice from the server's list: Low and High, Low first", async () => {
       mockApi();
       renderJob();
       await screen.findByTitle(REVIEW);
@@ -279,37 +278,28 @@ describe('3D job page', () => {
         if (!(input instanceof HTMLInputElement)) throw new Error(`${name} is not a radio button`);
         return input;
       };
-      await options().findByRole('radio', { name: 'Medium' });
-      expect(options().getAllByRole('radio')).toHaveLength(3);
+      await options().findByRole('radio', { name: 'High' });
+      expect(options().getAllByRole('radio')).toHaveLength(2);
       expect(options().getByRole('group', { name: 'Quality' })).toBeDefined();
-
-      expect(radio('Low').checked).toBe(false);
-      expect(radio('Low').disabled).toBe(false);
-      expect(radio('Medium').checked).toBe(true); // the default
-      expect(radio('Medium').disabled).toBe(false);
+      expect(radio('Low').checked).toBe(true); // the default
       expect(radio('High').checked).toBe(false);
-      expect(radio('High').disabled).toBe(true);
-
-      expect(options().getByText('Draft: the fastest build, to check the plan and walk through it.')).toBeDefined();
-      expect(options().getByText('High-quality light and textures for the walkthrough.')).toBeDefined();
-      const hint = document.getElementById(radio('High').getAttribute('aria-describedby') ?? '');
-      expect(hint?.textContent).toBe('Cinema video tour of the house.Coming soon');
-
-      fireEvent.click(radio('Low'));
-      expect(radio('Low').checked).toBe(true);
-      expect(radio('Medium').checked).toBe(false);
+      expect(radio('High').disabled).toBe(false);
+      expect(options().queryByText('Coming soon')).toBeNull();
+      fireEvent.click(radio('High'));
+      expect(radio('High').checked).toBe(true);
+      expect(radio('Low').checked).toBe(false);
     });
 
-    it('starts on Low when Medium cannot be built', async () => {
+    it('starts on High when Low cannot be built', async () => {
       const qualities = RAW_SYSTEM.qualities.map((quality) =>
-        quality.id === 'medium' ? { ...quality, available: false, reason: 'The materials are still downloading.' } : quality,
+        quality.id === 'low' ? { ...quality, available: false, reason: 'The materials are still downloading.' } : quality,
       );
       mockApi({ [`GET ${BASE}/system`]: () => json({ ...RAW_SYSTEM, qualities }) });
       renderJob();
       await screen.findByTitle(REVIEW);
-      const low = await options().findByRole('radio', { name: 'Low' });
-      expect(low instanceof HTMLInputElement && low.checked).toBe(true);
-      expect(isDisabled(options().getByRole('radio', { name: 'Medium' }))).toBe(true);
+      const high = await options().findByRole('radio', { name: 'High' });
+      expect(high instanceof HTMLInputElement && high.checked).toBe(true);
+      expect(isDisabled(options().getByRole('radio', { name: 'Low' }))).toBe(true);
       expect(options().getByText('Not available: The materials are still downloading.')).toBeDefined();
     });
 
@@ -322,7 +312,7 @@ describe('3D job page', () => {
       post(READY);
       expect(isDisabled(buildButton())).toBe(true); // nothing to build at yet
       fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }));
-      await options().findByRole('radio', { name: 'Medium' });
+      await options().findByRole('radio', { name: 'High' });
       expect(isDisabled(buildButton())).toBe(false);
     });
 
@@ -330,7 +320,7 @@ describe('3D job page', () => {
       mockApi();
       renderJob();
       await screen.findByTitle(REVIEW);
-      await options().findByRole('radio', { name: 'Medium' });
+      await options().findByRole('radio', { name: 'Low' });
       expect(isDisabled(buildButton())).toBe(true);
       expect(options().getByText(/the plan is still loading/i)).toBeDefined();
 
@@ -389,7 +379,7 @@ describe('3D job page', () => {
       expect(await screen.findByRole('progressbar', { name: 'Build progress' })).toBeDefined();
       expect(built()).toHaveLength(1);
       expect(built()[0].url.href).toBe(`${API}${JOB}/build`);
-      expect(JSON.parse(String(built()[0].init.body))).toEqual({ quality: 'medium' });
+      expect(JSON.parse(String(built()[0].init.body))).toEqual({ quality: 'low' });
       expect(authorizationOf(built()[0])).toBe('Bearer test-jwt-token');
       expect(new Headers(built()[0].init.headers).get('Content-Type')).toBe('application/json');
       expect(send).toHaveBeenCalledTimes(1);
@@ -397,7 +387,7 @@ describe('3D job page', () => {
       // the build screen takes over
       expect(screen.getByRole('heading', { name: 'Waiting for the 3D builder' })).toBeDefined();
       expect(screen.getByText('2nd in the queue')).toBeDefined();
-      expect(screen.getByText('Medium quality')).toBeDefined();
+      expect(screen.getByText('High quality')).toBeDefined();
       expect(steps().current).toEqual(['Build (in progress)']);
     });
 
@@ -474,7 +464,7 @@ describe('3D job page', () => {
       mockApi({});
       renderJob();
       await screen.findByTitle(REVIEW);
-      await options().findByRole('radio', { name: 'Medium' });
+      await options().findByRole('radio', { name: 'Low' });
       act(() =>
         post({ ...READY, reader: 'trace', notice: 'Neither reader could read this drawing.', buildable: false, problem: 'Draw the walls first.' }),
       );
@@ -502,7 +492,7 @@ describe('3D job page', () => {
       const fetchMock = mockApi({
         [`POST ${JOB}/build`]: inTurn(
           () => json({ detail: 'a build is already running' }, 409),
-          () => json({ detail: HIGH_REASON }, 501),
+          () => json({ detail: 'Choose Low or High.' }, 422),
         ),
       });
       renderJob();
@@ -514,7 +504,7 @@ describe('3D job page', () => {
 
       fireEvent.click(buildButton());
       post(SAVED);
-      await waitFor(() => expect(options().getByRole('alert').textContent).toBe(HIGH_REASON));
+      await waitFor(() => expect(options().getByRole('alert').textContent).toBe('Choose Low or High.'));
       expect(callsTo(fetchMock, 'POST', `${JOB}/build`)).toHaveLength(2);
       expect(screen.queryByRole('progressbar')).toBeNull();
     });
@@ -592,7 +582,7 @@ describe('3D job page', () => {
     it('shows the place in the queue, then the progress with the time left, until the walkthrough opens', async () => {
       fakeClock();
       const building = (progress: number, etaLeft: number, message: string) =>
-        rawJob({ stage: 'building', progress, message, quality: 'medium', eta_left: etaLeft });
+        rawJob({ stage: 'building', progress, message, quality: 'high', eta_left: etaLeft });
       const fetchMock = mockApi({
         [`GET ${JOB}`]: statuses(
           QUEUED,
@@ -611,7 +601,7 @@ describe('3D job page', () => {
       expect(bar().hasAttribute('aria-valuenow')).toBe(false);
       expect(screen.getByRole('status').textContent).toBe('Waiting for the 3D builder (1 ahead)');
       expect(screen.getByText('2nd in the queue')).toBeDefined();
-      expect(screen.getByText('Medium quality')).toBeDefined();
+      expect(screen.getByText('High quality')).toBeDefined();
       expect(steps().all).toEqual([
         'Upload (done)',
         'Detect (done)',
@@ -630,7 +620,7 @@ describe('3D job page', () => {
       expect(screen.getByText('45%')).toBeDefined();
       expect(screen.getByRole('status').textContent).toBe('Baking the light');
       expect(screen.getByText('about 2 min left')).toBeDefined();
-      expect(screen.getByText('Medium quality')).toBeDefined();
+      expect(screen.getByText('High quality')).toBeDefined();
       expect(screen.queryByText(/in the queue/)).toBeNull();
 
       await advance(PLAN3D_POLL_MS);
@@ -717,7 +707,7 @@ describe('3D job page', () => {
       renderJob();
       fireEvent.click(await screen.findByRole('button', { name: 'Review the plan again' }));
       await screen.findByTitle(REVIEW);
-      await options().findByRole('radio', { name: 'Medium' });
+      await options().findByRole('radio', { name: 'Low' });
       post({ source: 'planto3d', job: JOB_ID, type: 'failed', message: '3D build failed - see build.log' });
       expect(options().getByRole('alert').textContent).toBe(
         'The plan could not be opened for review. 3D build failed - see build.log',
@@ -738,7 +728,7 @@ describe('3D job page', () => {
       expect(walkthrough.getAttribute('src')).toBe(WALK_SRC);
       expect(walkthrough.getAttribute('allow')).toBe('fullscreen');
       expect(walkthrough.hasAttribute('sandbox')).toBe(false);
-      expect(screen.getByText('Built at Medium quality in 3 min 20 s')).toBeDefined();
+      expect(screen.getByText('Built at High quality in 3 min 20 s')).toBeDefined();
       expect(steps().all).toEqual([
         'Upload (done)',
         'Detect (done)',
@@ -1003,7 +993,7 @@ describe('video tours', () => {
     const fetchMock = mockApi({
       [`GET ${JOB}`]: () => json({ ...DONE, tours: { high: { file: 'tour_high.mp4', seconds: 300 } } }),
       [`POST ${JOB}/embed`]: () => json(rawEmbed()),
-      [`POST ${JOB}/tour`]: () => json(rawJob({ stage: 'queued', quality: 'medium' })),
+      [`POST ${JOB}/tour`]: () => json(rawJob({ stage: 'queued', quality: 'high' })),
     });
     renderJob();
     await settle();

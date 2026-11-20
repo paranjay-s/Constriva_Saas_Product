@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 # Our names for a build, and what PlanTo3D calls it. "high" is the cinema video tour.
-Quality = Literal["low", "medium", "high"]
+Quality = Literal["low", "high"]
 
 
 class QualityInfo(BaseModel):
@@ -13,8 +13,6 @@ class QualityInfo(BaseModel):
     label: str
     description: str
     available: bool
-    # Planned but not built yet: the pages say "Coming soon" instead of "Not available".
-    coming_soon: bool = False
     reason: str = ""
 
 
@@ -77,7 +75,7 @@ class FromFloorplan(BaseModel):
 class BuildRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    quality: Quality = "medium"
+    quality: Quality = "low"
 
 
 class EmbedAccess(BaseModel):

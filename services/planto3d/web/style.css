@@ -90,3 +90,9 @@ h1 { font-size: 28px; margin: 0 0 6px; }
 #checklist .msg { flex: 1 1 160px; }
 #checklist .acts { display: flex; gap: 4px; }
 #checklist .mini { font-size: 11px; padding: 1px 6px; }
+
+/* rooms built away from the plan (meta.size_errors) */
+.size-errors { position: fixed; left: 12px; bottom: 12px; z-index: 30; max-width: 420px; padding: 10px 12px;
+  background: rgba(60, 14, 14, 0.92); color: #ffd9d4; border: 1px solid #b4483c; border-radius: 8px; font: 13px/1.4 system-ui, sans-serif; }
+.size-errors ul { margin: 6px 0 8px; padding-left: 18px; }
+.size-errors button { font: inherit; padding: 2px 10px; }

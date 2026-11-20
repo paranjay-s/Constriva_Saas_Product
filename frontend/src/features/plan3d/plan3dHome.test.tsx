@@ -25,7 +25,7 @@ const PROJECT_ID = '0b9d7c1e-6f55-4f0a-9d3b-2f7a5c1e8d40';
 const NEW_JOB = 'ffeeddccbbaa';
 
 const JOBS = [
-  rawJob({ job_id: 'aaaaaaaaaaaa', name: 'green-villa.pdf', stage: 'done', quality: 'medium', build_seconds: 200 }),
+  rawJob({ job_id: 'aaaaaaaaaaaa', name: 'green-villa.pdf', stage: 'done', quality: 'high', build_seconds: 200 }),
   rawJob({ job_id: 'bbbbbbbbbbbb', name: 'sample_plan.pdf', source: 'sample', stage: 'detected' }),
   rawJob({ job_id: 'cccccccccccc', name: 'office.pdf', stage: 'building', quality: 'low', progress: 40 }),
   rawJob({ job_id: 'dddddddddddd', name: 'scan.pdf', stage: 'failed', floors: [], message: 'This drawing could not be read.' }),
@@ -253,7 +253,7 @@ describe('2D to 3D home page', () => {
     renderPage();
     await plans().findByText('green-villa.pdf');
     expect(plans().getAllByRole('listitem')).toHaveLength(4);
-    expect(rowOf('green-villa.pdf').textContent).toContain('3D house ready • Medium quality');
+    expect(rowOf('green-villa.pdf').textContent).toContain('3D house ready • High quality');
     expect(rowOf('sample_plan.pdf').textContent).toContain('Ready to review');
     expect(rowOf('office.pdf').textContent).toContain('Building the 3D house');
     expect(rowOf('office.pdf').textContent).not.toContain('quality'); // not built yet

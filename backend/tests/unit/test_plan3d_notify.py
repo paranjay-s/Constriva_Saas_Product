@@ -37,9 +37,9 @@ def finish(planto3d, job_id: str, stage: str) -> None:
     planto3d.jobs[job_id].update(stage=stage)
 
 
-def test_a_medium_build_sends_one_email_and_one_notification(client, planto3d, mailer, mock_user):
+def test_a_high_build_sends_one_email_and_one_notification(client, planto3d, mailer, mock_user):
     job = upload(client)
-    build(client, job, "medium")
+    build(client, job, "high")
     finish(planto3d, job, "done")
     for _ in range(3):  # seen three times, announced once
         client.get(f"{API}/jobs/{job}")
@@ -54,7 +54,7 @@ def test_a_medium_build_sends_one_email_and_one_notification(client, planto3d, m
 
 def test_a_failed_build_is_announced_too(client, planto3d, mailer):
     job = upload(client)
-    build(client, job, "medium")
+    build(client, job, "high")
     finish(planto3d, job, "failed")
     client.get(f"{API}/jobs/{job}")
     assert [s[1] for s in mailer.sent] == ["Your 3D house could not be built"]
@@ -74,7 +74,7 @@ def test_the_email_can_be_turned_off_the_notification_stays(client, planto3d, ma
         "email": False
     }
     job = upload(client)
-    build(client, job, "medium")
+    build(client, job, "high")
     finish(planto3d, job, "done")
     client.get(f"{API}/jobs/{job}")
     assert mailer.sent == []
