@@ -18,3 +18,7 @@ Started 2026-11-20 on branch `feat/pro` (from `feat/merged` d08ad48).
 | 1 | 10 Round trip 3D/BOQ, 20 plans | partial | 6ec246b | exact with model 18/18; drawing-only detector doors 82.6%, windows 91.5%, OpenCV and AI below 98%; AI run rate-limited (about 32 live calls used) |
 | 1 | 11 Samples 1,500-8,000 sq ft + nandu | done | 6ec246b | 1,500 sq ft sample is 1 bedroom (2 do not fit the default setbacks); nandu and contact sheet kept local (client content) |
 | 1 | 12 All suites and build | done | 0289d48 | backend 1239 passed / 3 skipped; frontend 294 passed; build ok. Live nandu chat test blocked by HTTP 429 (deterministic test passes) |
+| 2 | A1-A3 Diagnosis, pool line, kits | done | e41fc2d | Blender time so far about 1 min (diagnostic builds without bake) |
+| 2 | B1-B2, B4-B5 Scan reader, research, measured | done | 1c00527 | held-out raster: precision 17% -> 66%, recall 21-64% per style with no AI call; 37% of labelled rooms within 2% (the rest are cut wrongly, listed on the review page). A held-set run made about 12 rate-limited live AI calls through a stale cache check (fixed): about 47 of 100 used |
+| 2 | B3 Model comparison | skipped | - | no held-out raster plan has readings by both models and the Gemini key answered 429 to fresh calls; default unchanged; command written in RESEARCH.md |
+| 2 | C Low quality, Medium removed, size errors >5% | done | 993a8d5 | draft builds 10 s; 1000206523: 6 rooms flagged 6-66%. PlanTo3D suite: tour (not required) and one opening check on an old saved build (0bdaca14d7bf) fail, as before this run |
