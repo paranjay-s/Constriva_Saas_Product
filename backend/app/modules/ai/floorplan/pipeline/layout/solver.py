@@ -193,6 +193,11 @@ def solve_layout(
     adjoin: list[tuple[str, str]] | None = None,
     sizes: dict[str, tuple[tuple[int, int] | None, tuple[int, int] | None, bool]] | None = None,
     area_bounds: dict[str, tuple[float, float]] | None = None,
+    soft: bool = False,
+    aspect_floor: float | None = None,
+    daylight: bool = True,
+    min_side_scale: float = 1.0,
+    info: dict | None = None,
 ) -> list[Room] | None:
     """Solve a layout. With exact_tiling the rooms must cover the whole plot (no gaps).
 
@@ -204,6 +209,14 @@ def solve_layout(
     cm, None = free; the third value allows the room either way round).
     `area_bounds` (m2) replace the usual band around the target for the rooms listed
     (neighbours that make or take space).
+
+    Relaxation (pipeline/relax.py): with `soft` every layout rule of the program is a
+    weighted wish instead of a hard constraint (WISH_WEIGHT: stated sizes first, then
+    touching / doors, sides, zones, and aspect / daylight last); `aspect_floor` loosens
+    every room type's aspect limit to at least that ratio; `daylight=False` drops the
+    outside-wall wish for habitable rooms; `min_side_scale` < 1 lets rooms go below the
+    standard minimum sizes. `info` (a dict) receives the solver status and, with `soft`,
+    the indexes of the rules the layout does not meet ("unmet").
     """
     fixed = fixed or {}
     size_rules: dict[str, list[SizeRule]] = {}
@@ -229,6 +242,11 @@ def solve_layout(
         if coarse > 1:
             _snap_coarse(m, b, grid, coarse, r.id)
         rule = MIN_ROOM[r.type]
+        if min_side_scale != 1.0:
+            rule = rule._replace(
+                short_side_cm=round(rule.short_side_cm * min_side_scale),
+                area_m2=rule.area_m2 * min_side_scale**2,
+            )
         side = max(rule.short_side_cm, 120 if r.type in ("lobby", "passage") else 0)
         m.Add(b.w >= max(1, math.ceil(side / grid.gx)))
         m.Add(b.h >= max(1, math.ceil(side / grid.gy)))
@@ -245,7 +263,7 @@ def solve_layout(
         if area_bounds and r.id in area_bounds:
             lo = max(rule.area_m2, area_bounds[r.id][0]) * 10_000
             hi = area_bounds[r.id][1] * 10_000
-        for sr in size_rules.get(r.id, []):
+        for sr in [] if soft else size_rules.get(r.id, []):
             if sr.min_area_m2:
                 lo = max(rule.area_m2 * 10_000, sr.min_area_m2 * 10_000)
                 hi = max(hi, lo)
@@ -257,6 +275,8 @@ def solve_layout(
         k = _aspect(r.type)
         if r.type == "pool" and program.pool_layout == "two_block":
             k = 5.0  # the pool zone is a long strip between the two blocks
+        if k and aspect_floor:
+            k = max(k, aspect_floor)
         if k:
             # compare in cm: w*gx <= k*h*gy  (scaled to integers by 100)
             m.Add(100 * b.w * round(grid.gx * 10) <= round(k * 100) * b.h * round(grid.gy * 10))
@@ -317,7 +337,10 @@ def solve_layout(
                 m.Add(var <= math.ceil(rng[1] / g)).OnlyEnforceIf(flag)
 
     objective = []
-    _apply_rules(m, program, boxes, grid, road, bounds, fixed, size_rules, objective)
+    wishes: list[tuple] = []
+    _apply_rules(
+        m, program, boxes, grid, road, bounds, fixed, size_rules, objective, soft, wishes
+    )
 
     if is_special(program.pool_layout):
         _pool_layout_rules(m, program, boxes, grid, road)
@@ -355,6 +378,8 @@ def solve_layout(
             objective.append(W_FRONT_OPEN * on_road)
 
     for r in program.rooms:
+        if not daylight:
+            break
         if r.type in HABITABLE or r.type in ("garden", "deck"):
             edge_bounds = None if is_open(r.type) else bounds
             edges = [
@@ -393,8 +418,12 @@ def solve_layout(
     solver.parameters.num_workers = workers
     solver.parameters.random_seed = seed
     status = solver.Solve(m)
+    if info is not None:
+        info["status"] = solver.StatusName(status)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return None
+    if info is not None and soft:
+        info["unmet"] = sorted({i for ok, i in wishes if not solver.Value(ok)})
 
     out = []
     for r in program.rooms:
@@ -417,6 +446,19 @@ def solve_layout(
 
 
 W_PLACE = 40  # per grid unit a placed room sits away from its edge
+W_WISH = 5_000  # objective units per weight point of a met wish (soft rules)
+# Importance of each kind of wish when rules are soft: the sizes a person states come
+# first, then touching rooms and doors between them, then sides, zones, and last the
+# shape (aspect) and daylight wishes. Rooms themselves always exist (never relaxed).
+WISH_WEIGHT = {
+    "size": 40,
+    "touches": 20,
+    "door_between": 20,
+    "place": 12,
+    "zone": 8,
+    "aspect": 2,
+    "daylight": 2,
+}
 
 
 def _apply_rules(
@@ -429,11 +471,33 @@ def _apply_rules(
     fixed: dict[str, Room],
     size_rules: dict[str, list[SizeRule]],
     objective: list,
+    soft: bool = False,
+    wishes: list | None = None,
 ) -> None:
-    """The program's layout rules as hard constraints (schemas/rules.py)."""
+    """The program's layout rules (schemas/rules.py): hard constraints, or with `soft`
+    weighted wishes whose enforcement literals go to `wishes` as (literal, rule index)."""
     types = {r.id: r.type for r in program.rooms}
     one_m = (math.ceil(100 / grid.gx), math.ceil(100 / grid.gy))
     compass = dict(zip(("front", "rear", "left", "right"), _FRAME_SIDES[road], strict=True))
+    wishes = wishes if wishes is not None else []
+    current = {"i": -1, "kind": ""}
+
+    def enforce():
+        """None for hard rules; else a fresh literal that is rewarded when the wish holds."""
+        if not soft:
+            return None
+        ok = m.NewBoolVar(f"wish_{current['i']}_{len(wishes)}")
+        objective.append(W_WISH * WISH_WEIGHT.get(current["kind"], 10) * ok)
+        wishes.append((ok, current["i"]))
+        return ok
+
+    def add(expr, ok) -> None:
+        c = m.Add(expr)
+        if ok is not None:
+            c.OnlyEnforceIf(ok)
+
+    def any_of(lits: list, ok) -> None:
+        m.AddBoolOr(lits if ok is None else [*lits, ok.Not()])
 
     def joined(a: str, b: str, door: bool, tag: str) -> None:
         if a not in boxes or b not in boxes or (a in fixed and b in fixed):
@@ -444,9 +508,10 @@ def _apply_rules(
             lx, ly = math.ceil(need / grid.gx), math.ceil(need / grid.gy)
         else:
             lx, ly = one_m
-        m.AddBoolOr(_share_wall(m, boxes[a], boxes[b], lx, ly, tag))
+        any_of(_share_wall(m, boxes[a], boxes[b], lx, ly, tag), enforce())
 
     for i, rl in enumerate(program.rules):
+        current["i"], current["kind"] = i, rl.kind
         if isinstance(rl, Touches):
             for o in rl.others:
                 joined(rl.room, o, rl.door, f"rule{i}_{rl.room}_{o}")
@@ -455,24 +520,25 @@ def _apply_rules(
         elif isinstance(rl, Place) and rl.room in boxes and rl.room not in fixed:
             b = boxes[rl.room]
             sx, sy = b.x + b.xe, b.y + b.ye  # twice the centre
+            ok = enforce()
             if rl.side == "centre":
-                m.Add(3 * sx >= 2 * grid.nx)
-                m.Add(3 * sx <= 4 * grid.nx)
-                m.Add(3 * sy >= 2 * grid.ny)
-                m.Add(3 * sy <= 4 * grid.ny)
+                add(3 * sx >= 2 * grid.nx, ok)
+                add(3 * sx <= 4 * grid.nx, ok)
+                add(3 * sy >= 2 * grid.ny, ok)
+                add(3 * sy <= 4 * grid.ny, ok)
                 continue
             side = compass[rl.side]
             if side == "south":
-                m.Add(sy >= grid.ny + 1)  # centre strictly in that half
+                add(sy >= grid.ny + 1, ok)  # centre strictly in that half
                 objective.append(-W_PLACE * (grid.ny - b.ye))
             elif side == "north":
-                m.Add(sy <= grid.ny - 1)
+                add(sy <= grid.ny - 1, ok)
                 objective.append(-W_PLACE * b.y)
             elif side == "east":
-                m.Add(sx >= grid.nx + 1)
+                add(sx >= grid.nx + 1, ok)
                 objective.append(-W_PLACE * (grid.nx - b.xe))
             else:
-                m.Add(sx <= grid.nx - 1)
+                add(sx <= grid.nx - 1, ok)
                 objective.append(-W_PLACE * b.x)
         elif isinstance(rl, Daylight) and rl.room in boxes and rl.room not in fixed:
             b = boxes[rl.room]
@@ -484,24 +550,37 @@ def _apply_rules(
             for o in program.rooms:
                 if is_open(o.type) and o.id != rl.room:
                     lits += _share_wall(m, b, boxes[o.id], *one_m, f"rule{i}_day_{o.id}")
-            m.AddBoolOr(lits)
+            any_of(lits, enforce())
+    index = {id(rl): i for i, rl in enumerate(program.rules)}
+    cell = grid.gx * grid.gy
     for rid, rules in size_rules.items():
         if rid not in boxes or rid in fixed:
             continue
         b = boxes[rid]
         for sr in rules:
+            current["i"], current["kind"] = index.get(id(sr), -1), "size"
+            ok = enforce()
+            if soft and sr.min_area_m2:  # hard mode folds the areas into the room's band
+                add(b.area >= math.ceil(sr.min_area_m2 * 10_000 / cell), ok)
+            if soft and sr.max_area_m2:
+                add(b.area <= math.floor(sr.max_area_m2 * 10_000 / cell), ok)
             if sr.min_width_cm:
-                m.Add(b.w >= math.ceil(sr.min_width_cm / grid.gx))
-                m.Add(b.h >= math.ceil(sr.min_width_cm / grid.gy))
+                add(b.w >= math.ceil(sr.min_width_cm / grid.gx), ok)
+                add(b.h >= math.ceil(sr.min_width_cm / grid.gy), ok)
             if sr.max_width_cm:
                 narrow = m.NewBoolVar(f"maxw_{rid}")
-                m.Add(b.w <= math.floor(sr.max_width_cm / grid.gx)).OnlyEnforceIf(narrow)
-                m.Add(b.h <= math.floor(sr.max_width_cm / grid.gy)).OnlyEnforceIf(narrow.Not())
+                c1 = m.Add(b.w <= math.floor(sr.max_width_cm / grid.gx))
+                c2 = m.Add(b.h <= math.floor(sr.max_width_cm / grid.gy))
+                c1.OnlyEnforceIf([narrow] if ok is None else [narrow, ok])
+                c2.OnlyEnforceIf([narrow.Not()] if ok is None else [narrow.Not(), ok])
             if sr.max_aspect:
+                if soft:
+                    current["kind"] = "aspect"
+                    ok = enforce()
                 k = round(sr.max_aspect * 100)
                 gx, gy = round(grid.gx * 10), round(grid.gy * 10)
-                m.Add(100 * b.w * gx <= k * b.h * gy)
-                m.Add(100 * b.h * gy <= k * b.w * gx)
+                add(100 * b.w * gx <= k * b.h * gy, ok)
+                add(100 * b.h * gy <= k * b.w * gx, ok)
 
 
 # _share_wall(a, b) returns one boolean per side of a where b sits: E, W, S, N
