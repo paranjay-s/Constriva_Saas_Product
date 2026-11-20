@@ -85,4 +85,45 @@ report. Tests cover each answer form and the exact sequence that looped (materia
 
 ## Section C: 3D
 
-Not started yet.
+### C1. Rooms looked smaller ([3d/SPACE.md](3d/SPACE.md))
+
+The plan used: the fresh internet plan is `~/Downloads/1000207168.pdf` (PlanTo3D job `dfd12ccd8e35`; the brief's
+`docs/reference/plans/<file name>` does not exist, so this is the newest plan you built), plus OPT 5.
+
+**Measured**: walls never eat into rooms (0-0.6 % of a room's rectangle; rooms are read to the inside wall faces).
+On the fresh plan the rooms really are smaller: only 2 of 13 labelled rooms are within 5 % of their label (a
+bedroom 11'6" wide is built 8.2 ft wide), because that scan was read by the AI reader, whose walls are rough. OPT 5
+(vector) has 18 of 30 within 5 %. Besides that the house read low and dark: 3.05 m ceilings, 2.13 m doors and
+window heads, a walkthrough camera of 70 degrees vertical (102 across on 16:9, 86 on 4:3), 16 mm in small-room
+stills, bedrooms 40-53 % covered with furniture and 0.67 m at the bed's foot.
+
+**Changed** (settings in `.env.example`, PATCHES 59): ceilings 3.4 m, doors and window heads 2.4 m, the walkthrough
+at 90 degrees across on every window shape with a "Wide view" toggle (65 normal), 18-24 mm level stills from the
+corner along the longest diagonal (corner chosen from where the camera actually stands), beds scaled to the room
+with 0.9 m at the foot, optional pieces dropped in small rooms (furniture at most 38 % of the floor under 120 sq
+ft), full-length mirrors in dressing rooms (bathrooms had vanity mirrors), walls and wood 45 % lighter, indoor
+lamps 1.4x. Every plan dimension is kept. Not done: living rooms and majlis taller than the rest of their storey
+(a storey has one height); the tray ceilings of C3.2 make their middle read higher.
+
+**Before / after** for a bedroom, the dining room and a toilet, Low and High: [3d/space_compare/](3d/space_compare/).
+Low build 160 s before / 178 s after; stills 90-113 s each (M1 Pro, Metal, 96 samples, 1920 x 1080).
+
+### C3.1. Curved and circular rooms
+
+Done end to end (PATCHES 60): the building model has curved walls (`Storey.arcs`), round rooms (`Room.circle`)
+and spiral stairs (`Stair.shape`), all left out of the JSON when unused so engineering exports stay identical; the
+drawing shows curved wall bands and spiral stairs; the PlanTo3D plan carries `floor.arcs` and `room.circle` (with
+the disc's row slices in `rects`, so every rectangle-based step still works); PlanTo3D's vector reader recovers
+circles drawn as short straight pieces, and the detector reads two concentric arcs a wall's thickness apart as a
+curved wall and a room filling a circle as round; Blender builds curved walls, a disc floor, a skirting ring and a
+lit cove; round rooms are furnished round the centre. Spiral stairs were already built in 3D. Tests: a villa with
+a round rotunda and a spiral stair goes model -> drawing -> PDF without its model -> detector, and the curved wall
+(full circle, radius within 5 %) and the round room come back. Not done: arcs in DXF and IFC exports, and in the AI
+reader's PlanJSON (straight walls only).
+
+### C3.2. Design details
+
+In the room kits (PATCHES 62): tray ceilings with a warm LED cove (living, majlis, dining, bedrooms above a size),
+slatted wood ceilings (foyer, lobby, passage), a chandelier in large living rooms, a pendant cluster over dining
+tables, a styled TV wall (marble slab, LED line, walnut slats) behind every TV unit, wainscot panelling in dining
+rooms; beds keep their walnut wall panel.
