@@ -621,9 +621,13 @@ def test_planto3d_being_down_is_a_503_for_embedded_pages_too(client, planto3d):
 
 def test_frame_ancestors_lists_only_configured_origins(monkeypatch):
     monkeypatch.setattr(app_settings, "frontend_origin", "https://app.example.com")
+    monkeypatch.setattr(app_settings, "cors_origins", "https://site.example.com/")
     monkeypatch.setattr(get_settings(), "frame_ancestors", "https://admin.example.com/, ")
-    assert service.frame_ancestors() == "'self' https://app.example.com https://admin.example.com"
+    assert service.frame_ancestors() == (
+        "'self' https://app.example.com https://site.example.com https://admin.example.com"
+    )
     monkeypatch.setattr(app_settings, "frontend_origin", "http://localhost:5173")
+    monkeypatch.setattr(app_settings, "cors_origins", "")
     monkeypatch.setattr(get_settings(), "frame_ancestors", "")
     assert service.frame_ancestors() == (
         "'self' http://localhost:5173 http://localhost:* http://127.0.0.1:*"

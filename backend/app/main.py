@@ -24,7 +24,8 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.config import settings
+from app.core.config import browser_origins, cors_origin_regex
+from app.core.errors import ServerErrorWithCors
 from app.core.supabase import ensure_storage_buckets
 
 logger = logging.getLogger("construtiva.app")
@@ -81,22 +82,24 @@ def create_app() -> FastAPI:
         lifespan=None if os.environ.get("TESTING") == "1" else lifespan,
     )
 
-    # Configure CORS for React frontend origin (ensuring zero CORS errors on port 5173 or any dev port)
+    # Unhandled errors become a 500 inside the CORS layer, so the browser sees the status
+    # instead of a CORS failure (app/core/errors.py). Added first, so it runs inside CORS.
+    app.add_middleware(ServerErrorWithCors)
+
+    # CORS: FRONTEND_ORIGIN, CORS_ORIGINS (the deployed frontend), any local port, and
+    # CORS_ORIGIN_REGEX. A site on the internet calling this API on the user's own machine is
+    # a "private network" request; Chrome asks the API to allow that in the preflight.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            settings.frontend_origin,
-            "http://localhost:5173",
-            "http://127.0.0.1:5173",
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-        ],
-        allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+        allow_origins=browser_origins(),
+        allow_origin_regex=cors_origin_regex(),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
         expose_headers=["*"],
+        allow_private_network=True,
     )
+    logger.info("CORS origins: %s (+ any local port)", ", ".join(browser_origins()))
 
     # Dynamically mount all business domain modules
     for name in MODULES:

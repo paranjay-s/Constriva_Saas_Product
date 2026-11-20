@@ -198,6 +198,24 @@ Until the `plan3d_jobs` table exists in the database (see [docs/08-3d.md](docs/0
 
 ---
 
+### Deployed frontend (Vercel) with the backend on your Mac
+
+The deployed site (https://constriva-saas-product.vercel.app) calls the API at `http://localhost:8000`
+(its build has no `VITE_API_BASE_URL`), so it only works in a browser on the Mac that runs the backend.
+
+- Start the API exactly as in Terminal 1, on port **8000**. The deployed site is allowed by default
+  (`CORS_ORIGINS` in `.env.example`); the startup log prints the allowed origins.
+- **Chrome / Edge:** the first visit asks to let the site "access other apps and services on this
+  device" (Local Network Access). Click **Allow**. If you clicked Block, re-allow it in the padlock menu
+  (Site settings, "Local network access"). Without it every call fails with a CORS-like message about
+  the `loopback` address space.
+- Safari, and Brave with Shields up, may block calls from an https site to `http://localhost`; tested
+  in Chrome. Firefox may show a similar permission prompt.
+- Other people opening the site reach *their own* localhost, not yours. To share it, give the API a
+  public https address and build the frontend with `VITE_API_BASE_URL` set to it.
+
+---
+
 ## 5. Other Useful Commands
 
 ### Running Tests

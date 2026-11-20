@@ -14,7 +14,7 @@ PLAN3D_ALLOW_FURNITURE_CHANGES  let signed-in users replace furniture models (de
                               false: PlanTo3D keeps one set of models for everyone until
                               models are per user).
 PLAN3D_FRAME_ANCESTORS        extra origins allowed to frame the pages, comma separated.
-                              FRONTEND_ORIGIN is always allowed.
+                              FRONTEND_ORIGIN and CORS_ORIGINS are always allowed.
 """
 
 import secrets

@@ -9,6 +9,7 @@ import re
 from typing import Any
 from urllib.parse import urlsplit
 
+from app.core.config import browser_origins
 from app.core.config import settings as app_settings
 from app.core.signed_token import TokenError, sign, verify
 from app.modules.plan3d.schemas import EmbedAccess, JobStatus, QualityInfo
@@ -286,8 +287,9 @@ def share_request_limit(method: str, path: str, job_id: str) -> int | None:
 
 
 def frame_ancestors() -> str:
-    """Value of the frame-ancestors directive: only our own frontend may frame the pages."""
-    origins = [app_settings.frontend_origin, *get_settings().frame_ancestors.split(",")]
+    """Value of the frame-ancestors directive: only our own frontend may frame the pages
+    (FRONTEND_ORIGIN, CORS_ORIGINS such as the deployed site, and PLAN3D_FRAME_ANCESTORS)."""
+    origins = [*browser_origins(app_settings), *get_settings().frame_ancestors.split(",")]
     allowed = []
     for origin in (o.strip().rstrip("/") for o in origins):
         if origin and origin not in allowed:
