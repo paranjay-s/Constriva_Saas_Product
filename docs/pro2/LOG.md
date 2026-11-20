@@ -17,3 +17,8 @@ counted at the end of the lines that used them.
 | A2 | 3 engineering snapshot byte-identical (PDF, SVG, PNG, DXF) | done | ef0faba+f3fb60c | 20 files, run stamps blanked |
 | A2 | 4 side-by-side samples | done | f3fb60c | docs/pro2/2d/presentation |
 | A1 | 8 tests: both briefs, golden working brief, 50 random briefs | done | 8be4942 | 50/50 plans; first pass 42, weighted 5, b 1, fallback 2 |
+| B | 1 cause of the loop fixed | done | 821a971 | names are not unique; picks now carry the room's position |
+| B | 2 clickable labelled choices + All of them | done | 821a971 | |
+| B | 3 typed answers by number, size, name, several | done | 821a971 | |
+| B | 4 never the same question twice; unmatched -> buttons + why | done | 821a971 | |
+| B | 5 tests incl. the exact looping sequence | done | 821a971 | material suite 69 passed |
